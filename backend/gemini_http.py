@@ -1,3 +1,4 @@
+import base64
 import os
 from typing import Any, Dict, Optional
 
@@ -5,6 +6,8 @@ import requests
 
 BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 DEFAULT_MODEL = "gemini-3-flash-preview"
+DEFAULT_IMAGE_MODEL = "gemini-2.5-flash-image"
+DEFAULT_IMAGE_ASPECT = "9:16"
 
 
 class GeminiError(RuntimeError):
@@ -60,3 +63,49 @@ def generate_content(
         return data["candidates"][0]["content"]["parts"][0]["text"]
     except (KeyError, IndexError, TypeError) as exc:
         raise GeminiError(f"Unexpected Gemini response: {data}") from exc
+
+
+def generate_image(prompt: str, *, model: Optional[str] = None) -> bytes:
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise GeminiError("GEMINI_API_KEY is not set")
+
+    model = model or os.getenv("GEMINI_IMAGE_MODEL", DEFAULT_IMAGE_MODEL)
+    url = f"{BASE_URL}/{model}:generateContent"
+
+    headers = {
+        "Content-Type": "application/json",
+        "x-goog-api-key": api_key,
+    }
+
+    payload: Dict[str, Any] = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": prompt}],
+            }
+        ]
+    }
+    aspect = os.getenv("GEMINI_IMAGE_ASPECT", DEFAULT_IMAGE_ASPECT)
+    payload["generationConfig"] = {"imageConfig": {"aspectRatio": aspect}}
+
+    try:
+        resp = requests.post(url, headers=headers, json=payload, timeout=120)
+    except requests.RequestException as exc:
+        raise GeminiError(f"Gemini image request failed: {exc}") from exc
+
+    if resp.status_code >= 400:
+        raise GeminiError(f"Gemini image error {resp.status_code}: {resp.text}")
+
+    data = resp.json()
+    try:
+        parts = data["candidates"][0]["content"]["parts"]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise GeminiError(f"Unexpected Gemini image response: {data}") from exc
+
+    for part in parts:
+        inline = part.get("inlineData") or part.get("inline_data")
+        if inline and inline.get("data"):
+            return base64.b64decode(inline["data"])
+
+    raise GeminiError(f"No inline image data in response: {data}")

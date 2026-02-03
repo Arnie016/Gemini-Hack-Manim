@@ -11,10 +11,21 @@ def render_with_manim(
     out_mp4: Path,
     *,
     manim_py: str | None = None,
+    quality: str = "pql",
     timeout_s: int = 180,
 ) -> Tuple[bool, str]:
     out_mp4.parent.mkdir(parents=True, exist_ok=True)
     manim_py = manim_py or os.getenv("MANIM_PY", "python")
+
+    quality_map = {
+        "pql": "-ql",
+        "low": "-ql",
+        "pqm": "-qm",
+        "medium": "-qm",
+        "pqh": "-qh",
+        "high": "-qh",
+    }
+    quality_flag = quality_map.get(quality.lower(), "-ql")
 
     cmd = [
         manim_py,
@@ -22,7 +33,7 @@ def render_with_manim(
         "manim",
         str(scene_file),
         "GeneratedScene",
-        "-ql",
+        quality_flag,
         "-o",
         str(out_mp4),
     ]

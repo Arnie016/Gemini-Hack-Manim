@@ -15,6 +15,8 @@ pip install -r requirements.txt
 ```bash
 export GEMINI_API_KEY="..."
 export GEMINI_MODEL="gemini-3-flash-preview"  # optional
+# export GEMINI_IMAGE_MODEL="gemini-2.5-flash-image"  # optional
+# export GEMINI_IMAGE_ASPECT="9:16"                   # optional
 # export MANIM_PY="/path/to/python"            # optional
 ```
 
@@ -36,7 +38,26 @@ http://localhost:8000
 
 Request:
 ```json
-{ "idea": "Explain gradient descent visually in 20 seconds" }
+{
+  "idea": "Explain gradient descent visually in 20 seconds",
+  "image_prompt": "Scientist walking in a park at sunrise",
+  "image_mode": "background",
+  "include_images": true,
+  "audience": "general",
+  "tone": "epic",
+  "style": "cinematic",
+  "pace": "medium",
+  "color_palette": "cool",
+  "include_equations": true,
+  "include_graphs": true,
+  "include_narration": true,
+  "target_seconds": 60,
+  "max_scenes": 8,
+  "max_objects": 6,
+  "aspect_ratio": "9:16",
+  "quality": "pql",
+  "director_brief": "Focus on intuition, show a visual metaphor, end with a recap."
+}
 ```
 
 Response (success):
@@ -68,6 +89,9 @@ work/jobs/<job_id>/
   plan.json
   out.mp4
   logs.txt
+  assets/
+    background.png
+    foreground.png
 ```
 
 ## Local Manim Dependencies
@@ -83,4 +107,35 @@ If Manim is installed in a different Python, set `MANIM_PY` to that interpreter.
 
 - The plan uses JSON output mode from Gemini to keep structure tight.
 - One repair attempt is made if rendering fails.
-- Total duration is capped to 20 seconds by the system prompt.
+- Total duration is not capped; use target_seconds if you want a specific length.
+- Image generation is optional and uses the Gemini image model when enabled.
+
+## Advanced Creative Controls
+
+You can customize the output by passing these fields in the request:
+- `audience`: general | high school | undergrad | expert
+- `tone`: epic | calm | playful | serious
+- `style`: cinematic | clean | chalkboard | neon
+- `pace`: slow | medium | fast
+- `color_palette`: cool | warm | neon | monochrome
+- `include_equations`: true/false
+- `include_graphs`: true/false
+- `include_narration`: true/false
+- `target_seconds`: number (optional; no hard cap)
+- `max_scenes`: number
+- `max_objects`: number
+- `aspect_ratio`: 9:16 | 16:9 | 1:1
+- `quality`: pql | pqm | pqh
+- `director_brief`: extra creative guidance appended to the director brief
+
+## Template Library
+
+Fetch curated templates:
+```\nGET /api/templates\n```\n
+The UI loads these templates and auto-fills the controls.
+
+## Render Edited Code
+
+You can edit the generated code and re-render:
+
+```\nPOST /api/render-code\n{ \"code\": \"...\", \"quality\": \"pqm\" }\n```

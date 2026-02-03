@@ -3,10 +3,11 @@ from __future__ import annotations
 SCENE_PLAN_SYSTEM = """You are a video director for Manim Community Edition.
 Return ONLY valid JSON that matches the schema.
 Constraints:
-- total_seconds must be <= 20
-- scenes count must be between 3 and 6
-- avoid more than 4 on-screen elements per scene
-- keep language short and clear for short videos
+- Keep scenes coherent and focused (1 main idea per scene).
+- Avoid overcrowding; follow max_objects if provided.
+- Use clear, short narration text per scene.
+- Include a strong hook, a clear core explanation, and a concise recap.
+- Ensure total_seconds equals the sum of scene seconds.
 """
 
 SCENE_PLAN_SCHEMA = {
@@ -33,11 +34,13 @@ SCENE_PLAN_SCHEMA = {
 }
 
 
-def scene_plan_user_prompt(idea: str) -> str:
+def scene_plan_user_prompt(idea: str, director_brief: str = "") -> str:
+    brief_block = f"\nDirector brief:\n{director_brief}\n" if director_brief else ""
     return (
         "Video idea:\n"
-        f"{idea}\n\n"
-        "Make a short scene plan suitable for Manim."
+        f"{idea}\n"
+        f"{brief_block}\n"
+        "Make a scene plan suitable for Manim."
     )
 
 
@@ -46,16 +49,28 @@ Rules:
 - Output ONLY python code (no markdown, no backticks).
 - Define exactly: class GeneratedScene(Scene):
 - No network calls, no reading external files.
-- Use simple primitives: Text, Dot, Arrow, Axes, NumberPlane, ValueTracker, always_redraw.
-- Keep runtime <= 20 seconds.
+- Use reliable primitives: Text, Dot, Arrow, Axes, NumberPlane, ValueTracker, always_redraw, Circle, Rectangle, Line, VGroup.
+- You may use simple animations: FadeIn, FadeOut, Create, Write, Transform, LaggedStart.
+- ImageMobject is allowed when assets are provided.
 - Prefer Text over LaTeX (avoid MathTex unless necessary).
 """
 
 
-def manim_code_user_prompt(scene_plan_json: str) -> str:
+def manim_code_user_prompt(
+    scene_plan_json: str,
+    assets_description: str = "",
+    render_settings: str = "",
+) -> str:
+    assets_block = ""
+    if assets_description:
+        assets_block = f"\nAvailable assets:\n{assets_description}\n"
+    settings_block = f"\nRender settings:\n{render_settings}\n" if render_settings else ""
     return (
         "Create Manim code for this scene plan JSON:\n"
         f"{scene_plan_json}\n"
+        f"{assets_block}"
+        f"{settings_block}"
+        "Use assets only if provided. Keep image usage simple (background fill, small prop).\n"
     )
 
 
@@ -64,6 +79,5 @@ Rules:
 - Output ONLY python code (no markdown, no backticks).
 - Define exactly: class GeneratedScene(Scene):
 - No network calls, no reading external files.
-- Keep runtime <= 20 seconds.
 - Prefer Text over LaTeX (avoid MathTex unless necessary).
 """

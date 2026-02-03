@@ -8,19 +8,41 @@
       :root {
         color-scheme: light;
       }
+      @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
       body {
-        font-family: Arial, sans-serif;
+        font-family: 'Space Grotesk', sans-serif;
         margin: 24px;
-        background: #f6f7fb;
+        background: radial-gradient(circle at top left, #fff7ed 0%, #f6f7fb 35%, #eef6ff 100%);
         color: #111;
       }
       .card {
-        max-width: 900px;
+        max-width: 980px;
         margin: 0 auto;
         padding: 20px;
         background: #fff;
         border-radius: 12px;
-        box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+        border: 1px solid #e5e7eb;
+      }
+      .hero {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .hero p {
+        margin: 6px 0 0 0;
+        color: #475569;
+      }
+      .pill {
+        background: #0ea5e9;
+        color: #fff;
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.03em;
       }
       h1 {
         margin-top: 0;
@@ -33,13 +55,47 @@
         border: 1px solid #ccc;
         border-radius: 8px;
       }
+      .controls {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+        margin-top: 12px;
+      }
+      .advanced {
+        margin-top: 16px;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 12px;
+        background: #f8fafc;
+      }
+      .advanced summary {
+        cursor: pointer;
+        font-weight: 600;
+      }
+      .control-row {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+      label {
+        font-size: 14px;
+        color: #334155;
+        font-weight: 600;
+      }
+      select, input[type="text"] {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid #cbd5f5;
+        font-size: 14px;
+      }
       button {
         margin-top: 12px;
         padding: 10px 16px;
         font-size: 16px;
         border: none;
         border-radius: 8px;
-        background: #1d4ed8;
+        background: #0f766e;
         color: #fff;
         cursor: pointer;
       }
@@ -58,11 +114,12 @@
         background: #000;
       }
       pre {
-        background: #0b1020;
-        color: #e6eefc;
+        background: #0b1220;
+        color: #e2e8f0;
         padding: 12px;
         border-radius: 8px;
         overflow-x: auto;
+        font-family: 'IBM Plex Mono', monospace;
       }
       .grid {
         display: grid;
@@ -74,17 +131,175 @@
         .grid {
           grid-template-columns: 1fr 1fr;
         }
+        .controls {
+          grid-template-columns: 1fr 1fr;
+        }
+        .control-row {
+          grid-template-columns: 1fr 1fr;
+        }
       }
     </style>
   </head>
   <body>
     <div class="card">
-      <h1>Gemini Manim Animator</h1>
-      <p>Type an idea and generate a Manim animation.</p>
-      <textarea id="idea">Explain gradient descent visually in 20 seconds</textarea>
-      <div>
-        <button id="generate">Generate</button>
+      <div class="hero">
+        <div>
+          <h1>Gemini Manim Animator</h1>
+          <p>Turn a short idea into a rendered Manim video with a single click.</p>
+        </div>
+        <div class="pill">Hackathon Demo</div>
       </div>
+      <textarea id="idea">Explain gradient descent visually in 20 seconds</textarea>
+      <div class="controls">
+        <div>
+          <label for="templateSelect">Template library</label>
+          <select id="templateSelect"></select>
+        </div>
+        <div>
+          <label>Template description</label>
+          <div id="templateDescription" class="status">Loading templates...</div>
+        </div>
+      </div>
+      <div class="controls">
+        <div>
+          <label for="imagePrompt">Image prompt (optional)</label>
+          <input id="imagePrompt" type="text" placeholder="Scientist walking in a park at sunrise" />
+        </div>
+        <div class="control-row">
+          <div>
+            <label for="imageMode">Image placement</label>
+            <select id="imageMode">
+              <option value="background">Background only</option>
+              <option value="foreground">Foreground only</option>
+              <option value="both">Both</option>
+            </select>
+          </div>
+          <div>
+            <label for="includeImages">Include images</label>
+            <select id="includeImages">
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <details class="advanced">
+        <summary>Advanced creative controls</summary>
+        <div class="controls">
+          <div class="control-row">
+            <div>
+              <label for="audience">Audience</label>
+              <select id="audience">
+                <option value="general">General</option>
+                <option value="high school">High school</option>
+                <option value="undergrad">Undergrad</option>
+                <option value="expert">Expert</option>
+              </select>
+            </div>
+            <div>
+              <label for="tone">Tone</label>
+              <select id="tone">
+                <option value="epic">Epic</option>
+                <option value="calm">Calm</option>
+                <option value="playful">Playful</option>
+                <option value="serious">Serious</option>
+              </select>
+            </div>
+          </div>
+          <div class="control-row">
+            <div>
+              <label for="style">Style</label>
+              <select id="style">
+                <option value="cinematic">Cinematic</option>
+                <option value="clean">Clean</option>
+                <option value="chalkboard">Chalkboard</option>
+                <option value="neon">Neon</option>
+              </select>
+            </div>
+            <div>
+              <label for="pace">Pace</label>
+              <select id="pace">
+                <option value="medium">Medium</option>
+                <option value="slow">Slow</option>
+                <option value="fast">Fast</option>
+              </select>
+            </div>
+          </div>
+          <div class="control-row">
+            <div>
+              <label for="palette">Color palette</label>
+              <select id="palette">
+                <option value="cool">Cool</option>
+                <option value="warm">Warm</option>
+                <option value="neon">Neon</option>
+                <option value="monochrome">Monochrome</option>
+              </select>
+            </div>
+            <div>
+              <label for="aspect">Aspect ratio</label>
+              <select id="aspect">
+                <option value="9:16">9:16 (vertical)</option>
+                <option value="16:9">16:9 (horizontal)</option>
+                <option value="1:1">1:1 (square)</option>
+              </select>
+            </div>
+          </div>
+          <div class="control-row">
+            <div>
+              <label for="targetSeconds">Target length (seconds)</label>
+              <input id="targetSeconds" type="text" placeholder="Leave blank to let Gemini decide" />
+            </div>
+            <div>
+              <label for="quality">Render quality</label>
+              <select id="quality">
+                <option value="pql">Low (fast)</option>
+                <option value="pqm">Medium</option>
+                <option value="pqh">High</option>
+              </select>
+            </div>
+          </div>
+          <div class="control-row">
+            <div>
+              <label for="maxScenes">Max scenes</label>
+              <input id="maxScenes" type="text" placeholder="Leave blank for no limit" />
+            </div>
+            <div>
+              <label for="maxObjects">Max objects per scene</label>
+              <input id="maxObjects" type="text" placeholder="Leave blank for no limit" />
+            </div>
+          </div>
+          <div class="control-row">
+            <div>
+              <label for="equations">Include equations</label>
+              <select id="equations">
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+              </select>
+            </div>
+            <div>
+              <label for="graphs">Include graphs</label>
+              <select id="graphs">
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+              </select>
+            </div>
+          </div>
+          <div class="control-row">
+            <div>
+              <label for="narration">Include narration text</label>
+              <select id="narration">
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </details>
+      <div>
+        <button id="generate">Generate video</button>
+        <button id="renderCode" style="margin-left: 8px; background:#1e293b;">Render edited code</button>
+      </div>
+      <div class="status">Longer videos and higher quality can take several minutes to render.</div>
       <div class="status" id="status"></div>
       <video id="video" controls></video>
       <div class="grid">
@@ -97,6 +312,16 @@
           <pre id="logs"></pre>
         </div>
       </div>
+      <div class="grid">
+        <div>
+          <h3>Generated Code (editable)</h3>
+          <textarea id="code" style="min-height: 320px; font-family: 'IBM Plex Mono', monospace;"></textarea>
+        </div>
+        <div>
+          <h3>Notes</h3>
+          <pre id="notes">Edit the code and click “Render edited code”.</pre>
+        </div>
+      </div>
     </div>
 
     <script>
@@ -106,19 +331,103 @@
       const videoEl = document.getElementById('video');
       const planEl = document.getElementById('plan');
       const logsEl = document.getElementById('logs');
+      const codeEl = document.getElementById('code');
+      const notesEl = document.getElementById('notes');
+      const renderCodeBtn = document.getElementById('renderCode');
+      const templateSelectEl = document.getElementById('templateSelect');
+      const templateDescEl = document.getElementById('templateDescription');
+      const imagePromptEl = document.getElementById('imagePrompt');
+      const imageModeEl = document.getElementById('imageMode');
+      const includeImagesEl = document.getElementById('includeImages');
+      const audienceEl = document.getElementById('audience');
+      const toneEl = document.getElementById('tone');
+      const styleEl = document.getElementById('style');
+      const paceEl = document.getElementById('pace');
+      const paletteEl = document.getElementById('palette');
+      const aspectEl = document.getElementById('aspect');
+      const targetSecondsEl = document.getElementById('targetSeconds');
+      const qualityEl = document.getElementById('quality');
+      const maxScenesEl = document.getElementById('maxScenes');
+      const maxObjectsEl = document.getElementById('maxObjects');
+      const equationsEl = document.getElementById('equations');
+      const graphsEl = document.getElementById('graphs');
+      const narrationEl = document.getElementById('narration');
+
+      let templates = [];
+
+      async function loadTemplates() {
+        try {
+          const resp = await fetch('/api/templates');
+          const data = await resp.json();
+          templates = data.templates || [];
+          templateSelectEl.innerHTML = '';
+          templates.forEach((t, idx) => {
+            const opt = document.createElement('option');
+            opt.value = t.id;
+            opt.textContent = `${t.name} (${t.category})`;
+            if (idx === 0) opt.selected = true;
+            templateSelectEl.appendChild(opt);
+          });
+          applyTemplate(templates[0]);
+        } catch (err) {
+          templateDescEl.textContent = 'Failed to load templates.';
+        }
+      }
+
+      function applyTemplate(tpl) {
+        if (!tpl) return;
+        templateDescEl.textContent = tpl.description + ' Example: ' + tpl.example_prompt;
+        if (tpl.example_prompt) ideaEl.value = tpl.example_prompt;
+        const d = tpl.defaults || {};
+        if (d.audience) audienceEl.value = d.audience;
+        if (d.tone) toneEl.value = d.tone;
+        if (d.style) styleEl.value = d.style;
+        if (d.pace) paceEl.value = d.pace;
+        if (d.color_palette) paletteEl.value = d.color_palette;
+        if (d.aspect_ratio) aspectEl.value = d.aspect_ratio;
+        if (d.quality) qualityEl.value = d.quality;
+        if (typeof d.include_equations === 'boolean') equationsEl.value = d.include_equations ? 'true' : 'false';
+        if (typeof d.include_graphs === 'boolean') graphsEl.value = d.include_graphs ? 'true' : 'false';
+        if (typeof d.include_narration === 'boolean') narrationEl.value = d.include_narration ? 'true' : 'false';
+        if (d.target_seconds) targetSecondsEl.value = d.target_seconds;
+      }
+
+      templateSelectEl.addEventListener('change', () => {
+        const tpl = templates.find(t => t.id === templateSelectEl.value);
+        applyTemplate(tpl);
+      });
 
       btn.addEventListener('click', async () => {
         btn.disabled = true;
         statusEl.textContent = 'Rendering...';
         planEl.textContent = '';
         logsEl.textContent = '';
+        codeEl.value = '';
         videoEl.removeAttribute('src');
 
         try {
           const resp = await fetch('/api/animate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ idea: ideaEl.value })
+            body: JSON.stringify({
+              idea: ideaEl.value,
+              image_prompt: imagePromptEl.value,
+              image_mode: imageModeEl.value,
+              include_images: includeImagesEl.value === 'true',
+              audience: audienceEl.value,
+              tone: toneEl.value,
+              style: styleEl.value,
+              pace: paceEl.value,
+              color_palette: paletteEl.value,
+              aspect_ratio: aspectEl.value,
+              target_seconds: targetSecondsEl.value ? Number(targetSecondsEl.value) : null,
+              quality: qualityEl.value,
+              max_scenes: maxScenesEl.value ? Number(maxScenesEl.value) : null,
+              max_objects: maxObjectsEl.value ? Number(maxObjectsEl.value) : null,
+              include_equations: equationsEl.value === 'true',
+              include_graphs: graphsEl.value === 'true',
+              include_narration: narrationEl.value === 'true'
+            })
           });
           const data = await resp.json();
           if (!data.ok) {
@@ -127,8 +436,12 @@
             planEl.textContent = data.plan ? JSON.stringify(data.plan, null, 2) : '';
             return;
           }
-          statusEl.textContent = 'Done. Job ' + data.job_id;
+          statusEl.textContent = 'Done. Job ' + data.job_id + (data.image_warning ? ' (image warning)' : '');
+          if (data.image_warning) {
+            logsEl.textContent = data.image_warning;
+          }
           planEl.textContent = JSON.stringify(data.plan, null, 2);
+          codeEl.value = data.code || '';
           const src = '/' + data.video_path + '?t=' + Date.now();
           videoEl.src = src;
           videoEl.load();
@@ -138,6 +451,38 @@
           btn.disabled = false;
         }
       });
+
+      renderCodeBtn.addEventListener('click', async () => {
+        renderCodeBtn.disabled = true;
+        statusEl.textContent = 'Rendering edited code...';
+        logsEl.textContent = '';
+        try {
+          const resp = await fetch('/api/render-code', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              code: codeEl.value,
+              quality: qualityEl.value
+            })
+          });
+          const data = await resp.json();
+          if (!data.ok) {
+            statusEl.textContent = 'Failed: ' + (data.error || 'Unknown error');
+            logsEl.textContent = data.logs || '';
+            return;
+          }
+          statusEl.textContent = 'Done. Job ' + data.job_id;
+          const src = '/' + data.video_path + '?t=' + Date.now();
+          videoEl.src = src;
+          videoEl.load();
+        } catch (err) {
+          statusEl.textContent = 'Failed: ' + err;
+        } finally {
+          renderCodeBtn.disabled = false;
+        }
+      });
+
+      loadTemplates();
     </script>
   </body>
 </html>
