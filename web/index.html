@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gemini Manim Animator</title>
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      body {
+        font-family: Arial, sans-serif;
+        margin: 24px;
+        background: #f6f7fb;
+        color: #111;
+      }
+      .card {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 20px;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+      }
+      h1 {
+        margin-top: 0;
+      }
+      textarea {
+        width: 100%;
+        min-height: 120px;
+        padding: 12px;
+        font-size: 16px;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+      }
+      button {
+        margin-top: 12px;
+        padding: 10px 16px;
+        font-size: 16px;
+        border: none;
+        border-radius: 8px;
+        background: #1d4ed8;
+        color: #fff;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .status {
+        margin-top: 12px;
+        font-size: 14px;
+      }
+      video {
+        width: 100%;
+        margin-top: 16px;
+        border-radius: 12px;
+        background: #000;
+      }
+      pre {
+        background: #0b1020;
+        color: #e6eefc;
+        padding: 12px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 16px;
+        margin-top: 16px;
+      }
+      @media (min-width: 900px) {
+        .grid {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Gemini Manim Animator</h1>
+      <p>Type an idea and generate a Manim animation.</p>
+      <textarea id="idea">Explain gradient descent visually in 20 seconds</textarea>
+      <div>
+        <button id="generate">Generate</button>
+      </div>
+      <div class="status" id="status"></div>
+      <video id="video" controls></video>
+      <div class="grid">
+        <div>
+          <h3>Scene Plan</h3>
+          <pre id="plan"></pre>
+        </div>
+        <div>
+          <h3>Logs</h3>
+          <pre id="logs"></pre>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const btn = document.getElementById('generate');
+      const ideaEl = document.getElementById('idea');
+      const statusEl = document.getElementById('status');
+      const videoEl = document.getElementById('video');
+      const planEl = document.getElementById('plan');
+      const logsEl = document.getElementById('logs');
+
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        statusEl.textContent = 'Rendering...';
+        planEl.textContent = '';
+        logsEl.textContent = '';
+        videoEl.removeAttribute('src');
+
+        try {
+          const resp = await fetch('/api/animate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idea: ideaEl.value })
+          });
+          const data = await resp.json();
+          if (!data.ok) {
+            statusEl.textContent = 'Failed: ' + (data.error || 'Unknown error');
+            logsEl.textContent = data.logs || '';
+            planEl.textContent = data.plan ? JSON.stringify(data.plan, null, 2) : '';
+            return;
+          }
+          statusEl.textContent = 'Done. Job ' + data.job_id;
+          planEl.textContent = JSON.stringify(data.plan, null, 2);
+          const src = '/' + data.video_path + '?t=' + Date.now();
+          videoEl.src = src;
+          videoEl.load();
+        } catch (err) {
+          statusEl.textContent = 'Failed: ' + err;
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>
