@@ -20,6 +20,8 @@ export GEMINI_MODEL="gemini-3-flash-preview"  # optional
 # export MANIM_PY="/path/to/python"            # optional
 ```
 
+You can also save these settings from the UI (stored locally in `work/config.json`).
+
 3. Run the server:
 
 ```bash
@@ -31,6 +33,8 @@ uvicorn backend.main:app --reload --port 8000
 ```
 http://localhost:8000
 ```
+
+The UI includes a three-panel layout (files, canvas, chat), setup, templates, advanced controls, and an editor-style workflow.
 
 ## API
 
@@ -127,15 +131,80 @@ You can customize the output by passing these fields in the request:
 - `aspect_ratio`: 9:16 | 16:9 | 1:1
 - `quality`: pql | pqm | pqh
 - `director_brief`: extra creative guidance appended to the director brief
+- `memory_ids`: array of memory ids to include as context
+- `skill_ids`: array of skill ids to include as instructions
+- `image_model`: override the image model for this request
 
 ## Template Library
 
 Fetch curated templates:
-```\nGET /api/templates\n```\n
+```
+GET /api/templates
+```
 The UI loads these templates and auto-fills the controls.
+
+## Plan → Approve Workflow (Agentic)
+
+Create a plan first:
+```
+POST /api/plan
+{ "idea": "Explain the photoelectric effect", "model": "gemini-3-flash-preview" }
+```
+
+Approve (or edit) the plan to render:
+```
+POST /api/approve
+{
+  "job_id": "...",
+  "plan_text": "{...}",
+  "include_images": true,
+  "image_prompt": "Scientist in a park",
+  "image_mode": "background"
+}
+```
 
 ## Render Edited Code
 
 You can edit the generated code and re-render:
 
-```\nPOST /api/render-code\n{ \"code\": \"...\", \"quality\": \"pqm\" }\n```
+```
+POST /api/render-code
+{ "code": "...", "quality": "pqm" }
+```
+## Context Memories
+
+Create and list memories:
+```
+GET /api/memories
+POST /api/memories { "title": "...", "content": "..." }
+DELETE /api/memories/{id}
+```
+
+## Skill Library
+
+Create and list skills (saved as Markdown under `work/skills/`):
+```
+GET /api/skills
+POST /api/skills { "name": "...", "content": "..." }
+DELETE /api/skills/{id}
+```
+
+Generate a skill via Gemini:
+```
+POST /api/skills/generate { "idea": "...", "name": "..." }
+```
+
+## Health Checks
+
+```
+GET /api/health
+```
+Returns Manim/ffmpeg status and version output.
+
+## UI Features
+
+- Setup panel (API key, image model, Manim python path)
+- Template library with presets
+- Editor mode (timeline + inspector)
+- Editable code panel with re-render
+- Context memories and skills

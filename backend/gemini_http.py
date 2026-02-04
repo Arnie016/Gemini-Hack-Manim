@@ -19,12 +19,14 @@ def generate_content(
     *,
     system_text: Optional[str] = None,
     generation_config: Optional[Dict[str, Any]] = None,
+    api_key: Optional[str] = None,
+    model: Optional[str] = None,
 ) -> str:
-    api_key = os.environ.get("GEMINI_API_KEY")
+    api_key = api_key or os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise GeminiError("GEMINI_API_KEY is not set")
 
-    model = os.getenv("GEMINI_MODEL", DEFAULT_MODEL)
+    model = model or os.getenv("GEMINI_MODEL", DEFAULT_MODEL)
     url = f"{BASE_URL}/{model}:generateContent"
 
     headers = {
@@ -65,8 +67,13 @@ def generate_content(
         raise GeminiError(f"Unexpected Gemini response: {data}") from exc
 
 
-def generate_image(prompt: str, *, model: Optional[str] = None) -> bytes:
-    api_key = os.environ.get("GEMINI_API_KEY")
+def generate_image(
+    prompt: str,
+    *,
+    model: Optional[str] = None,
+    api_key: Optional[str] = None,
+) -> bytes:
+    api_key = api_key or os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise GeminiError("GEMINI_API_KEY is not set")
 

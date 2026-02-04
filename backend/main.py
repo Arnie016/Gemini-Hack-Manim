@@ -21,6 +21,17 @@ from prompts import (
 from renderer import render_with_manim
 from storage import job_paths, new_job_id
 from templates import TEMPLATES
+from context_store import (
+    add_memory,
+    delete_memory,
+    get_memories_by_ids,
+    get_skills_by_ids,
+    list_memories,
+    list_skills,
+    save_skill,
+    delete_skill,
+)
+from settings_store import load_settings, update_settings
 
 ROOT = Path(__file__).resolve().parents[1]
 WORK = ROOT / "work"
@@ -53,11 +64,55 @@ class AnimateReq(BaseModel):
     aspect_ratio: str = "9:16"
     quality: str = "pql"
     director_brief: Optional[str] = None
+    memory_ids: Optional[list[str]] = None
+    skill_ids: Optional[list[str]] = None
+    image_model: Optional[str] = None
 
 
 class RenderCodeReq(BaseModel):
     code: str
     quality: str = "pql"
+
+
+class SettingsReq(BaseModel):
+    api_key: Optional[str] = None
+    text_model: Optional[str] = None
+    image_model: Optional[str] = None
+    manim_py: Optional[str] = None
+
+
+class PlanReq(BaseModel):
+    idea: str
+    audience: str = "general"
+    tone: str = "epic"
+    style: str = "cinematic"
+    pace: str = "medium"
+    color_palette: str = "cool"
+    include_equations: bool = True
+    include_graphs: bool = True
+    include_narration: bool = True
+    target_seconds: Optional[float] = None
+    max_scenes: Optional[int] = None
+    max_objects: Optional[int] = None
+    aspect_ratio: str = "9:16"
+    director_brief: Optional[str] = None
+    memory_ids: Optional[list[str]] = None
+    skill_ids: Optional[list[str]] = None
+    include_images: bool = False
+    image_prompt: Optional[str] = None
+    model: Optional[str] = None
+
+
+class ApproveReq(BaseModel):
+    job_id: str
+    plan_text: str
+    image_prompt: Optional[str] = None
+    image_mode: str = "background"
+    include_images: bool = False
+    image_model: Optional[str] = None
+    quality: str = "pql"
+    aspect_ratio: str = "9:16"
+    model: Optional[str] = None
 
 
 def _build_director_brief(req: AnimateReq) -> str:
@@ -89,11 +144,29 @@ def _build_director_brief(req: AnimateReq) -> str:
         lines.append(f"Max objects per scene: {req.max_objects}")
     if req.director_brief:
         lines.append(f"Additional brief: {req.director_brief}")
+    if getattr(req, "include_images", False) and getattr(req, "image_prompt", None):
+        lines.append(
+            f"Include visual assets based on: {getattr(req, 'image_prompt')}"
+        )
+    memories = get_memories_by_ids(req.memory_ids)
+    if memories:
+        lines.append("Context memories to incorporate:")
+        for mem in memories:
+            lines.append(f"- {mem.get('title')}: {mem.get('content')}")
+    skills = get_skills_by_ids(req.skill_ids)
+    if skills:
+        lines.append("Skill instructions to follow:")
+        for skill in skills:
+            lines.append(skill.get("content", "").strip())
     return "\n".join(lines)
 
 
 def _render_settings(req: AnimateReq) -> str:
-    ratio = req.aspect_ratio.strip()
+    return _render_settings_ratio(req.aspect_ratio)
+
+
+def _render_settings_ratio(ratio: str) -> str:
+    ratio = ratio.strip()
     if ratio == "9:16":
         return (
             "Aspect ratio 9:16 (vertical). Set config.pixel_width=1080, "
@@ -112,6 +185,15 @@ def _render_settings(req: AnimateReq) -> str:
     return f"Aspect ratio {ratio}. Choose appropriate config.pixel_width/pixel_height."
 
 
+def _job_files(paths) -> list[str]:
+    return [
+        str(paths.plan_path.relative_to(ROOT)),
+        str(paths.scene_path.relative_to(ROOT)),
+        str(paths.out_mp4.relative_to(ROOT)),
+        str(paths.logs_path.relative_to(ROOT)),
+    ]
+
+
 def _parse_json(text: str) -> Dict[str, Any]:
     try:
         return json.loads(text)
@@ -128,9 +210,294 @@ def index():
     return FileResponse(WEB / "index.html")
 
 
+@app.get("/api/health")
+def health():
+    import subprocess
+
+    def _run(cmd: list[str]) -> tuple[bool, str]:
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            ok = proc.returncode == 0
+            out = (proc.stdout or "") + (proc.stderr or "")
+            return ok, out.strip()
+        except Exception as exc:
+            return False, str(exc)
+
+    settings = load_settings()
+    manim_py = settings.get("manim_py") or "python"
+    manim_ok, manim_out = _run([manim_py, "-m", "manim", "--version"])
+    ffmpeg_ok, ffmpeg_out = _run(["ffmpeg", "-version"])
+    return {
+        "manim_ok": manim_ok,
+        "manim_version": manim_out.splitlines()[0] if manim_out else "",
+        "ffmpeg_ok": ffmpeg_ok,
+        "ffmpeg_version": ffmpeg_out.splitlines()[0] if ffmpeg_out else "",
+        "manim_py": manim_py,
+    }
+
+
+@app.get("/api/settings")
+def get_settings():
+    settings = load_settings()
+    return {
+        "has_api_key": bool(settings.get("api_key")),
+        "text_model": settings.get("text_model"),
+        "image_model": settings.get("image_model"),
+        "manim_py": settings.get("manim_py"),
+    }
+
+
+@app.post("/api/settings")
+def set_settings(req: SettingsReq):
+    settings = update_settings(
+        {
+            "api_key": req.api_key,
+            "text_model": req.text_model,
+            "image_model": req.image_model,
+            "manim_py": req.manim_py,
+        }
+    )
+    return {
+        "ok": True,
+        "has_api_key": bool(settings.get("api_key")),
+        "text_model": settings.get("text_model"),
+        "image_model": settings.get("image_model"),
+        "manim_py": settings.get("manim_py"),
+    }
+
+
+@app.get("/api/memories")
+def get_memories():
+    return {"memories": list_memories()}
+
+
+@app.post("/api/memories")
+def create_memory(payload: Dict[str, Any]):
+    title = str(payload.get("title", "")).strip()
+    content = str(payload.get("content", "")).strip()
+    if not title or not content:
+        return JSONResponse({"ok": False, "error": "Title and content required"}, status_code=400)
+    entry = add_memory(title, content)
+    return {"ok": True, "memory": entry}
+
+
+@app.delete("/api/memories/{memory_id}")
+def remove_memory(memory_id: str):
+    ok = delete_memory(memory_id)
+    return {"ok": ok}
+
+
+@app.get("/api/skills")
+def get_skills():
+    return {"skills": list_skills()}
+
+
+@app.post("/api/skills")
+def create_skill(payload: Dict[str, Any]):
+    name = str(payload.get("name", "")).strip()
+    content = str(payload.get("content", "")).strip()
+    if not name:
+        return JSONResponse({"ok": False, "error": "Name required"}, status_code=400)
+    skill = save_skill(name, content)
+    return {"ok": True, "skill": skill}
+
+
+@app.delete("/api/skills/{skill_id}")
+def remove_skill(skill_id: str):
+    ok = delete_skill(skill_id)
+    return {"ok": ok}
+
+
+@app.post("/api/skills/generate")
+def generate_skill(payload: Dict[str, Any]):
+    idea = str(payload.get("idea", "")).strip()
+    name = str(payload.get("name", "")).strip() or idea[:40]
+    if not idea:
+        return JSONResponse({"ok": False, "error": "Idea required"}, status_code=400)
+    settings = load_settings()
+    api_key = settings.get("api_key")
+    system = (
+        "You write concise Markdown instructions for a custom skill. "
+        "Return ONLY Markdown. Start with a short title line."
+    )
+    try:
+        text = generate_content(idea, system_text=system, api_key=api_key)
+        skill = save_skill(name, text)
+        return {"ok": True, "skill": skill}
+    except GeminiError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+
 @app.get("/api/templates")
 def templates():
     return {"templates": TEMPLATES}
+
+
+@app.post("/api/plan")
+def plan(req: PlanReq):
+    job_id = new_job_id()
+    paths = job_paths(JOBS, job_id)
+    paths.job_dir.mkdir(parents=True, exist_ok=True)
+
+    settings = load_settings()
+    api_key = settings.get("api_key")
+    text_model = req.model or settings.get("text_model")
+
+    try:
+        plan_text = generate_content(
+            scene_plan_user_prompt(req.idea, director_brief=_build_director_brief(req)),
+            system_text=SCENE_PLAN_SYSTEM,
+            generation_config={
+                "response_mime_type": "application/json",
+                "response_schema": SCENE_PLAN_SCHEMA,
+            },
+            api_key=api_key,
+            model=text_model,
+        )
+        plan_obj = _parse_json(plan_text)
+        paths.plan_path.write_text(json.dumps(plan_obj, indent=2), encoding="utf-8")
+    except (GeminiError, json.JSONDecodeError) as exc:
+        return JSONResponse(
+            {"ok": False, "job_id": job_id, "error": f"Plan generation failed: {exc}"},
+            status_code=400,
+        )
+
+    return {
+        "ok": True,
+        "job_id": job_id,
+        "plan": plan_obj,
+        "plan_text": json.dumps(plan_obj, indent=2),
+        "job_files": _job_files(paths),
+    }
+
+
+@app.post("/api/approve")
+def approve(req: ApproveReq):
+    paths = job_paths(JOBS, req.job_id)
+    paths.job_dir.mkdir(parents=True, exist_ok=True)
+    assets_dir = paths.job_dir / "assets"
+    assets_dir.mkdir(parents=True, exist_ok=True)
+
+    settings = load_settings()
+    api_key = settings.get("api_key")
+    text_model = req.model or settings.get("text_model")
+    image_model = req.image_model or settings.get("image_model")
+    manim_py = settings.get("manim_py")
+
+    try:
+        plan_obj = _parse_json(req.plan_text)
+        paths.plan_path.write_text(json.dumps(plan_obj, indent=2), encoding="utf-8")
+    except json.JSONDecodeError as exc:
+        return JSONResponse(
+            {"ok": False, "job_id": req.job_id, "error": f"Invalid plan JSON: {exc}"},
+            status_code=400,
+        )
+
+    # Optional image generation
+    assets_description = ""
+    bg_rel = None
+    fg_rel = None
+    image_warning: Optional[str] = None
+    if req.include_images and req.image_prompt and req.image_prompt.strip():
+        mode = req.image_mode.lower().strip()
+        if mode not in {"background", "foreground", "both"}:
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "job_id": req.job_id,
+                    "error": f"Invalid image_mode '{req.image_mode}'",
+                },
+                status_code=400,
+            )
+        base_prompt = req.image_prompt.strip()
+        try:
+            if mode in {"background", "both"}:
+                bg_bytes = generate_image(
+                    f"Wide background scene, no text, cinematic lighting: {base_prompt}",
+                    api_key=api_key,
+                    model=image_model,
+                )
+                bg_path = assets_dir / "background.png"
+                bg_path.write_bytes(bg_bytes)
+                bg_rel = "assets/background.png"
+
+            if mode in {"foreground", "both"}:
+                fg_bytes = generate_image(
+                    f"Single character or prop, centered, clean background, no text: {base_prompt}",
+                    api_key=api_key,
+                    model=image_model,
+                )
+                fg_path = assets_dir / "foreground.png"
+                fg_path.write_bytes(fg_bytes)
+                fg_rel = "assets/foreground.png"
+        except GeminiError as exc:
+            image_warning = f"Image generation failed: {exc}"
+            bg_rel = None
+            fg_rel = None
+
+    if bg_rel:
+        assets_description += (
+            f"- background: {bg_rel} (full-frame backdrop, low motion, z_index -10)\n"
+        )
+    if fg_rel:
+        assets_description += (
+            f"- foreground: {fg_rel} (small prop/character in lower third)\n"
+        )
+
+    try:
+        code = generate_content(
+            manim_code_user_prompt(
+                json.dumps(plan_obj),
+                assets_description=assets_description,
+                render_settings=_render_settings_ratio(req.aspect_ratio),
+            ),
+            system_text=MANIM_CODE_SYSTEM,
+            api_key=api_key,
+            model=text_model,
+        )
+        paths.scene_path.write_text(code, encoding="utf-8")
+    except GeminiError as exc:
+        return JSONResponse(
+            {
+                "ok": False,
+                "job_id": req.job_id,
+                "error": f"Code generation failed: {exc}",
+            },
+            status_code=400,
+        )
+
+    ok, logs = render_with_manim(
+        paths.scene_path,
+        paths.out_mp4,
+        quality=req.quality,
+        manim_py=manim_py,
+    )
+    paths.logs_path.write_text(logs, encoding="utf-8")
+
+    if not ok:
+        return JSONResponse(
+            {
+                "ok": False,
+                "job_id": req.job_id,
+                "error": "Render failed",
+                "logs": logs,
+            },
+            status_code=500,
+        )
+
+    response = {
+        "ok": True,
+        "job_id": req.job_id,
+        "video_path": str(paths.out_mp4.relative_to(ROOT)),
+        "plan": plan_obj,
+        "code": paths.scene_path.read_text(encoding="utf-8"),
+        "job_files": _job_files(paths),
+    }
+    if image_warning:
+        response["image_warning"] = image_warning
+    if bg_rel or fg_rel:
+        response["assets"] = {"background": bg_rel, "foreground": fg_rel}
+    return response
 
 
 @app.post("/api/animate")
@@ -141,6 +508,11 @@ def animate(req: AnimateReq):
     assets_dir = paths.job_dir / "assets"
     assets_dir.mkdir(parents=True, exist_ok=True)
     image_warning: Optional[str] = None
+    settings = load_settings()
+    api_key = settings.get("api_key")
+    text_model = settings.get("text_model")
+    image_model = req.image_model or settings.get("image_model")
+    manim_py = settings.get("manim_py")
 
     # 1) Plan
     try:
@@ -151,6 +523,8 @@ def animate(req: AnimateReq):
                 "response_mime_type": "application/json",
                 "response_schema": SCENE_PLAN_SCHEMA,
             },
+            api_key=api_key,
+            model=text_model,
         )
         plan = _parse_json(plan_text)
         paths.plan_path.write_text(json.dumps(plan, indent=2), encoding="utf-8")
@@ -184,7 +558,9 @@ def animate(req: AnimateReq):
         try:
             if mode in {"background", "both"}:
                 bg_bytes = generate_image(
-                    f"Wide background scene, no text, cinematic lighting: {base_prompt}"
+                    f"Wide background scene, no text, cinematic lighting: {base_prompt}",
+                    api_key=api_key,
+                    model=image_model,
                 )
                 bg_path = assets_dir / "background.png"
                 bg_path.write_bytes(bg_bytes)
@@ -192,7 +568,9 @@ def animate(req: AnimateReq):
 
             if mode in {"foreground", "both"}:
                 fg_bytes = generate_image(
-                    f"Single character or prop, centered, clean background, no text: {base_prompt}"
+                    f"Single character or prop, centered, clean background, no text: {base_prompt}",
+                    api_key=api_key,
+                    model=image_model,
                 )
                 fg_path = assets_dir / "foreground.png"
                 fg_path.write_bytes(fg_bytes)
@@ -220,6 +598,8 @@ def animate(req: AnimateReq):
                 render_settings=_render_settings(req),
             ),
             system_text=MANIM_CODE_SYSTEM,
+            api_key=api_key,
+            model=text_model,
         )
         paths.scene_path.write_text(code, encoding="utf-8")
     except GeminiError as exc:
@@ -234,7 +614,12 @@ def animate(req: AnimateReq):
         )
 
     # 4) Render
-    ok, logs = render_with_manim(paths.scene_path, paths.out_mp4, quality=req.quality)
+    ok, logs = render_with_manim(
+        paths.scene_path,
+        paths.out_mp4,
+        quality=req.quality,
+        manim_py=manim_py,
+    )
     paths.logs_path.write_text(logs, encoding="utf-8")
 
     if not ok:
@@ -248,9 +633,14 @@ def animate(req: AnimateReq):
             "Return a fixed full python file."
         )
         try:
-            code2 = generate_content(repair_user, system_text=REPAIR_SYSTEM)
+            code2 = generate_content(repair_user, system_text=REPAIR_SYSTEM, api_key=api_key)
             paths.scene_path.write_text(code2, encoding="utf-8")
-            ok, logs = render_with_manim(paths.scene_path, paths.out_mp4)
+            ok, logs = render_with_manim(
+                paths.scene_path,
+                paths.out_mp4,
+                quality=req.quality,
+                manim_py=manim_py,
+            )
             paths.logs_path.write_text(logs, encoding="utf-8")
         except GeminiError as exc:
             return JSONResponse(
@@ -282,6 +672,7 @@ def animate(req: AnimateReq):
         "video_path": str(paths.out_mp4.relative_to(ROOT)),
         "plan": plan,
         "code": paths.scene_path.read_text(encoding="utf-8"),
+        "job_files": _job_files(paths),
     }
     if image_warning:
         response["image_warning"] = image_warning
@@ -297,7 +688,13 @@ def render_code(req: RenderCodeReq):
     paths.job_dir.mkdir(parents=True, exist_ok=True)
 
     paths.scene_path.write_text(req.code, encoding="utf-8")
-    ok, logs = render_with_manim(paths.scene_path, paths.out_mp4, quality=req.quality)
+    settings = load_settings()
+    ok, logs = render_with_manim(
+        paths.scene_path,
+        paths.out_mp4,
+        quality=req.quality,
+        manim_py=settings.get("manim_py"),
+    )
     paths.logs_path.write_text(logs, encoding="utf-8")
 
     if not ok:
@@ -316,4 +713,5 @@ def render_code(req: RenderCodeReq):
         "job_id": job_id,
         "video_path": str(paths.out_mp4.relative_to(ROOT)),
         "logs": logs,
+        "job_files": _job_files(paths),
     }
