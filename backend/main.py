@@ -259,7 +259,8 @@ def health():
 
     ffmpeg_path = shutil.which("ffmpeg")
     if ffmpeg_path:
-        ffmpeg_ok, ffmpeg_out = _run([ffmpeg_path, "-version"], timeout_s=3)
+        # Some builds are surprisingly slow to print version info.
+        ffmpeg_ok, ffmpeg_out = _run([ffmpeg_path, "-version"], timeout_s=20)
     else:
         ffmpeg_ok, ffmpeg_out = False, "ffmpeg not found on PATH"
     return {
