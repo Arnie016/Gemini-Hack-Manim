@@ -92,6 +92,13 @@
         gap: 0;
       }
 
+      /* Pin items to specific columns so toggling widths never reflows to a new row. */
+      #leftPanel { grid-column: 1; grid-row: 1; }
+      #splitterLeft { grid-column: 2; grid-row: 1; }
+      main.workspace { grid-column: 3; grid-row: 1; }
+      #splitterRight { grid-column: 4; grid-row: 1; }
+      #rightPanel { grid-column: 5; grid-row: 1; }
+
       .splitter {
         background: #0f141d;
         border-left: 1px solid var(--border);
@@ -322,6 +329,22 @@
       .context-grid { display: grid; gap: 8px; margin-top: 8px; }
 
       .drop-target { outline: 2px dashed var(--accent); }
+
+      .hidden { display: none !important; }
+
+      button:disabled, input:disabled, select:disabled, textarea:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
+      .toolbar {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+      .toolbar .spacer { flex: 1; }
+      .btn-inline { width: auto; padding: 8px 10px; }
 
       .settings-drawer {
         position: fixed;
@@ -602,11 +625,13 @@
           </section>
 
           <section class="tab-panel" data-tab="code">
-            <div class="row" style="margin-bottom:8px;">
-              <button id="renderCode" class="secondary">Render edited code</button>
-              <button id="downloadVideo" class="secondary">Download video</button>
+            <div class="toolbar">
+              <div class="muted" id="editorLabel">Editor</div>
+              <div class="spacer"></div>
+              <button id="saveFile" class="ghost btn-inline" disabled>Save file</button>
+              <button id="renderCode" class="secondary btn-inline">Render code</button>
+              <button id="downloadVideo" class="secondary btn-inline">Download video</button>
             </div>
-            <label>Generated code</label>
             <textarea id="code" style="min-height:420px; font-family:'IBM Plex Mono', monospace;"></textarea>
           </section>
         </div>
@@ -778,6 +803,8 @@
       const applyTimelineBtn = document.getElementById('applyTimeline');
       const resetTimelineBtn = document.getElementById('resetTimeline');
       const codeEl = document.getElementById('code');
+      const editorLabelEl = document.getElementById('editorLabel');
+      const saveFileBtn = document.getElementById('saveFile');
       const renderCodeBtn = document.getElementById('renderCode');
       const downloadVideoBtn = document.getElementById('downloadVideo');
       const logsEl = document.getElementById('logs');
@@ -834,6 +861,8 @@
       let lastPlanBox = null;
       let timelineState = [];
       let timelineMeta = { title: 'Scene Plan' };
+      let openFilePath = null;
+      let pendingRenameFrom = null;
 
       function getSources() {
         try {
@@ -872,18 +901,13 @@
         const leftVisible = !leftPanel.classList.contains('hidden');
         const rightVisible = !rightPanel.classList.contains('hidden');
         const sizes = getLayoutSizes();
+        const leftW = leftVisible ? sizes.left : 0;
+        const rightW = rightVisible ? sizes.right : 0;
+        const splitL = leftVisible ? 6 : 0;
+        const splitR = rightVisible ? 6 : 0;
         splitterLeft.classList.toggle('hidden', !leftVisible);
         splitterRight.classList.toggle('hidden', !rightVisible);
-
-        if (leftVisible && rightVisible) {
-          layoutRoot.style.gridTemplateColumns = `${sizes.left}px 6px 1fr 6px ${sizes.right}px`;
-        } else if (leftVisible && !rightVisible) {
-          layoutRoot.style.gridTemplateColumns = `${sizes.left}px 6px 1fr`;
-        } else if (!leftVisible && rightVisible) {
-          layoutRoot.style.gridTemplateColumns = `1fr 6px ${sizes.right}px`;
-        } else {
-          layoutRoot.style.gridTemplateColumns = `1fr`;
-        }
+        layoutRoot.style.gridTemplateColumns = `${leftW}px ${splitL}px 1fr ${splitR}px ${rightW}px`;
       }
 
       document.getElementById('toggleLeft').addEventListener('click', () => {
@@ -903,6 +927,8 @@
         jobIdEl.textContent = '—';
         jobFileListEl.innerHTML = '';
         codeEl.value = '';
+        openFilePath = null;
+        updateEditorMode();
         logsEl.textContent = 'Cleared.';
         statusEl.textContent = 'Ready.';
         chatMessagesEl.innerHTML = '';
@@ -1032,8 +1058,121 @@
             e.dataTransfer.setData('text/plain', node.path);
             e.dataTransfer.effectAllowed = 'copy';
           });
+          item.addEventListener('click', () => openWorkspaceFile(node.path));
           container.appendChild(item);
         }
+      }
+
+      function setActiveTab(tabId) {
+        const tabs = Array.from(document.querySelectorAll('.tab'));
+        const panels = Array.from(document.querySelectorAll('.tab-panel'));
+        tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabId));
+        panels.forEach(p => p.classList.toggle('active', p.dataset.tab === tabId));
+      }
+
+      function updateEditorMode() {
+        if (!openFilePath) {
+          editorLabelEl.textContent = 'Editor • generated code';
+          saveFileBtn.disabled = true;
+          renderCodeBtn.disabled = false;
+          return;
+        }
+        editorLabelEl.textContent = `Editor • ${openFilePath}`;
+        saveFileBtn.disabled = false;
+        const canRender = openFilePath.endsWith('.py');
+        renderCodeBtn.disabled = !canRender;
+      }
+
+      async function openWorkspaceFile(path) {
+        if (!path) return;
+        let data = null;
+        try {
+          const resp = await fetch(`/api/files/file?path=${encodeURIComponent(path)}`);
+          data = await resp.json();
+        } catch (e) {
+          logsEl.textContent = 'Failed to reach backend.';
+          return;
+        }
+        if (!data.ok) {
+          logsEl.textContent = data.error || 'Failed to open file.';
+          return;
+        }
+        openFilePath = data.path;
+        codeEl.value = data.content || '';
+        updateEditorMode();
+        setActiveTab('code');
+        codeEl.focus();
+      }
+
+      async function saveWorkspaceFile() {
+        if (!openFilePath) return;
+        let data = null;
+        try {
+          const resp = await fetch('/api/files/file', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: openFilePath, content: codeEl.value })
+          });
+          data = await resp.json();
+        } catch (e) {
+          logsEl.textContent = 'Failed to reach backend.';
+          return;
+        }
+        if (!data.ok) {
+          logsEl.textContent = data.error || 'Failed to save file.';
+          return;
+        }
+        logsEl.textContent = `Saved: ${openFilePath}`;
+      }
+
+      function startRename(fromPath) {
+        pendingRenameFrom = fromPath;
+        newPathEl.value = fromPath;
+        newPathEl.focus();
+        const lastSlash = fromPath.lastIndexOf('/');
+        const dot = fromPath.lastIndexOf('.');
+        const selStart = lastSlash >= 0 ? lastSlash + 1 : 0;
+        const selEnd = (dot > selStart) ? dot : fromPath.length;
+        try {
+          newPathEl.setSelectionRange(selStart, selEnd);
+        } catch {}
+        fileStatusEl.textContent = 'Rename: edit the path above and press Enter.';
+      }
+
+      async function renamePending() {
+        const toPath = newPathEl.value.trim();
+        const fromPath = pendingRenameFrom;
+        if (!fromPath) return;
+        if (!toPath) {
+          fileStatusEl.textContent = 'Rename cancelled: empty path.';
+          pendingRenameFrom = null;
+          return;
+        }
+        fileStatusEl.textContent = 'Renaming...';
+        let data = null;
+        try {
+          const resp = await fetch('/api/files/rename', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ from_path: fromPath, to_path: toPath })
+          });
+          data = await resp.json();
+        } catch (e) {
+          fileStatusEl.textContent = 'Failed to reach backend.';
+          return;
+        }
+        if (!data.ok) {
+          fileStatusEl.textContent = data.error || 'Rename failed.';
+          return;
+        }
+        pendingRenameFrom = null;
+        newPathEl.value = '';
+        fileStatusEl.textContent = `Renamed: ${fromPath} → ${toPath}`;
+        if (openFilePath === fromPath) {
+          openFilePath = toPath;
+          updateEditorMode();
+        }
+        loadWorkspaceFiles();
       }
 
       async function loadWorkspaceFiles() {
@@ -1046,7 +1185,24 @@
       async function createFolder() {
         const path = newPathEl.value.trim();
         if (!path) {
-          fileStatusEl.textContent = 'Enter a path first (e.g. notes).';
+          // Quick create a default folder, then prompt rename.
+          let idx = 0;
+          while (idx < 50) {
+            const candidate = idx === 0 ? 'New Folder' : `New Folder ${idx + 1}`;
+            const resp = await fetch('/api/files/folder', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path: candidate })
+            });
+            const data = await resp.json();
+            if (data.ok) {
+              loadWorkspaceFiles();
+              startRename(data.path);
+              return;
+            }
+            idx += 1;
+          }
+          fileStatusEl.textContent = 'Failed to create a new folder.';
           return;
         }
         fileStatusEl.textContent = 'Creating folder...';
@@ -1067,14 +1223,32 @@
           return;
         }
         fileStatusEl.textContent = `Folder created: ${data.path}`;
-        newPathEl.value = '';
+        startRename(data.path);
         loadWorkspaceFiles();
       }
 
       async function createFile() {
         const path = newPathEl.value.trim();
         if (!path) {
-          fileStatusEl.textContent = 'Enter a path first (e.g. notes/outline.md).';
+          // Quick create an untitled file, then prompt rename.
+          let idx = 0;
+          while (idx < 50) {
+            const candidate = idx === 0 ? 'untitled.md' : `untitled-${idx + 1}.md`;
+            const resp = await fetch('/api/files/file', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path: candidate, content: '' })
+            });
+            const data = await resp.json();
+            if (data.ok) {
+              loadWorkspaceFiles();
+              startRename(data.path);
+              await openWorkspaceFile(data.path);
+              return;
+            }
+            idx += 1;
+          }
+          fileStatusEl.textContent = 'Failed to create a new file.';
           return;
         }
         fileStatusEl.textContent = 'Creating file...';
@@ -1095,8 +1269,9 @@
           return;
         }
         fileStatusEl.textContent = `File created: ${data.path}`;
-        newPathEl.value = '';
+        startRename(data.path);
         loadWorkspaceFiles();
+        await openWorkspaceFile(data.path);
       }
 
       chatInputEl.addEventListener('dragover', (e) => {
@@ -1530,6 +1705,8 @@
         videoEl.src = src;
         videoEl.load();
         codeEl.value = data.code || '';
+        openFilePath = null;
+        updateEditorMode();
         updateJobFiles(data.job_files);
         logsEl.textContent = data.image_warning ? data.image_warning : (data.logs || 'Render complete.');
 
@@ -1550,6 +1727,10 @@
 
       renderCodeBtn.addEventListener('click', async () => {
         if (!codeEl.value.trim()) return;
+        if (openFilePath && !openFilePath.endsWith('.py')) {
+          statusEl.textContent = 'Render disabled: you are editing a non-Python workspace file.';
+          return;
+        }
         const resp = await fetch('/api/render-code', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1564,6 +1745,8 @@
         const src = '/' + data.video_path + '?t=' + Date.now();
         videoEl.src = src;
         videoEl.load();
+        openFilePath = null;
+        updateEditorMode();
         updateJobFiles(data.job_files);
         logsEl.textContent = data.logs || 'Render complete.';
       });
@@ -1598,6 +1781,22 @@
       aspectEl.addEventListener('change', () => setPreviewAspect(aspectEl.value));
       createFolderBtn.addEventListener('click', createFolder);
       createFileBtn.addEventListener('click', createFile);
+      newPathEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && pendingRenameFrom) {
+          e.preventDefault();
+          renamePending();
+        }
+      });
+
+      saveFileBtn.addEventListener('click', saveWorkspaceFile);
+      window.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+          if (openFilePath) {
+            e.preventDefault();
+            saveWorkspaceFile();
+          }
+        }
+      });
 
       saveSourceBtn.addEventListener('click', () => {
         const url = sourceUrlEl.value.trim();
@@ -1618,6 +1817,7 @@
       loadWorkspaceFiles();
       renderSources();
       setPreviewAspect(aspectEl.value);
+      updateEditorMode();
       applyLayoutColumns();
     </script>
   </body>

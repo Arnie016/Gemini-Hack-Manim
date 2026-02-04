@@ -32,7 +32,14 @@ from .context_store import (
     delete_skill,
 )
 from .settings_store import load_settings, update_settings
-from .file_store import list_tree, create_folder, write_file, read_file, delete_path
+from .file_store import (
+    create_folder,
+    delete_path,
+    list_tree,
+    read_file,
+    rename_path,
+    write_file,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 WORK = ROOT / "work"
@@ -119,6 +126,12 @@ class ApproveReq(BaseModel):
 class FileReq(BaseModel):
     path: str
     content: Optional[str] = None
+    overwrite: bool = False
+
+
+class RenameReq(BaseModel):
+    from_path: str
+    to_path: str
     overwrite: bool = False
 
 
@@ -358,6 +371,19 @@ def delete_file_api(path: str):
     except ValueError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
     return {"ok": True}
+
+
+@app.post("/api/files/rename")
+def rename_file_api(req: RenameReq):
+    try:
+        res = rename_path(req.from_path, req.to_path, overwrite=req.overwrite)
+    except FileNotFoundError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=404)
+    except FileExistsError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=409)
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    return {"ok": True, "rename": res}
 
 
 @app.get("/api/memories")

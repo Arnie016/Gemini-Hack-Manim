@@ -88,3 +88,20 @@ def delete_path(rel_path: str) -> None:
         path.unlink()
     else:
         raise FileNotFoundError("Path not found")
+
+
+def rename_path(from_rel: str, to_rel: str, *, overwrite: bool = False) -> Dict[str, str]:
+    """Rename (move) a file or folder inside USER_ROOT."""
+    _ensure_root()
+    src = _safe_path(from_rel)
+    dst = _safe_path(to_rel)
+    if not src.exists():
+        raise FileNotFoundError("Source not found")
+    if dst.exists() and not overwrite:
+        raise FileExistsError("Destination already exists")
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    src.rename(dst)
+    return {
+        "from": str(Path(from_rel).as_posix()),
+        "to": str(Path(to_rel).as_posix()),
+    }
