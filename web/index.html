@@ -43,6 +43,7 @@
         display: flex;
         gap: 8px;
         align-items: center;
+        min-width: 80px;
       }
       .dot {
         width: 12px;
@@ -66,16 +67,22 @@
         border: 1px solid var(--border);
         color: var(--text);
         padding: 6px 10px;
-        border-radius: 8px;
+        border-radius: 10px;
         font-size: 12px;
         cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
       }
+      .icon-btn svg { width: 16px; height: 16px; }
       .icon-btn.primary {
         background: var(--accent);
         color: #0b0f14;
         border: none;
         font-weight: 700;
       }
+      .icon-btn.primary svg { stroke: #0b0f14; }
 
       .layout {
         display: grid;
@@ -182,7 +189,7 @@
       input, select, textarea, button {
         width: 100%;
         padding: 8px 10px;
-        border-radius: 8px;
+        border-radius: 10px;
         border: 1px solid var(--border);
         background: var(--panel-3);
         color: var(--text);
@@ -198,15 +205,15 @@
       }
       button.secondary { background: #1f2937; color: var(--text); }
       button.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
-      button.danger { background: #3f1d1d; color: #fecaca; border: 1px solid #7f1d1d; }
 
       .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
       .row.small { grid-template-columns: 1fr auto auto; align-items: center; }
       .muted { color: var(--muted); font-size: 12px; }
+      code { font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
 
       .workspace { display: grid; grid-template-rows: auto 1fr auto; height: 100%; }
 
-      .canvas-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 12px; }
+      .canvas-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 12px; }
       .card {
         border: 1px solid var(--border);
         border-radius: 12px;
@@ -227,7 +234,7 @@
       }
       .preview-shell video { width: 100%; height: 100%; object-fit: contain; }
 
-      .timeline-card { display: grid; gap: 12px; }
+      .timeline-wrap { margin-top: 12px; }
       .timeline-ruler {
         height: 24px;
         background: repeating-linear-gradient(
@@ -237,27 +244,32 @@
           transparent 1px,
           transparent 40px
         );
-        border-radius: 6px;
+        border-radius: 8px;
         border: 1px solid var(--border);
       }
       .timeline-track {
         display: flex;
         gap: 6px;
         align-items: stretch;
+        margin-top: 8px;
       }
       .timeline-block {
         flex: 1;
-        min-width: 60px;
+        min-width: 64px;
         background: #0b1220;
         border: 1px solid var(--border);
-        border-radius: 8px;
+        border-radius: 10px;
         padding: 6px;
         display: grid;
-        gap: 4px;
+        gap: 6px;
       }
-      .timeline-block.dragging { opacity: 0.5; }
-      .timeline-block-header { font-size: 11px; color: var(--muted); }
-      .timeline-block input { font-size: 11px; padding: 4px; }
+      .timeline-block.dragging { opacity: 0.55; }
+      .timeline-block-header {
+        font-size: 11px;
+        color: var(--muted);
+        line-height: 1.2;
+      }
+      .timeline-block input { font-size: 11px; padding: 6px; }
 
       .terminal {
         border-top: 1px solid var(--border);
@@ -279,7 +291,7 @@
       .bubble {
         background: #0b1220;
         border: 1px solid var(--border);
-        border-radius: 10px;
+        border-radius: 12px;
         padding: 10px;
       }
       .bubble.user { border-left: 3px solid var(--accent); }
@@ -290,7 +302,7 @@
       .agent-step {
         background: #0b1220;
         border: 1px solid var(--border);
-        border-radius: 8px;
+        border-radius: 10px;
         padding: 6px;
         font-size: 11px;
         text-align: center;
@@ -309,14 +321,13 @@
       }
       .context-grid { display: grid; gap: 8px; margin-top: 8px; }
 
-      .hidden { display: none !important; }
       .drop-target { outline: 2px dashed var(--accent); }
 
       .settings-drawer {
         position: fixed;
         top: 48px;
         right: 0;
-        width: 360px;
+        width: 380px;
         height: calc(100vh - 48px);
         background: var(--panel);
         border-left: 1px solid var(--border);
@@ -330,6 +341,21 @@
         z-index: 20;
       }
       .settings-drawer.open { transform: translateX(0); }
+
+      .drawer-section {
+        border: 1px solid var(--border);
+        background: var(--panel-2);
+        border-radius: 12px;
+        padding: 10px;
+      }
+      .drawer-title {
+        font-weight: 700;
+        font-size: 12px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
 
       @media (max-width: 1200px) {
         .layout { grid-template-columns: 1fr; grid-template-rows: auto; height: auto; }
@@ -348,11 +374,21 @@
       </div>
       <div class="topbar-title">Gemini-Hack-Manim</div>
       <div class="topbar-actions">
-        <button id="backBtn" class="icon-btn">Back</button>
-        <button id="toggleLeft" class="icon-btn">Explorer</button>
-        <button id="toggleRight" class="icon-btn">Chat</button>
-        <button id="toggleTerminal" class="icon-btn">Terminal</button>
-        <button id="openSettings" class="icon-btn primary">Settings</button>
+        <button id="backBtn" class="icon-btn" title="Back" aria-label="Back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <button id="toggleLeft" class="icon-btn" title="Explorer" aria-label="Explorer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h6l2 2h10v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 7V5a2 2 0 0 1 2-2h4l2 2"/></svg>
+        </button>
+        <button id="toggleRight" class="icon-btn" title="Chat" aria-label="Chat">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>
+        </button>
+        <button id="toggleTerminal" class="icon-btn" title="Terminal" aria-label="Terminal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-5-6-5"/><path d="M12 19h8"/></svg>
+        </button>
+        <button id="openSettings" class="icon-btn primary" title="Settings" aria-label="Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/><path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.03.03a2.2 2.2 0 0 1-1.56 3.75 2.2 2.2 0 0 1-1.56-.65l-.03-.03a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.08 1.65V22a2.2 2.2 0 0 1-4.4 0v-.04a1.8 1.8 0 0 0-1.08-1.65 1.8 1.8 0 0 0-1.98.36l-.03.03a2.2 2.2 0 0 1-3.12 0 2.2 2.2 0 0 1 0-3.12l.03-.03A1.8 1.8 0 0 0 4.6 15a1.8 1.8 0 0 0-1.65-1.08H2.9a2.2 2.2 0 0 1 0-4.4h.04A1.8 1.8 0 0 0 4.6 8.44a1.8 1.8 0 0 0-.36-1.98l-.03-.03a2.2 2.2 0 0 1 3.12-3.12l.03.03A1.8 1.8 0 0 0 9.34 3.7 1.8 1.8 0 0 0 10.42 2.05V2a2.2 2.2 0 0 1 4.4 0v.04a1.8 1.8 0 0 0 1.08 1.65 1.8 1.8 0 0 0 1.98-.36l.03-.03a2.2 2.2 0 0 1 3.12 3.12l-.03.03a1.8 1.8 0 0 0-.36 1.98 1.8 1.8 0 0 0 1.65 1.08H22a2.2 2.2 0 0 1 0 4.4h-.04A1.8 1.8 0 0 0 19.4 15z"/></svg>
+        </button>
       </div>
     </div>
 
@@ -367,11 +403,11 @@
 
           <div class="section-title">Workspace</div>
           <div class="row small" style="margin-top:8px;">
-            <input id="newPath" placeholder="folder/file.md" />
-            <button id="createFolder" class="ghost">+ Folder</button>
-            <button id="createFile" class="ghost">+ File</button>
+            <input id="newPath" placeholder="notes/outline.md" />
+            <button id="createFolder" class="ghost" title="Create folder">+ Folder</button>
+            <button id="createFile" class="ghost" title="Create file">+ File</button>
           </div>
-          <div class="muted" id="fileStatus" style="margin-top:6px;">Ready.</div>
+          <div class="muted" id="fileStatus" style="margin-top:6px;">Tip: type a path, then click + Folder or + File.</div>
           <div class="tree" id="workspaceTree" style="margin-top:8px;"></div>
         </div>
       </aside>
@@ -381,7 +417,6 @@
       <main class="panel workspace">
         <div class="tabs">
           <button class="tab active" data-tab="canvas">Canvas</button>
-          <button class="tab" data-tab="timeline">Timeline</button>
           <button class="tab" data-tab="code">Code</button>
         </div>
 
@@ -547,23 +582,21 @@
               <div class="card">
                 <div class="muted" style="margin-bottom:6px;">Preview</div>
                 <div class="preview-shell" id="previewSlot"></div>
-                <div class="muted" style="margin-top:8px;">The video will appear here after render.</div>
-              </div>
-            </div>
-          </section>
 
-          <section class="tab-panel" data-tab="timeline">
-            <div class="timeline-card">
-              <div class="preview-shell" id="timelineVideoSlot"></div>
-              <div>
-                <div class="muted" id="timelineLabel">Timeline</div>
-                <div class="timeline-ruler"></div>
-                <div class="timeline-track" id="timelineTrack" style="margin-top:8px;"></div>
-                <input id="timelineScrub" type="range" min="0" max="100" value="0" style="margin-top:8px;" />
-              </div>
-              <div class="row" style="margin-top:8px;">
-                <button id="applyTimeline" class="secondary">Apply to plan</button>
-                <button id="resetTimeline" class="ghost">Reset timeline</button>
+                <div class="timeline-wrap">
+                  <div class="muted" id="timelineLabel">Timeline</div>
+                  <div class="timeline-ruler" style="margin-top:6px;"></div>
+                  <div class="timeline-track" id="timelineTrack"></div>
+                  <input id="timelineScrub" type="range" min="0" max="100" value="0" style="margin-top:8px;" />
+                  <div class="row" style="margin-top:8px;">
+                    <button id="applyTimeline" class="secondary">Apply to plan</button>
+                    <button id="resetTimeline" class="ghost">Reset</button>
+                  </div>
+                </div>
+
+                <div class="muted" style="margin-top:10px;">
+                  Pro tip: type <code>/health</code>, <code>/settings</code>, <code>/attach notes/outline.md</code>, <code>/clear</code> in the prompt box.
+                </div>
               </div>
             </div>
           </section>
@@ -574,7 +607,7 @@
               <button id="downloadVideo" class="secondary">Download video</button>
             </div>
             <label>Generated code</label>
-            <textarea id="code" style="min-height:320px; font-family:'IBM Plex Mono', monospace;"></textarea>
+            <textarea id="code" style="min-height:420px; font-family:'IBM Plex Mono', monospace;"></textarea>
           </section>
         </div>
 
@@ -599,11 +632,11 @@
           <div class="chat-messages" id="chatMessages"></div>
 
           <details class="context-block">
-            <summary>Context & Skills</summary>
+            <summary>Memory (Context) & Skills</summary>
             <div class="context-grid">
               <div>
                 <label for="memoryTitle">Memory title</label>
-                <input id="memoryTitle" placeholder="Photoelectric effect key idea" />
+                <input id="memoryTitle" placeholder="Key idea" />
                 <label for="memoryContent" style="margin-top:6px;">Memory content</label>
                 <input id="memoryContent" placeholder="Threshold frequency depends on work function" />
                 <button id="addMemory" style="margin-top:6px;">Add memory</button>
@@ -616,7 +649,7 @@
                 <input id="skillContent" placeholder="Always define variables on screen" />
                 <button id="saveSkill" style="margin-top:6px;">Save skill</button>
                 <label for="skillIdea" style="margin-top:6px;">Generate skill idea</label>
-                <input id="skillIdea" placeholder="Visual storytelling tone" />
+                <input id="skillIdea" placeholder="Make a concise storyboard rule" />
                 <input id="skillGenerateName" placeholder="Skill name (optional)" style="margin-top:6px;" />
                 <button id="generateSkill" class="secondary" style="margin-top:6px;">Generate skill</button>
                 <div class="tree" id="skillList" style="margin-top:6px;"></div>
@@ -631,6 +664,7 @@
             <option value="gemini-2.5-flash">gemini-2.5-flash</option>
             <option value="gemini-2.5-pro">gemini-2.5-pro</option>
           </select>
+
           <label for="chatInput" style="margin-top:8px;">Prompt</label>
           <textarea id="chatInput" placeholder="Make an animation of the photoelectric effect"></textarea>
           <button id="planBtn" style="margin-top:8px;">Create plan</button>
@@ -640,8 +674,8 @@
     </div>
 
     <div class="settings-drawer" id="settingsDrawer">
-      <div class="panel-header" style="border-radius: 10px;">Settings</div>
-      <div class="panel-body" style="padding: 0;">
+      <div class="drawer-section">
+        <div class="drawer-title">API & Models</div>
         <label for="settingsApiKey">Gemini API key</label>
         <input id="settingsApiKey" type="password" placeholder="Paste key" />
         <button id="settingsShowKey" class="ghost" style="margin-top:6px;">Show / Hide key</button>
@@ -659,16 +693,39 @@
           <option value="gemini-2.5-flash-image">gemini-2.5-flash-image (Nano Banana)</option>
           <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
         </select>
-        <div class="muted" style="margin-top:6px;">Nano Banana = gemini-2.5-flash-image</div>
+        <div class="muted" style="margin-top:6px;">Nano Banana = <code>gemini-2.5-flash-image</code></div>
+      </div>
 
-        <label for="settingsManimPy" style="margin-top:10px;">Manim Python path</label>
+      <div class="drawer-section">
+        <div class="drawer-title">Rendering</div>
+        <label for="settingsManimPy">Manim Python path</label>
         <input id="settingsManimPy" type="text" placeholder="python3" />
 
         <div class="row" style="margin-top:10px;">
-          <button id="saveSettings">Save settings</button>
-          <button id="runHealth" class="secondary">Check Manim</button>
+          <button id="saveSettings">Save</button>
+          <button id="runHealth" class="secondary">Health</button>
         </div>
         <pre id="health" class="muted" style="margin-top:8px; white-space:pre-wrap;">No checks yet.</pre>
+      </div>
+
+      <div class="drawer-section">
+        <div class="drawer-title">Agent Structure</div>
+        <div class="muted">This is a lightweight “agentic” control layer. It appends to your director brief.</div>
+        <label for="rulesText" style="margin-top:8px;">Rules</label>
+        <textarea id="rulesText" placeholder="Example: 1 concept per scene. Always label variables. Keep text centered."></textarea>
+        <label for="subagentsText" style="margin-top:8px;">Subagents (optional)</label>
+        <textarea id="subagentsText" placeholder="Example:\nDirector: creates storyboard\nAnimator: writes manim code\nQA: validates labels + spacing"></textarea>
+      </div>
+
+      <div class="drawer-section">
+        <div class="drawer-title">Docs / Indexing (MVP)</div>
+        <div class="muted">Paste a URL + notes/transcript. This gets injected into the plan prompt. (Auto-scraping is not implemented yet.)</div>
+        <label for="sourceUrl" style="margin-top:8px;">Source link</label>
+        <input id="sourceUrl" placeholder="https://..." />
+        <label for="sourceNotes" style="margin-top:8px;">Notes / transcript</label>
+        <textarea id="sourceNotes" placeholder="Paste transcript or key points here"></textarea>
+        <button id="saveSource" class="secondary" style="margin-top:8px;">Save source</button>
+        <pre id="sourceStatus" class="muted" style="margin-top:8px; white-space:pre-wrap;">No sources yet.</pre>
       </div>
     </div>
 
@@ -715,7 +772,6 @@
       const skillListEl = document.getElementById('skillList');
 
       const previewSlot = document.getElementById('previewSlot');
-      const timelineVideoSlot = document.getElementById('timelineVideoSlot');
       const timelineTrackEl = document.getElementById('timelineTrack');
       const timelineLabelEl = document.getElementById('timelineLabel');
       const timelineScrubEl = document.getElementById('timelineScrub');
@@ -729,11 +785,11 @@
 
       window.addEventListener('error', (e) => {
         const msg = e?.error?.stack || e?.message || String(e);
-        logsEl.textContent = `JS error:\\n${msg}`;
+        logsEl.textContent = `JS error:\n${msg}`;
       });
       window.addEventListener('unhandledrejection', (e) => {
         const msg = e?.reason?.stack || e?.reason?.message || String(e?.reason || e);
-        logsEl.textContent = `Unhandled promise rejection:\\n${msg}`;
+        logsEl.textContent = `Unhandled promise rejection:\n${msg}`;
       });
 
       const chatMessagesEl = document.getElementById('chatMessages');
@@ -760,18 +816,42 @@
       const runHealthBtn = document.getElementById('runHealth');
       const healthEl = document.getElementById('health');
 
+      const rulesTextEl = document.getElementById('rulesText');
+      const subagentsTextEl = document.getElementById('subagentsText');
+
+      const sourceUrlEl = document.getElementById('sourceUrl');
+      const sourceNotesEl = document.getElementById('sourceNotes');
+      const saveSourceBtn = document.getElementById('saveSource');
+      const sourceStatusEl = document.getElementById('sourceStatus');
+
       const videoEl = document.createElement('video');
       videoEl.controls = true;
       previewSlot.appendChild(videoEl);
 
+      let templates = [];
+      let currentJobId = null;
+      let currentPlanText = null;
       let lastPlanBox = null;
       let timelineState = [];
       let timelineMeta = { title: 'Scene Plan' };
 
-      function attachVideo(slot) {
-        if (videoEl.parentElement !== slot) {
-          slot.appendChild(videoEl);
+      function getSources() {
+        try {
+          return JSON.parse(localStorage.getItem('sources') || '[]');
+        } catch {
+          return [];
         }
+      }
+      function setSources(sources) {
+        localStorage.setItem('sources', JSON.stringify(sources));
+      }
+      function renderSources() {
+        const sources = getSources();
+        if (!sources.length) {
+          sourceStatusEl.textContent = 'No sources yet.';
+          return;
+        }
+        sourceStatusEl.textContent = sources.map((s, i) => `${i + 1}. ${s.url || '(no url)'}\n${(s.notes || '').slice(0, 240)}${(s.notes || '').length > 240 ? '…' : ''}`).join('\n\n');
       }
 
       function getLayoutSizes() {
@@ -848,11 +928,6 @@
           tab.classList.add('active');
           const target = tab.dataset.tab;
           panels.forEach(p => p.classList.toggle('active', p.dataset.tab === target));
-          if (target === 'timeline') {
-            attachVideo(timelineVideoSlot);
-          } else {
-            attachVideo(previewSlot);
-          }
         });
       });
 
@@ -875,10 +950,10 @@
           function onMove(ev) {
             const dx = ev.clientX - startX;
             if (side === 'left') {
-              const next = Math.max(200, Math.min(480, startLeft + dx));
+              const next = Math.max(220, Math.min(520, startLeft + dx));
               saveLayoutSizes(next, startRight);
             } else {
-              const next = Math.max(240, Math.min(520, startRight - dx));
+              const next = Math.max(260, Math.min(560, startRight - dx));
               saveLayoutSizes(startLeft, next);
             }
             applyLayoutColumns();
@@ -898,16 +973,11 @@
       initSplitter(splitterLeft, 'left');
       initSplitter(splitterRight, 'right');
 
-      let templates = [];
-      let currentJobId = null;
-      let currentPlanText = null;
-
       function setPreviewAspect(ratio) {
         let val = '9 / 16';
         if (ratio === '16:9') val = '16 / 9';
         if (ratio === '1:1') val = '1 / 1';
         previewSlot.style.setProperty('--preview-aspect', val);
-        timelineVideoSlot.style.setProperty('--preview-aspect', val);
       }
 
       function setStep(step, state) {
@@ -976,7 +1046,7 @@
       async function createFolder() {
         const path = newPathEl.value.trim();
         if (!path) {
-          fileStatusEl.textContent = 'Enter a path first (e.g. notes or notes/script.md).';
+          fileStatusEl.textContent = 'Enter a path first (e.g. notes).';
           return;
         }
         fileStatusEl.textContent = 'Creating folder...';
@@ -1142,13 +1212,9 @@
         if (data.manim_version) lines.push(data.manim_version);
         if (cands) lines.push(`python candidates: ${cands}`);
         if (ffmpegPath) lines.push(`ffmpeg path: ${ffmpegPath}`);
-        if (!data.manim_ok) {
-          lines.push('Fix: set Manim Python path to an env with Manim, or run: pip install manim');
-        }
-        if (!data.ffmpeg_ok) {
-          lines.push('Fix (macOS): brew install ffmpeg');
-        }
-        healthEl.textContent = lines.join('\\n');
+        if (!data.manim_ok) lines.push('Fix: set Manim Python path to an env with Manim.');
+        if (!data.ffmpeg_ok) lines.push('Fix (macOS): brew install ffmpeg');
+        healthEl.textContent = lines.join('\n');
       }
 
       async function loadMemories() {
@@ -1234,11 +1300,13 @@
 
           const header = document.createElement('div');
           header.className = 'timeline-block-header';
-          header.textContent = `Scene ${idx + 1}`;
+          header.textContent = `${idx + 1}. ${(scene.goal || 'Scene').slice(0, 42)}`;
+
           const input = document.createElement('input');
           input.type = 'number';
           input.min = 1;
           input.value = scene.seconds;
+          input.title = 'Scene seconds';
           input.addEventListener('change', () => {
             const val = Math.max(1, Number(input.value || 1));
             timelineState[idx].seconds = val;
@@ -1290,11 +1358,68 @@
         currentPlanText = lastPlanBox.value;
       }
 
+      function buildDirectorBrief() {
+        const pieces = [];
+        if (directorBriefEl.value.trim()) pieces.push(directorBriefEl.value.trim());
+        const rules = rulesTextEl.value.trim();
+        if (rules) pieces.push(`Rules:\n${rules}`);
+        const sub = subagentsTextEl.value.trim();
+        if (sub) pieces.push(`Subagents:\n${sub}`);
+
+        const sources = getSources();
+        if (sources.length) {
+          const block = sources.map((s, i) => `Source ${i + 1}: ${s.url || '(no url)'}\n${s.notes || ''}`.trim()).join('\n\n');
+          pieces.push(`References:\n${block}`);
+        }
+        return pieces.join('\n\n') || null;
+      }
+
+      async function runSlashCommand(text) {
+        const raw = text.trim();
+        if (!raw.startsWith('/')) return false;
+        const parts = raw.split(/\s+/g);
+        const cmd = parts[0].toLowerCase();
+        if (cmd === '/health') {
+          settingsDrawer.classList.add('open');
+          await runHealth();
+          return true;
+        }
+        if (cmd === '/settings') {
+          settingsDrawer.classList.toggle('open');
+          return true;
+        }
+        if (cmd === '/clear') {
+          document.getElementById('backBtn').click();
+          return true;
+        }
+        if (cmd === '/attach') {
+          const path = parts.slice(1).join(' ');
+          if (!path) {
+            statusEl.textContent = 'Usage: /attach notes/outline.md';
+            return true;
+          }
+          const resp = await fetch(`/api/files/file?path=${encodeURIComponent(path)}`);
+          const data = await resp.json();
+          if (!data.ok) {
+            statusEl.textContent = data.error || 'Attach failed.';
+            return true;
+          }
+          chatInputEl.value = `Attached file: ${data.path}\n\n${data.content}\n\n`;
+          return true;
+        }
+        statusEl.textContent = `Unknown command: ${cmd}`;
+        return true;
+      }
+
       async function createPlan() {
         resetSteps();
         setStep('plan', 'active');
+
         const idea = chatInputEl.value.trim();
         if (!idea) return;
+
+        if (await runSlashCommand(idea)) return;
+
         addChat('user', 'You', idea);
         statusEl.textContent = 'Planning...';
 
@@ -1315,7 +1440,7 @@
             max_scenes: maxScenesEl.value ? Number(maxScenesEl.value) : null,
             max_objects: maxObjectsEl.value ? Number(maxObjectsEl.value) : null,
             aspect_ratio: aspectEl.value,
-            director_brief: directorBriefEl.value || null,
+            director_brief: buildDirectorBrief(),
             include_images: includeImagesEl.value === 'true',
             image_prompt: imagePromptEl.value || null,
             memory_ids: selectedMemoryIds(),
@@ -1395,6 +1520,7 @@
           statusEl.textContent = data.error || 'Render failed.';
           setStep('code', 'error');
           setStep('render', 'error');
+          logsEl.textContent = data.logs || data.error || 'Render failed.';
           return;
         }
         setStep('code', 'done');
@@ -1405,7 +1531,7 @@
         videoEl.load();
         codeEl.value = data.code || '';
         updateJobFiles(data.job_files);
-        logsEl.textContent = data.image_warning ? data.image_warning : 'Render complete.';
+        logsEl.textContent = data.image_warning ? data.image_warning : (data.logs || 'Render complete.');
 
         if (data.plan && data.plan.scenes) {
           timelineMeta.title = data.plan.title || 'Scene Plan';
@@ -1432,12 +1558,14 @@
         const data = await resp.json();
         if (!data.ok) {
           statusEl.textContent = data.error || 'Render failed.';
+          logsEl.textContent = data.logs || data.error || 'Render failed.';
           return;
         }
         const src = '/' + data.video_path + '?t=' + Date.now();
         videoEl.src = src;
         videoEl.load();
         updateJobFiles(data.job_files);
+        logsEl.textContent = data.logs || 'Render complete.';
       });
 
       downloadVideoBtn.addEventListener('click', () => {
@@ -1471,11 +1599,24 @@
       createFolderBtn.addEventListener('click', createFolder);
       createFileBtn.addEventListener('click', createFile);
 
+      saveSourceBtn.addEventListener('click', () => {
+        const url = sourceUrlEl.value.trim();
+        const notes = sourceNotesEl.value.trim();
+        const sources = getSources();
+        sources.unshift({ url, notes, saved_at: new Date().toISOString() });
+        setSources(sources.slice(0, 10));
+        renderSources();
+        sourceUrlEl.value = '';
+        sourceNotesEl.value = '';
+      });
+
+      // Boot
       loadTemplates();
       loadSettings();
       loadMemories();
       loadSkills();
       loadWorkspaceFiles();
+      renderSources();
       setPreviewAspect(aspectEl.value);
       applyLayoutColumns();
     </script>

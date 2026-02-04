@@ -569,15 +569,52 @@ def approve(req: ApproveReq):
     paths.logs_path.write_text(logs, encoding="utf-8")
 
     if not ok:
-        return JSONResponse(
-            {
-                "ok": False,
-                "job_id": req.job_id,
-                "error": "Render failed",
-                "logs": logs,
-            },
-            status_code=500,
+        # Single repair attempt (makes approve flow more reliable for demos)
+        repair_user = (
+            "The render failed.\n"
+            "Here are the logs:\n"
+            f"{logs}\n\n"
+            "Here is the code:\n"
+            f"{code}\n\n"
+            "Return a fixed full python file."
         )
+        try:
+            code2 = generate_content(
+                repair_user,
+                system_text=REPAIR_SYSTEM,
+                api_key=api_key,
+                model=text_model,
+            )
+            paths.scene_path.write_text(code2, encoding="utf-8")
+            ok, logs = render_with_manim(
+                paths.scene_path,
+                paths.out_mp4,
+                quality=req.quality,
+                manim_py=manim_py,
+            )
+            paths.logs_path.write_text(logs, encoding="utf-8")
+            code = code2
+        except GeminiError as exc:
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "job_id": req.job_id,
+                    "error": f"Repair failed: {exc}",
+                    "logs": logs,
+                },
+                status_code=500,
+            )
+
+        if not ok:
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "job_id": req.job_id,
+                    "error": "Render failed",
+                    "logs": logs,
+                },
+                status_code=500,
+            )
 
     response = {
         "ok": True,
@@ -585,6 +622,7 @@ def approve(req: ApproveReq):
         "video_path": str(paths.out_mp4.relative_to(ROOT)),
         "plan": plan_obj,
         "code": paths.scene_path.read_text(encoding="utf-8"),
+        "logs": logs,
         "job_files": _job_files(paths),
     }
     if image_warning:
