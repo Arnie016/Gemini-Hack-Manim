@@ -231,15 +231,39 @@ def health():
             return False, str(exc)
 
     settings = load_settings()
-    manim_py = settings.get("manim_py") or "python"
-    manim_ok, manim_out = _run([manim_py, "-m", "manim", "--version"])
+    manim_py_setting = settings.get("manim_py")
+    candidates: list[str] = []
+    if manim_py_setting:
+        candidates.append(manim_py_setting)
+    candidates.extend(["python", "python3"])
+    venv_py = ROOT / ".venv" / "bin" / "python"
+    if venv_py.exists():
+        candidates.append(str(venv_py))
+    seen = set()
+    candidates = [c for c in candidates if not (c in seen or seen.add(c))]
+
+    manim_ok = False
+    manim_out = ""
+    used_py = ""
+    for cand in candidates:
+        ok, out = _run([cand, "-m", "manim", "--version"])
+        if ok:
+            manim_ok = True
+            manim_out = out
+            used_py = cand
+            break
+        if not manim_out:
+            manim_out = out
+            used_py = cand
+
     ffmpeg_ok, ffmpeg_out = _run(["ffmpeg", "-version"])
     return {
         "manim_ok": manim_ok,
         "manim_version": manim_out.splitlines()[0] if manim_out else "",
         "ffmpeg_ok": ffmpeg_ok,
         "ffmpeg_version": ffmpeg_out.splitlines()[0] if ffmpeg_out else "",
-        "manim_py": manim_py,
+        "manim_py": used_py or manim_py_setting or "python3",
+        "python_candidates": candidates,
     }
 
 

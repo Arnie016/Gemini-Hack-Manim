@@ -42,6 +42,7 @@
       .window-controls {
         display: flex;
         gap: 8px;
+        align-items: center;
       }
       .dot {
         width: 12px;
@@ -78,18 +79,25 @@
 
       .layout {
         display: grid;
-        grid-template-columns: 280px 1fr 360px;
+        grid-template-columns: 280px 6px 1fr 6px 360px;
         grid-template-rows: 1fr;
         height: calc(100vh - 48px);
-        gap: 10px;
-        padding: 10px;
+        gap: 0;
       }
+
+      .splitter {
+        background: #0f141d;
+        border-left: 1px solid var(--border);
+        border-right: 1px solid var(--border);
+        cursor: col-resize;
+      }
+      .splitter.hidden { display: none; }
 
       .panel {
         background: var(--panel);
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        overflow: hidden;
+        border-right: 1px solid var(--border);
+        border-left: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
         display: flex;
         flex-direction: column;
         min-height: 0;
@@ -139,9 +147,7 @@
         overflow: auto;
         flex: 1;
       }
-      .tab-panel.active {
-        display: block;
-      }
+      .tab-panel.active { display: block; }
 
       .tree {
         font-family: 'IBM Plex Mono', monospace;
@@ -149,13 +155,8 @@
         display: grid;
         gap: 6px;
       }
-      .tree summary {
-        cursor: pointer;
-        color: #93c5fd;
-      }
-      .tree details {
-        padding-left: 12px;
-      }
+      .tree summary { cursor: pointer; color: #93c5fd; }
+      .tree details { padding-left: 12px; }
       .tree .tree-file {
         color: #cbd5f5;
         padding-left: 12px;
@@ -203,17 +204,9 @@
       .row.small { grid-template-columns: 1fr auto auto; align-items: center; }
       .muted { color: var(--muted); font-size: 12px; }
 
-      .workspace {
-        display: grid;
-        grid-template-rows: auto 1fr auto;
-        height: 100%;
-      }
+      .workspace { display: grid; grid-template-rows: auto 1fr auto; height: 100%; }
 
-      .canvas-grid {
-        display: grid;
-        grid-template-columns: 1.1fr 0.9fr;
-        gap: 12px;
-      }
+      .canvas-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 12px; }
       .card {
         border: 1px solid var(--border);
         border-radius: 12px;
@@ -232,18 +225,39 @@
         align-items: center;
         justify-content: center;
       }
-      .preview-shell video {
-        width: 100%;
-        height: 100%;
-        object-fit: contain;
-      }
+      .preview-shell video { width: 100%; height: 100%; object-fit: contain; }
 
-      .timeline-card {
-        display: grid;
-        gap: 12px;
+      .timeline-card { display: grid; gap: 12px; }
+      .timeline-ruler {
+        height: 24px;
+        background: repeating-linear-gradient(
+          90deg,
+          rgba(255,255,255,0.08),
+          rgba(255,255,255,0.08) 1px,
+          transparent 1px,
+          transparent 40px
+        );
+        border-radius: 6px;
+        border: 1px solid var(--border);
       }
-      .timeline-track { display: flex; gap: 6px; }
-      .timeline-bar { height: 16px; border-radius: 6px; background: linear-gradient(90deg, #6aa9ff, #22c55e); }
+      .timeline-track {
+        display: flex;
+        gap: 6px;
+        align-items: stretch;
+      }
+      .timeline-block {
+        flex: 1;
+        min-width: 60px;
+        background: #0b1220;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 6px;
+        display: grid;
+        gap: 4px;
+      }
+      .timeline-block.dragging { opacity: 0.5; }
+      .timeline-block-header { font-size: 11px; color: var(--muted); }
+      .timeline-block input { font-size: 11px; padding: 4px; }
 
       .terminal {
         border-top: 1px solid var(--border);
@@ -253,11 +267,7 @@
         font-size: 12px;
       }
       .terminal.hidden { display: none; }
-      .terminal pre {
-        white-space: pre-wrap;
-        margin: 0;
-        color: #86efac;
-      }
+      .terminal pre { white-space: pre-wrap; margin: 0; color: #86efac; }
 
       .chat {
         display: flex;
@@ -302,35 +312,30 @@
       .hidden { display: none !important; }
       .drop-target { outline: 2px dashed var(--accent); }
 
-      .modal {
+      .settings-drawer {
         position: fixed;
-        inset: 0;
-        background: rgba(10, 12, 16, 0.7);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 50;
-      }
-      .modal.hidden { display: none; }
-      .modal-card {
-        width: min(720px, 92vw);
+        top: 48px;
+        right: 0;
+        width: 360px;
+        height: calc(100vh - 48px);
         background: var(--panel);
-        border: 1px solid var(--border);
-        border-radius: 16px;
-        padding: 16px;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-      }
-      .modal-header {
+        border-left: 1px solid var(--border);
+        box-shadow: -20px 0 40px rgba(0,0,0,0.4);
+        padding: 12px;
         display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 12px;
+        flex-direction: column;
+        gap: 10px;
+        transform: translateX(100%);
+        transition: transform 0.2s ease;
+        z-index: 20;
       }
-      .modal-title { font-weight: 700; }
+      .settings-drawer.open { transform: translateX(0); }
 
       @media (max-width: 1200px) {
         .layout { grid-template-columns: 1fr; grid-template-rows: auto; height: auto; }
+        .splitter { display: none; }
         .canvas-grid { grid-template-columns: 1fr; }
+        .settings-drawer { width: 100%; }
       }
     </style>
   </head>
@@ -343,6 +348,7 @@
       </div>
       <div class="topbar-title">Gemini-Hack-Manim</div>
       <div class="topbar-actions">
+        <button id="backBtn" class="icon-btn">Back</button>
         <button id="toggleLeft" class="icon-btn">Explorer</button>
         <button id="toggleRight" class="icon-btn">Chat</button>
         <button id="toggleTerminal" class="icon-btn">Terminal</button>
@@ -365,9 +371,12 @@
             <button id="createFolder" class="ghost">+ Folder</button>
             <button id="createFile" class="ghost">+ File</button>
           </div>
+          <div class="muted" id="fileStatus" style="margin-top:6px;">Ready.</div>
           <div class="tree" id="workspaceTree" style="margin-top:8px;"></div>
         </div>
       </aside>
+
+      <div class="splitter" id="splitterLeft"></div>
 
       <main class="panel workspace">
         <div class="tabs">
@@ -525,7 +534,11 @@
                     </div>
                     <div>
                       <label for="imageModelOverride">Image model override</label>
-                      <input id="imageModelOverride" list="imageModelList" placeholder="(optional)" />
+                      <select id="imageModelOverride">
+                        <option value="">Default</option>
+                        <option value="gemini-2.5-flash-image">gemini-2.5-flash-image (Nano Banana)</option>
+                        <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
+                      </select>
                     </div>
                   </div>
                 </details>
@@ -544,8 +557,13 @@
               <div class="preview-shell" id="timelineVideoSlot"></div>
               <div>
                 <div class="muted" id="timelineLabel">Timeline</div>
-                <div class="timeline-track" id="timelineTrack"></div>
+                <div class="timeline-ruler"></div>
+                <div class="timeline-track" id="timelineTrack" style="margin-top:8px;"></div>
                 <input id="timelineScrub" type="range" min="0" max="100" value="0" style="margin-top:8px;" />
+              </div>
+              <div class="row" style="margin-top:8px;">
+                <button id="applyTimeline" class="secondary">Apply to plan</button>
+                <button id="resetTimeline" class="ghost">Reset timeline</button>
               </div>
             </div>
           </section>
@@ -565,6 +583,8 @@
           <pre id="logs">Logs will appear here.</pre>
         </div>
       </main>
+
+      <div class="splitter" id="splitterRight"></div>
 
       <aside class="panel" id="rightPanel">
         <div class="panel-header">Chat & Agent</div>
@@ -604,8 +624,13 @@
             </div>
           </details>
 
-          <label for="chatModel">Text model (override)</label>
-          <input id="chatModel" list="textModelList" placeholder="gemini-3-flash-preview" />
+          <label for="chatModel">Text model</label>
+          <select id="chatModel">
+            <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
+            <option value="gemini-3-pro-preview">gemini-3-pro-preview</option>
+            <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+            <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+          </select>
           <label for="chatInput" style="margin-top:8px;">Prompt</label>
           <textarea id="chatInput" placeholder="Make an animation of the photoelectric effect"></textarea>
           <button id="planBtn" style="margin-top:8px;">Create plan</button>
@@ -614,57 +639,36 @@
       </aside>
     </div>
 
-    <div class="modal hidden" id="settingsModal">
-      <div class="modal-card">
-        <div class="modal-header">
-          <div class="modal-title">Settings</div>
-          <button id="closeSettings" class="ghost">Close</button>
-        </div>
+    <div class="settings-drawer" id="settingsDrawer">
+      <div class="panel-header" style="border-radius: 10px;">Settings</div>
+      <div class="panel-body" style="padding: 0;">
+        <label for="settingsApiKey">Gemini API key</label>
+        <input id="settingsApiKey" type="password" placeholder="Paste key" />
+        <button id="settingsShowKey" class="ghost" style="margin-top:6px;">Show / Hide key</button>
 
-        <div class="row">
-          <div>
-            <label for="settingsApiKey">Gemini API key</label>
-            <input id="settingsApiKey" type="password" placeholder="Paste key" />
-          </div>
-          <div>
-            <label for="settingsShowKey">Reveal key</label>
-            <button id="settingsShowKey" class="ghost">Show</button>
-          </div>
-        </div>
+        <label for="settingsTextModel" style="margin-top:10px;">Default text model</label>
+        <select id="settingsTextModel">
+          <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
+          <option value="gemini-3-pro-preview">gemini-3-pro-preview</option>
+          <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+          <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+        </select>
 
-        <div class="row" style="margin-top:8px;">
-          <div>
-            <label for="settingsTextModel">Default text model</label>
-            <input id="settingsTextModel" list="textModelList" placeholder="gemini-3-flash-preview" />
-          </div>
-          <div>
-            <label for="settingsImageModel">Default image model</label>
-            <input id="settingsImageModel" list="imageModelList" placeholder="gemini-2.5-flash-image" />
-          </div>
-        </div>
-        <div class="muted" style="margin-top:6px;">
-          Nano Banana = <code>gemini-2.5-flash-image</code> • Nano Banana Pro = <code>gemini-3-pro-image-preview</code>
-        </div>
+        <label for="settingsImageModel" style="margin-top:10px;">Default image model</label>
+        <select id="settingsImageModel">
+          <option value="gemini-2.5-flash-image">gemini-2.5-flash-image (Nano Banana)</option>
+          <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
+        </select>
+        <div class="muted" style="margin-top:6px;">Nano Banana = gemini-2.5-flash-image</div>
 
-        <label for="settingsManimPy" style="margin-top:8px;">Manim Python path</label>
-        <input id="settingsManimPy" type="text" placeholder="python" />
+        <label for="settingsManimPy" style="margin-top:10px;">Manim Python path</label>
+        <input id="settingsManimPy" type="text" placeholder="python3" />
 
         <div class="row" style="margin-top:10px;">
           <button id="saveSettings">Save settings</button>
           <button id="runHealth" class="secondary">Check Manim</button>
         </div>
         <pre id="health" class="muted" style="margin-top:8px; white-space:pre-wrap;">No checks yet.</pre>
-
-        <datalist id="textModelList">
-          <option value="gemini-3-flash-preview"></option>
-          <option value="gemini-3-pro-preview"></option>
-          <option value="gemini-2.5-flash"></option>
-          <option value="gemini-2.5-pro"></option>
-        </datalist>
-        <datalist id="imageModelList">
-          <option value="gemini-2.5-flash-image"></option>
-          <option value="gemini-3-pro-image-preview"></option>
-        </datalist>
       </div>
     </div>
 
@@ -675,6 +679,7 @@
       const newPathEl = document.getElementById('newPath');
       const createFolderBtn = document.getElementById('createFolder');
       const createFileBtn = document.getElementById('createFile');
+      const fileStatusEl = document.getElementById('fileStatus');
 
       const templateSelectEl = document.getElementById('templateSelect');
       const templateDescriptionEl = document.getElementById('templateDescription');
@@ -714,6 +719,8 @@
       const timelineTrackEl = document.getElementById('timelineTrack');
       const timelineLabelEl = document.getElementById('timelineLabel');
       const timelineScrubEl = document.getElementById('timelineScrub');
+      const applyTimelineBtn = document.getElementById('applyTimeline');
+      const resetTimelineBtn = document.getElementById('resetTimeline');
       const codeEl = document.getElementById('code');
       const renderCodeBtn = document.getElementById('renderCode');
       const downloadVideoBtn = document.getElementById('downloadVideo');
@@ -730,10 +737,11 @@
       const leftPanel = document.getElementById('leftPanel');
       const rightPanel = document.getElementById('rightPanel');
       const layoutRoot = document.getElementById('layoutRoot');
+      const splitterLeft = document.getElementById('splitterLeft');
+      const splitterRight = document.getElementById('splitterRight');
 
-      const settingsModal = document.getElementById('settingsModal');
+      const settingsDrawer = document.getElementById('settingsDrawer');
       const openSettingsBtn = document.getElementById('openSettings');
-      const closeSettingsBtn = document.getElementById('closeSettings');
       const settingsApiKeyEl = document.getElementById('settingsApiKey');
       const settingsShowKeyBtn = document.getElementById('settingsShowKey');
       const settingsTextModelEl = document.getElementById('settingsTextModel');
@@ -747,48 +755,78 @@
       videoEl.controls = true;
       previewSlot.appendChild(videoEl);
 
+      let lastPlanBox = null;
+      let timelineState = [];
+      let timelineMeta = { title: 'Scene Plan' };
+
       function attachVideo(slot) {
         if (videoEl.parentElement !== slot) {
           slot.appendChild(videoEl);
         }
       }
 
-      function updateLayoutColumns() {
+      function getLayoutSizes() {
+        const stored = JSON.parse(localStorage.getItem('layoutSizes') || '{}');
+        return {
+          left: stored.left || 280,
+          right: stored.right || 360,
+        };
+      }
+
+      function saveLayoutSizes(left, right) {
+        localStorage.setItem('layoutSizes', JSON.stringify({ left, right }));
+      }
+
+      function applyLayoutColumns() {
         const leftVisible = !leftPanel.classList.contains('hidden');
         const rightVisible = !rightPanel.classList.contains('hidden');
+        const sizes = getLayoutSizes();
+        splitterLeft.classList.toggle('hidden', !leftVisible);
+        splitterRight.classList.toggle('hidden', !rightVisible);
+
         if (leftVisible && rightVisible) {
-          layoutRoot.style.gridTemplateColumns = '280px 1fr 360px';
+          layoutRoot.style.gridTemplateColumns = `${sizes.left}px 6px 1fr 6px ${sizes.right}px`;
         } else if (leftVisible && !rightVisible) {
-          layoutRoot.style.gridTemplateColumns = '280px 1fr';
+          layoutRoot.style.gridTemplateColumns = `${sizes.left}px 6px 1fr`;
         } else if (!leftVisible && rightVisible) {
-          layoutRoot.style.gridTemplateColumns = '1fr 360px';
+          layoutRoot.style.gridTemplateColumns = `1fr 6px ${sizes.right}px`;
         } else {
-          layoutRoot.style.gridTemplateColumns = '1fr';
+          layoutRoot.style.gridTemplateColumns = `1fr`;
         }
       }
 
       document.getElementById('toggleLeft').addEventListener('click', () => {
         leftPanel.classList.toggle('hidden');
-        updateLayoutColumns();
+        applyLayoutColumns();
       });
       document.getElementById('toggleRight').addEventListener('click', () => {
         rightPanel.classList.toggle('hidden');
-        updateLayoutColumns();
+        applyLayoutColumns();
       });
       document.getElementById('toggleTerminal').addEventListener('click', () => {
         terminalPanel.classList.toggle('hidden');
       });
 
-      openSettingsBtn.addEventListener('click', () => {
-        settingsModal.classList.remove('hidden');
+      document.getElementById('backBtn').addEventListener('click', () => {
+        currentJobId = null;
+        jobIdEl.textContent = '—';
+        jobFileListEl.innerHTML = '';
+        codeEl.value = '';
+        logsEl.textContent = 'Cleared.';
+        statusEl.textContent = 'Ready.';
+        chatMessagesEl.innerHTML = '';
+        videoEl.removeAttribute('src');
+        videoEl.load();
+        timelineTrackEl.innerHTML = '';
+        timelineState = [];
       });
-      closeSettingsBtn.addEventListener('click', () => {
-        settingsModal.classList.add('hidden');
+
+      openSettingsBtn.addEventListener('click', () => {
+        settingsDrawer.classList.toggle('open');
       });
       settingsShowKeyBtn.addEventListener('click', () => {
         const isHidden = settingsApiKeyEl.type === 'password';
         settingsApiKeyEl.type = isHidden ? 'text' : 'password';
-        settingsShowKeyBtn.textContent = isHidden ? 'Hide' : 'Show';
       });
 
       const tabs = Array.from(document.querySelectorAll('.tab'));
@@ -806,6 +844,41 @@
           }
         });
       });
+
+      function initSplitter(splitter, side) {
+        let startX = 0;
+        let startLeft = 0;
+        let startRight = 0;
+
+        splitter.addEventListener('mousedown', (e) => {
+          startX = e.clientX;
+          const sizes = getLayoutSizes();
+          startLeft = sizes.left;
+          startRight = sizes.right;
+
+          function onMove(ev) {
+            const dx = ev.clientX - startX;
+            if (side === 'left') {
+              const next = Math.max(200, Math.min(480, startLeft + dx));
+              saveLayoutSizes(next, startRight);
+            } else {
+              const next = Math.max(240, Math.min(520, startRight - dx));
+              saveLayoutSizes(startLeft, next);
+            }
+            applyLayoutColumns();
+          }
+
+          function onUp() {
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+          }
+
+          window.addEventListener('mousemove', onMove);
+          window.addEventListener('mouseup', onUp);
+        });
+      }
+      initSplitter(splitterLeft, 'left');
+      initSplitter(splitterRight, 'right');
 
       let templates = [];
       let currentJobId = null;
@@ -885,11 +958,18 @@
       async function createFolder() {
         const path = newPathEl.value.trim();
         if (!path) return;
-        await fetch('/api/files/folder', {
+        fileStatusEl.textContent = 'Creating folder...';
+        const resp = await fetch('/api/files/folder', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ path })
         });
+        const data = await resp.json();
+        if (!data.ok) {
+          fileStatusEl.textContent = data.error || 'Failed to create folder.';
+          return;
+        }
+        fileStatusEl.textContent = `Folder created: ${data.path}`;
         newPathEl.value = '';
         loadWorkspaceFiles();
       }
@@ -897,11 +977,18 @@
       async function createFile() {
         const path = newPathEl.value.trim();
         if (!path) return;
-        await fetch('/api/files/file', {
+        fileStatusEl.textContent = 'Creating file...';
+        const resp = await fetch('/api/files/file', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ path, content: '' })
         });
+        const data = await resp.json();
+        if (!data.ok) {
+          fileStatusEl.textContent = data.error || 'Failed to create file.';
+          return;
+        }
+        fileStatusEl.textContent = `File created: ${data.path}`;
         newPathEl.value = '';
         loadWorkspaceFiles();
       }
@@ -1002,7 +1089,8 @@
         const data = await resp.json();
         const manimStatus = data.manim_ok ? 'OK' : 'Missing';
         const ffmpegStatus = data.ffmpeg_ok ? 'OK' : 'Missing';
-        healthEl.textContent = `Manim: ${manimStatus}\nffmpeg: ${ffmpegStatus}\n${data.manim_version || ''}`;
+        const py = data.manim_py || 'python3';
+        healthEl.textContent = `Manim: ${manimStatus}\nffmpeg: ${ffmpegStatus}\npython: ${py}\n${data.manim_version || ''}`;
       }
 
       async function loadMemories() {
@@ -1070,6 +1158,80 @@
         return Array.from(skillListEl.querySelectorAll('input[type="checkbox"]')).filter(cb => cb.checked).map(cb => cb.dataset.id);
       }
 
+      function renderTimeline() {
+        timelineTrackEl.innerHTML = '';
+        if (!timelineState.length) {
+          timelineLabelEl.textContent = 'Timeline';
+          return;
+        }
+        const total = timelineState.reduce((s, sc) => s + sc.seconds, 0);
+        timelineLabelEl.textContent = `Total ${total}s • ${timelineState.length} scenes`;
+
+        timelineState.forEach((scene, idx) => {
+          const block = document.createElement('div');
+          block.className = 'timeline-block';
+          block.draggable = true;
+          block.dataset.index = idx;
+          block.style.flex = String(scene.seconds);
+
+          const header = document.createElement('div');
+          header.className = 'timeline-block-header';
+          header.textContent = `Scene ${idx + 1}`;
+          const input = document.createElement('input');
+          input.type = 'number';
+          input.min = 1;
+          input.value = scene.seconds;
+          input.addEventListener('change', () => {
+            const val = Math.max(1, Number(input.value || 1));
+            timelineState[idx].seconds = val;
+            renderTimeline();
+          });
+
+          block.appendChild(header);
+          block.appendChild(input);
+
+          block.addEventListener('dragstart', (e) => {
+            block.classList.add('dragging');
+            e.dataTransfer.setData('text/plain', idx.toString());
+          });
+          block.addEventListener('dragend', () => {
+            block.classList.remove('dragging');
+          });
+          block.addEventListener('dragover', (e) => {
+            e.preventDefault();
+          });
+          block.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const from = Number(e.dataTransfer.getData('text/plain'));
+            const to = Number(block.dataset.index);
+            if (Number.isNaN(from) || Number.isNaN(to) || from === to) return;
+            const moved = timelineState.splice(from, 1)[0];
+            timelineState.splice(to, 0, moved);
+            renderTimeline();
+          });
+
+          timelineTrackEl.appendChild(block);
+        });
+      }
+
+      function syncPlanFromTimeline() {
+        if (!lastPlanBox || !timelineState.length) return;
+        const total = timelineState.reduce((s, sc) => s + sc.seconds, 0);
+        const plan = {
+          title: timelineMeta.title || 'Scene Plan',
+          total_seconds: total,
+          scenes: timelineState.map((sc) => ({
+            seconds: sc.seconds,
+            goal: sc.goal || 'Updated scene',
+            elements: sc.elements || [],
+            actions: sc.actions || [],
+            narration: sc.narration || ''
+          }))
+        };
+        lastPlanBox.value = JSON.stringify(plan, null, 2);
+        currentPlanText = lastPlanBox.value;
+      }
+
       async function createPlan() {
         resetSteps();
         setStep('plan', 'active');
@@ -1118,6 +1280,7 @@
         planBox.style.width = '100%';
         planBox.style.minHeight = '180px';
         planBox.value = data.plan_text;
+        lastPlanBox = planBox;
 
         const approveBtn = document.createElement('button');
         approveBtn.textContent = 'Approve & Render';
@@ -1134,6 +1297,18 @@
         approveBtn.addEventListener('click', async () => {
           await approvePlan(planBox.value);
         });
+
+        if (data.plan && data.plan.scenes) {
+          timelineMeta.title = data.plan.title || 'Scene Plan';
+          timelineState = data.plan.scenes.map(sc => ({
+            seconds: sc.seconds || 3,
+            goal: sc.goal,
+            elements: sc.elements,
+            actions: sc.actions,
+            narration: sc.narration
+          }));
+          renderTimeline();
+        }
       }
 
       async function approvePlan(planText) {
@@ -1175,16 +1350,15 @@
         logsEl.textContent = data.image_warning ? data.image_warning : 'Render complete.';
 
         if (data.plan && data.plan.scenes) {
-          const total = data.plan.total_seconds || data.plan.scenes.reduce((s, sc) => s + (sc.seconds || 0), 0);
-          timelineTrackEl.innerHTML = '';
-          data.plan.scenes.forEach((sc) => {
-            const bar = document.createElement('div');
-            const pct = total ? (sc.seconds || 0) / total : 0.1;
-            bar.className = 'timeline-bar';
-            bar.style.width = Math.max(6, pct * 100) + '%';
-            timelineTrackEl.appendChild(bar);
-          });
-          timelineLabelEl.textContent = `Total ${total || '?'}s • ${data.plan.scenes.length} scenes`;
+          timelineMeta.title = data.plan.title || 'Scene Plan';
+          timelineState = data.plan.scenes.map(sc => ({
+            seconds: sc.seconds || 3,
+            goal: sc.goal,
+            elements: sc.elements,
+            actions: sc.actions,
+            narration: sc.narration
+          }));
+          renderTimeline();
         }
 
         addChat('agent', 'Render complete', `<a href="${src}" target="_blank">Open video</a>`);
@@ -1223,6 +1397,12 @@
         timelineScrubEl.value = Math.floor((videoEl.currentTime / videoEl.duration) * 100);
       });
 
+      applyTimelineBtn.addEventListener('click', syncPlanFromTimeline);
+      resetTimelineBtn.addEventListener('click', () => {
+        timelineState = [];
+        renderTimeline();
+      });
+
       planBtn.addEventListener('click', createPlan);
       saveSettingsBtn.addEventListener('click', saveSettings);
       runHealthBtn.addEventListener('click', runHealth);
@@ -1239,7 +1419,7 @@
       loadSkills();
       loadWorkspaceFiles();
       setPreviewAspect(aspectEl.value);
-      updateLayoutColumns();
+      applyLayoutColumns();
     </script>
   </body>
 </html>
