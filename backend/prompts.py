@@ -71,6 +71,7 @@ def manim_code_user_prompt(
         f"{assets_block}"
         f"{settings_block}"
         "Use assets only if provided. Keep image usage simple (background fill, small prop).\n"
+        "If the plan includes per-scene assets (e.g. scene.assets.background/foreground), apply them only in that scene.\n"
     )
 
 

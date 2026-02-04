@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Gemini-Hack-Manim</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css">
     <style>
       @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
 
@@ -241,6 +242,68 @@
       }
       .preview-shell video { width: 100%; height: 100%; object-fit: contain; }
 
+      .preview-overlay {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        right: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        pointer-events: none;
+      }
+      .overlay-btn {
+        pointer-events: auto;
+        width: auto;
+        padding: 8px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.18);
+        background: rgba(12, 15, 20, 0.72);
+        backdrop-filter: blur(10px);
+        color: var(--text);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .overlay-btn svg { width: 16px; height: 16px; }
+
+      .preview-wrap {
+        position: relative;
+      }
+
+      .asset-tray {
+        margin-top: 10px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .asset-slot {
+        border: 1px dashed rgba(255,255,255,0.18);
+        background: rgba(15, 19, 26, 0.65);
+        border-radius: 12px;
+        padding: 8px;
+        min-height: 96px;
+        display: grid;
+        gap: 6px;
+        align-content: start;
+      }
+      .asset-title { font-size: 11px; color: var(--muted); }
+      .asset-thumb {
+        height: 64px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: #0b0f14;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .asset-thumb img { width: 100%; height: 100%; object-fit: cover; }
+      .asset-thumb.draggable { cursor: grab; }
+
       .timeline-wrap { margin-top: 12px; }
       .timeline-ruler {
         height: 24px;
@@ -346,6 +409,14 @@
       .toolbar .spacer { flex: 1; }
       .btn-inline { width: auto; padding: 8px 10px; }
 
+      pre.hljs {
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        padding: 12px;
+        overflow: auto;
+        max-height: 520px;
+      }
+
       .settings-drawer {
         position: fixed;
         top: 48px;
@@ -397,19 +468,19 @@
       </div>
       <div class="topbar-title">Gemini-Hack-Manim</div>
       <div class="topbar-actions">
-        <button id="backBtn" class="icon-btn" title="Back" aria-label="Back">
+        <button id="backBtn" class="icon-btn" title="Back" aria-label="Back" data-tip="Back">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
         </button>
-        <button id="toggleLeft" class="icon-btn" title="Explorer" aria-label="Explorer">
+        <button id="toggleLeft" class="icon-btn" title="Explorer" aria-label="Explorer" data-tip="Explorer">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h6l2 2h10v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 7V5a2 2 0 0 1 2-2h4l2 2"/></svg>
         </button>
-        <button id="toggleRight" class="icon-btn" title="Chat" aria-label="Chat">
+        <button id="toggleRight" class="icon-btn" title="Chat" aria-label="Chat" data-tip="Chat">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>
         </button>
-        <button id="toggleTerminal" class="icon-btn" title="Terminal" aria-label="Terminal">
+        <button id="toggleTerminal" class="icon-btn" title="Terminal" aria-label="Terminal" data-tip="Terminal">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-5-6-5"/><path d="M12 19h8"/></svg>
         </button>
-        <button id="openSettings" class="icon-btn primary" title="Settings" aria-label="Settings">
+        <button id="openSettings" class="icon-btn primary" title="Settings" aria-label="Settings" data-tip="Settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/><path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.03.03a2.2 2.2 0 0 1-1.56 3.75 2.2 2.2 0 0 1-1.56-.65l-.03-.03a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.08 1.65V22a2.2 2.2 0 0 1-4.4 0v-.04a1.8 1.8 0 0 0-1.08-1.65 1.8 1.8 0 0 0-1.98.36l-.03.03a2.2 2.2 0 0 1-3.12 0 2.2 2.2 0 0 1 0-3.12l.03-.03A1.8 1.8 0 0 0 4.6 15a1.8 1.8 0 0 0-1.65-1.08H2.9a2.2 2.2 0 0 1 0-4.4h.04A1.8 1.8 0 0 0 4.6 8.44a1.8 1.8 0 0 0-.36-1.98l-.03-.03a2.2 2.2 0 0 1 3.12-3.12l.03.03A1.8 1.8 0 0 0 9.34 3.7 1.8 1.8 0 0 0 10.42 2.05V2a2.2 2.2 0 0 1 4.4 0v.04a1.8 1.8 0 0 0 1.08 1.65 1.8 1.8 0 0 0 1.98-.36l.03-.03a2.2 2.2 0 0 1 3.12 3.12l-.03.03a1.8 1.8 0 0 0-.36 1.98 1.8 1.8 0 0 0 1.65 1.08H22a2.2 2.2 0 0 1 0 4.4h-.04A1.8 1.8 0 0 0 19.4 15z"/></svg>
         </button>
       </div>
@@ -465,6 +536,17 @@
                       <option value="foreground">Foreground</option>
                       <option value="both">Both</option>
                     </select>
+                  </div>
+                </div>
+
+                <div class="asset-tray">
+                  <div class="asset-slot">
+                    <div class="asset-title">Background preview (drag into a scene)</div>
+                    <div class="asset-thumb" id="bgThumb">No image yet</div>
+                  </div>
+                  <div class="asset-slot">
+                    <div class="asset-title">Foreground preview (drag into a scene)</div>
+                    <div class="asset-thumb" id="fgThumb">No image yet</div>
                   </div>
                 </div>
 
@@ -604,7 +686,19 @@
 
               <div class="card">
                 <div class="muted" style="margin-bottom:6px;">Preview</div>
-                <div class="preview-shell" id="previewSlot"></div>
+                <div class="preview-wrap">
+                  <div class="preview-shell" id="previewSlot"></div>
+                  <div class="preview-overlay">
+                    <button id="downloadBtn" class="overlay-btn" title="Download video" aria-label="Download video">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+                      Download
+                    </button>
+                    <button id="shareBtn" class="overlay-btn" title="Share" aria-label="Share">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v14"/></svg>
+                      Share
+                    </button>
+                  </div>
+                </div>
 
                 <div class="timeline-wrap">
                   <div class="muted" id="timelineLabel">Timeline</div>
@@ -628,16 +722,24 @@
             <div class="toolbar">
               <div class="muted" id="editorLabel">Editor</div>
               <div class="spacer"></div>
+              <button id="addSelection" class="ghost btn-inline" title="Add selected text to prompt (@reference)">@</button>
               <button id="saveFile" class="ghost btn-inline" disabled>Save file</button>
               <button id="renderCode" class="secondary btn-inline">Render code</button>
               <button id="downloadVideo" class="secondary btn-inline">Download video</button>
+              <button id="toggleHighlight" class="ghost btn-inline" title="Toggle syntax highlighting">Highlight</button>
             </div>
             <textarea id="code" style="min-height:420px; font-family:'IBM Plex Mono', monospace;"></textarea>
+            <pre id="codePrettyWrap" class="hljs hidden"><code id="codePretty" class="language-python"></code></pre>
           </section>
         </div>
 
         <div class="terminal" id="terminalPanel">
-          <div class="muted">Terminal</div>
+          <div class="toolbar" style="margin:0 0 8px 0;">
+            <div class="muted">Terminal</div>
+            <div class="spacer"></div>
+            <input id="termCmd" class="btn-inline" style="width: 320px;" placeholder="help | manim --version | ffmpeg -version | ls jobs" />
+            <button id="termRun" class="ghost btn-inline" title="Run command">Run</button>
+          </div>
           <pre id="logs">Logs will appear here.</pre>
         </div>
       </main>
@@ -657,8 +759,8 @@
           <div class="chat-messages" id="chatMessages"></div>
 
           <details class="context-block">
-            <summary>Memory (Context) & Skills</summary>
-            <div class="context-grid">
+          <summary>Memory (Context) & Skills</summary>
+          <div class="context-grid">
               <div>
                 <label for="memoryTitle">Memory title</label>
                 <input id="memoryTitle" placeholder="Key idea" />
@@ -681,6 +783,10 @@
               </div>
             </div>
           </details>
+
+          <div class="muted">
+            Tip: use <code>/</code> commands like <code>/health</code> and drag files into the prompt.
+          </div>
 
           <label for="chatModel">Text model</label>
           <select id="chatModel">
@@ -796,7 +902,12 @@
       const generateSkillBtn = document.getElementById('generateSkill');
       const skillListEl = document.getElementById('skillList');
 
+      const bgThumbEl = document.getElementById('bgThumb');
+      const fgThumbEl = document.getElementById('fgThumb');
+
       const previewSlot = document.getElementById('previewSlot');
+      const downloadBtnEl = document.getElementById('downloadBtn');
+      const shareBtnEl = document.getElementById('shareBtn');
       const timelineTrackEl = document.getElementById('timelineTrack');
       const timelineLabelEl = document.getElementById('timelineLabel');
       const timelineScrubEl = document.getElementById('timelineScrub');
@@ -804,11 +915,17 @@
       const resetTimelineBtn = document.getElementById('resetTimeline');
       const codeEl = document.getElementById('code');
       const editorLabelEl = document.getElementById('editorLabel');
+      const addSelectionBtn = document.getElementById('addSelection');
       const saveFileBtn = document.getElementById('saveFile');
       const renderCodeBtn = document.getElementById('renderCode');
       const downloadVideoBtn = document.getElementById('downloadVideo');
+      const toggleHighlightBtn = document.getElementById('toggleHighlight');
+      const codePrettyWrapEl = document.getElementById('codePrettyWrap');
+      const codePrettyEl = document.getElementById('codePretty');
       const logsEl = document.getElementById('logs');
       const terminalPanel = document.getElementById('terminalPanel');
+      const termCmdEl = document.getElementById('termCmd');
+      const termRunEl = document.getElementById('termRun');
 
       window.addEventListener('error', (e) => {
         const msg = e?.error?.stack || e?.message || String(e);
@@ -854,6 +971,27 @@
       const videoEl = document.createElement('video');
       videoEl.controls = true;
       previewSlot.appendChild(videoEl);
+      let lastVideoUrl = '';
+
+      downloadBtnEl.addEventListener('click', () => {
+        if (!lastVideoUrl) return;
+        window.open(lastVideoUrl, '_blank');
+      });
+      shareBtnEl.addEventListener('click', async () => {
+        if (!lastVideoUrl) return;
+        try {
+          if (navigator.share) {
+            await navigator.share({ title: 'Gemini-Hack-Manim', url: lastVideoUrl });
+          } else if (navigator.clipboard) {
+            await navigator.clipboard.writeText(lastVideoUrl);
+            statusEl.textContent = 'Copied video link to clipboard.';
+          } else {
+            statusEl.textContent = 'Sharing not supported in this browser.';
+          }
+        } catch (e) {
+          statusEl.textContent = 'Share cancelled.';
+        }
+      });
 
       let templates = [];
       let currentJobId = null;
@@ -863,6 +1001,7 @@
       let timelineMeta = { title: 'Scene Plan' };
       let openFilePath = null;
       let pendingRenameFrom = null;
+      let lastAssets = { background: '', foreground: '' };
 
       function getSources() {
         try {
@@ -1075,12 +1214,83 @@
           editorLabelEl.textContent = 'Editor • generated code';
           saveFileBtn.disabled = true;
           renderCodeBtn.disabled = false;
+          addSelectionBtn.disabled = false;
           return;
         }
         editorLabelEl.textContent = `Editor • ${openFilePath}`;
         saveFileBtn.disabled = false;
         const canRender = openFilePath.endsWith('.py');
         renderCodeBtn.disabled = !canRender;
+        addSelectionBtn.disabled = false;
+      }
+
+      function lineOfIndex(text, idx) {
+        if (idx <= 0) return 1;
+        let n = 1;
+        for (let i = 0; i < idx && i < text.length; i++) {
+          if (text[i] === '\\n') n += 1;
+        }
+        return n;
+      }
+
+      function addSelectionToPrompt() {
+        const text = codeEl.value || '';
+        const a = codeEl.selectionStart ?? 0;
+        const b = codeEl.selectionEnd ?? 0;
+        if (a === b) {
+          statusEl.textContent = 'Select some text in the editor first.';
+          return;
+        }
+        const sel = text.slice(a, b);
+        const l1 = lineOfIndex(text, a);
+        const l2 = lineOfIndex(text, b);
+        const label = openFilePath ? `${openFilePath}:${l1}-${l2}` : `generated_scene.py:${l1}-${l2}`;
+        chatInputEl.value += `\n\n[@ref ${label}]\n${sel}\n`;
+        statusEl.textContent = `Added selection to prompt: ${label}`;
+      }
+
+      addSelectionBtn.addEventListener('click', addSelectionToPrompt);
+
+      let highlightOn = false;
+      function refreshHighlight() {
+        codePrettyEl.textContent = codeEl.value || '';
+        if (window.hljs) {
+          try { window.hljs.highlightElement(codePrettyEl); } catch {}
+        }
+      }
+      toggleHighlightBtn.addEventListener('click', () => {
+        highlightOn = !highlightOn;
+        codePrettyWrapEl.classList.toggle('hidden', !highlightOn);
+        codeEl.classList.toggle('hidden', highlightOn);
+        toggleHighlightBtn.textContent = highlightOn ? 'Edit' : 'Highlight';
+        if (highlightOn) refreshHighlight();
+      });
+      codeEl.addEventListener('input', () => {
+        if (highlightOn) refreshHighlight();
+      });
+      function setThumb(el, opts) {
+        const url = opts?.url || '';
+        const type = opts?.type || '';
+        const relPath = opts?.relPath || '';
+        el.innerHTML = '';
+        if (!url) {
+          el.textContent = 'No image yet';
+          el.classList.remove('draggable');
+          el.removeAttribute('draggable');
+          return;
+        }
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = type;
+        el.appendChild(img);
+        el.classList.add('draggable');
+        el.draggable = true;
+        el.title = `Drag into a scene (${type})`;
+        el.addEventListener('dragstart', (e) => {
+          e.dataTransfer.setData('text/asset-type', type);
+          e.dataTransfer.setData('text/asset-path', relPath);
+          e.dataTransfer.effectAllowed = 'copy';
+        }, { once: true });
       }
 
       async function openWorkspaceFile(path) {
@@ -1477,6 +1687,12 @@
           header.className = 'timeline-block-header';
           header.textContent = `${idx + 1}. ${(scene.goal || 'Scene').slice(0, 42)}`;
 
+          const assetLine = document.createElement('div');
+          assetLine.className = 'muted';
+          const bg = scene.assets?.background ? 'BG' : '';
+          const fg = scene.assets?.foreground ? 'FG' : '';
+          assetLine.textContent = (bg || fg) ? `Assets: ${[bg, fg].filter(Boolean).join(' + ')}` : 'Assets: (drop BG/FG)';
+
           const input = document.createElement('input');
           input.type = 'number';
           input.min = 1;
@@ -1489,6 +1705,7 @@
           });
 
           block.appendChild(header);
+          block.appendChild(assetLine);
           block.appendChild(input);
 
           block.addEventListener('dragstart', (e) => {
@@ -1503,6 +1720,17 @@
           });
           block.addEventListener('drop', (e) => {
             e.preventDefault();
+            const assetType = e.dataTransfer.getData('text/asset-type');
+            const assetPath = e.dataTransfer.getData('text/asset-path');
+            if (assetType && assetPath) {
+              const to = Number(block.dataset.index);
+              const sc = timelineState[to];
+              sc.assets = sc.assets || {};
+              sc.assets[assetType] = assetPath;
+              renderTimeline();
+              return;
+            }
+
             const from = Number(e.dataTransfer.getData('text/plain'));
             const to = Number(block.dataset.index);
             if (Number.isNaN(from) || Number.isNaN(to) || from === to) return;
@@ -1526,7 +1754,8 @@
             goal: sc.goal || 'Updated scene',
             elements: sc.elements || [],
             actions: sc.actions || [],
-            narration: sc.narration || ''
+            narration: sc.narration || '',
+            assets: sc.assets || {}
           }))
         };
         lastPlanBox.value = JSON.stringify(plan, null, 2);
@@ -1702,6 +1931,7 @@
         setStep('render', 'done');
 
         const src = '/' + data.video_path + '?t=' + Date.now();
+        lastVideoUrl = src;
         videoEl.src = src;
         videoEl.load();
         codeEl.value = data.code || '';
@@ -1710,6 +1940,28 @@
         updateJobFiles(data.job_files);
         logsEl.textContent = data.image_warning ? data.image_warning : (data.logs || 'Render complete.');
 
+        // Asset thumbnails (job-level background/foreground)
+        lastAssets = { background: '', foreground: '' };
+        if (data.assets && (data.assets.background || data.assets.foreground)) {
+          if (data.assets.background) {
+            const url = `/work/jobs/${data.job_id}/${data.assets.background}?t=${Date.now()}`;
+            lastAssets.background = data.assets.background;
+            setThumb(bgThumbEl, { url, type: 'background', relPath: data.assets.background });
+          } else {
+            setThumb(bgThumbEl, { url: '', type: 'background', relPath: '' });
+          }
+          if (data.assets.foreground) {
+            const url = `/work/jobs/${data.job_id}/${data.assets.foreground}?t=${Date.now()}`;
+            lastAssets.foreground = data.assets.foreground;
+            setThumb(fgThumbEl, { url, type: 'foreground', relPath: data.assets.foreground });
+          } else {
+            setThumb(fgThumbEl, { url: '', type: 'foreground', relPath: '' });
+          }
+        } else {
+          setThumb(bgThumbEl, { url: '', type: 'background', relPath: '' });
+          setThumb(fgThumbEl, { url: '', type: 'foreground', relPath: '' });
+        }
+
         if (data.plan && data.plan.scenes) {
           timelineMeta.title = data.plan.title || 'Scene Plan';
           timelineState = data.plan.scenes.map(sc => ({
@@ -1717,7 +1969,8 @@
             goal: sc.goal,
             elements: sc.elements,
             actions: sc.actions,
-            narration: sc.narration
+            narration: sc.narration,
+            assets: sc.assets || {}
           }));
           renderTimeline();
         }
@@ -1743,6 +1996,7 @@
           return;
         }
         const src = '/' + data.video_path + '?t=' + Date.now();
+        lastVideoUrl = src;
         videoEl.src = src;
         videoEl.load();
         openFilePath = null;
@@ -1754,6 +2008,37 @@
       downloadVideoBtn.addEventListener('click', () => {
         if (!videoEl.src) return;
         window.open(videoEl.src, '_blank');
+      });
+
+      async function runTerminalCommand() {
+        const cmd = (termCmdEl.value || '').trim();
+        if (!cmd) return;
+        termRunEl.disabled = true;
+        logsEl.textContent = `> ${cmd}\n`;
+        try {
+          const resp = await fetch('/api/terminal/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: cmd })
+          });
+          const data = await resp.json();
+          if (!data.ok) {
+            logsEl.textContent += (data.error || 'Command failed') + '\n';
+            return;
+          }
+          logsEl.textContent += (data.output || '') + '\n';
+        } catch (e) {
+          logsEl.textContent += 'Failed to reach backend.\n';
+        } finally {
+          termRunEl.disabled = false;
+        }
+      }
+      termRunEl.addEventListener('click', runTerminalCommand);
+      termCmdEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          runTerminalCommand();
+        }
       });
 
       timelineScrubEl.addEventListener('input', () => {
@@ -1820,5 +2105,6 @@
       updateEditorMode();
       applyLayoutColumns();
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
   </body>
 </html>

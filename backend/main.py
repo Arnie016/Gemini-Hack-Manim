@@ -21,6 +21,7 @@ from .prompts import (
 from .renderer import render_with_manim
 from .storage import job_paths, new_job_id
 from .templates import TEMPLATES
+from .code_format import format_python
 from .context_store import (
     add_memory,
     delete_memory,
@@ -40,6 +41,7 @@ from .file_store import (
     rename_path,
     write_file,
 )
+from .terminal_runner import TerminalError, run_terminal_command
 
 ROOT = Path(__file__).resolve().parents[1]
 WORK = ROOT / "work"
@@ -80,6 +82,10 @@ class AnimateReq(BaseModel):
 class RenderCodeReq(BaseModel):
     code: str
     quality: str = "pql"
+
+
+class TerminalReq(BaseModel):
+    command: str
 
 
 class SettingsReq(BaseModel):
@@ -315,6 +321,16 @@ def set_settings(req: SettingsReq):
         "image_model": settings.get("image_model"),
         "manim_py": settings.get("manim_py"),
     }
+
+
+@app.post("/api/terminal/run")
+def terminal_run(req: TerminalReq):
+    settings = load_settings()
+    try:
+        out = run_terminal_command(req.command, manim_py=settings.get("manim_py") or "python3")
+        return {"ok": True, "output": out}
+    except TerminalError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
 
 
 @app.get("/api/files")
@@ -575,6 +591,7 @@ def approve(req: ApproveReq):
             api_key=api_key,
             model=text_model,
         )
+        code = format_python(code)
         paths.scene_path.write_text(code, encoding="utf-8")
     except GeminiError as exc:
         return JSONResponse(
@@ -611,6 +628,7 @@ def approve(req: ApproveReq):
                 api_key=api_key,
                 model=text_model,
             )
+            code2 = format_python(code2)
             paths.scene_path.write_text(code2, encoding="utf-8")
             ok, logs = render_with_manim(
                 paths.scene_path,
@@ -759,6 +777,7 @@ def animate(req: AnimateReq):
             api_key=api_key,
             model=text_model,
         )
+        code = format_python(code)
         paths.scene_path.write_text(code, encoding="utf-8")
     except GeminiError as exc:
         return JSONResponse(
@@ -792,6 +811,7 @@ def animate(req: AnimateReq):
         )
         try:
             code2 = generate_content(repair_user, system_text=REPAIR_SYSTEM, api_key=api_key)
+            code2 = format_python(code2)
             paths.scene_path.write_text(code2, encoding="utf-8")
             ok, logs = render_with_manim(
                 paths.scene_path,
@@ -845,7 +865,8 @@ def render_code(req: RenderCodeReq):
     paths = job_paths(JOBS, job_id)
     paths.job_dir.mkdir(parents=True, exist_ok=True)
 
-    paths.scene_path.write_text(req.code, encoding="utf-8")
+    # If the user edits code, keep it mostly as-is, but normalize tabs/trailing whitespace.
+    paths.scene_path.write_text(format_python(req.code), encoding="utf-8")
     settings = load_settings()
     ok, logs = render_with_manim(
         paths.scene_path,
