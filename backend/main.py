@@ -220,10 +220,11 @@ def index():
 @app.get("/api/health")
 def health():
     import subprocess
+    import shutil
 
-    def _run(cmd: list[str]) -> tuple[bool, str]:
+    def _run(cmd: list[str], *, timeout_s: float = 10) -> tuple[bool, str]:
         try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s)
             ok = proc.returncode == 0
             out = (proc.stdout or "") + (proc.stderr or "")
             return ok, out.strip()
@@ -256,12 +257,17 @@ def health():
             manim_out = out
             used_py = cand
 
-    ffmpeg_ok, ffmpeg_out = _run(["ffmpeg", "-version"])
+    ffmpeg_path = shutil.which("ffmpeg")
+    if ffmpeg_path:
+        ffmpeg_ok, ffmpeg_out = _run([ffmpeg_path, "-version"], timeout_s=3)
+    else:
+        ffmpeg_ok, ffmpeg_out = False, "ffmpeg not found on PATH"
     return {
         "manim_ok": manim_ok,
         "manim_version": manim_out.splitlines()[0] if manim_out else "",
         "ffmpeg_ok": ffmpeg_ok,
         "ffmpeg_version": ffmpeg_out.splitlines()[0] if ffmpeg_out else "",
+        "ffmpeg_path": ffmpeg_path or "",
         "manim_py": used_py or manim_py_setting or "python3",
         "python_candidates": candidates,
     }

@@ -15,7 +15,8 @@ def render_with_manim(
     timeout_s: int = 180,
 ) -> Tuple[bool, str]:
     out_mp4.parent.mkdir(parents=True, exist_ok=True)
-    manim_py = manim_py or os.getenv("MANIM_PY", "python")
+    # Prefer python3 on macOS (many machines no longer ship `python`).
+    manim_py = manim_py or os.getenv("MANIM_PY") or "python3"
 
     quality_map = {
         "pql": "-ql",
@@ -46,6 +47,8 @@ def render_with_manim(
             timeout=timeout_s,
             cwd=str(scene_file.parent),
         )
+    except FileNotFoundError as exc:
+        return False, f"Executable not found: {exc}"
     except subprocess.TimeoutExpired as exc:
         logs = (exc.stdout or "") + "\n" + (exc.stderr or "")
         return False, logs + "\nRender timed out"

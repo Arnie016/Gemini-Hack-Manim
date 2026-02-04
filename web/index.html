@@ -727,6 +727,15 @@
       const logsEl = document.getElementById('logs');
       const terminalPanel = document.getElementById('terminalPanel');
 
+      window.addEventListener('error', (e) => {
+        const msg = e?.error?.stack || e?.message || String(e);
+        logsEl.textContent = `JS error:\\n${msg}`;
+      });
+      window.addEventListener('unhandledrejection', (e) => {
+        const msg = e?.reason?.stack || e?.reason?.message || String(e?.reason || e);
+        logsEl.textContent = `Unhandled promise rejection:\\n${msg}`;
+      });
+
       const chatMessagesEl = document.getElementById('chatMessages');
       const chatInputEl = document.getElementById('chatInput');
       const chatModelEl = document.getElementById('chatModel');
@@ -767,9 +776,11 @@
 
       function getLayoutSizes() {
         const stored = JSON.parse(localStorage.getItem('layoutSizes') || '{}');
+        const leftNum = Number(stored.left);
+        const rightNum = Number(stored.right);
         return {
-          left: stored.left || 280,
-          right: stored.right || 360,
+          left: Number.isFinite(leftNum) ? leftNum : 280,
+          right: Number.isFinite(rightNum) ? rightNum : 360,
         };
       }
 
@@ -851,10 +862,15 @@
         let startRight = 0;
 
         splitter.addEventListener('mousedown', (e) => {
+          e.preventDefault();
           startX = e.clientX;
           const sizes = getLayoutSizes();
-          startLeft = sizes.left;
-          startRight = sizes.right;
+          startLeft = Number(sizes.left) || 280;
+          startRight = Number(sizes.right) || 360;
+          const prevUserSelect = document.body.style.userSelect;
+          const prevCursor = document.body.style.cursor;
+          document.body.style.userSelect = 'none';
+          document.body.style.cursor = 'col-resize';
 
           function onMove(ev) {
             const dx = ev.clientX - startX;
@@ -871,6 +887,8 @@
           function onUp() {
             window.removeEventListener('mousemove', onMove);
             window.removeEventListener('mouseup', onUp);
+            document.body.style.userSelect = prevUserSelect;
+            document.body.style.cursor = prevCursor;
           }
 
           window.addEventListener('mousemove', onMove);
@@ -957,14 +975,23 @@
 
       async function createFolder() {
         const path = newPathEl.value.trim();
-        if (!path) return;
+        if (!path) {
+          fileStatusEl.textContent = 'Enter a path first (e.g. notes or notes/script.md).';
+          return;
+        }
         fileStatusEl.textContent = 'Creating folder...';
-        const resp = await fetch('/api/files/folder', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path })
-        });
-        const data = await resp.json();
+        let data = null;
+        try {
+          const resp = await fetch('/api/files/folder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path })
+          });
+          data = await resp.json();
+        } catch (e) {
+          fileStatusEl.textContent = 'Failed to reach backend. Is the server running?';
+          return;
+        }
         if (!data.ok) {
           fileStatusEl.textContent = data.error || 'Failed to create folder.';
           return;
@@ -976,14 +1003,23 @@
 
       async function createFile() {
         const path = newPathEl.value.trim();
-        if (!path) return;
+        if (!path) {
+          fileStatusEl.textContent = 'Enter a path first (e.g. notes/outline.md).';
+          return;
+        }
         fileStatusEl.textContent = 'Creating file...';
-        const resp = await fetch('/api/files/file', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path, content: '' })
-        });
-        const data = await resp.json();
+        let data = null;
+        try {
+          const resp = await fetch('/api/files/file', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path, content: '' })
+          });
+          data = await resp.json();
+        } catch (e) {
+          fileStatusEl.textContent = 'Failed to reach backend. Is the server running?';
+          return;
+        }
         if (!data.ok) {
           fileStatusEl.textContent = data.error || 'Failed to create file.';
           return;
@@ -1085,12 +1121,34 @@
 
       async function runHealth() {
         healthEl.textContent = 'Checking...';
-        const resp = await fetch('/api/health');
-        const data = await resp.json();
+        let data = null;
+        try {
+          const resp = await fetch('/api/health');
+          data = await resp.json();
+        } catch (e) {
+          healthEl.textContent = 'Failed to reach backend. Is the server running?';
+          return;
+        }
         const manimStatus = data.manim_ok ? 'OK' : 'Missing';
         const ffmpegStatus = data.ffmpeg_ok ? 'OK' : 'Missing';
         const py = data.manim_py || 'python3';
-        healthEl.textContent = `Manim: ${manimStatus}\nffmpeg: ${ffmpegStatus}\npython: ${py}\n${data.manim_version || ''}`;
+        const cands = (data.python_candidates || []).join(', ');
+        const ffmpegPath = data.ffmpeg_path || '';
+        const lines = [
+          `Manim: ${manimStatus}`,
+          `ffmpeg: ${ffmpegStatus}`,
+          `python: ${py}`,
+        ];
+        if (data.manim_version) lines.push(data.manim_version);
+        if (cands) lines.push(`python candidates: ${cands}`);
+        if (ffmpegPath) lines.push(`ffmpeg path: ${ffmpegPath}`);
+        if (!data.manim_ok) {
+          lines.push('Fix: set Manim Python path to an env with Manim, or run: pip install manim');
+        }
+        if (!data.ffmpeg_ok) {
+          lines.push('Fix (macOS): brew install ffmpeg');
+        }
+        healthEl.textContent = lines.join('\\n');
       }
 
       async function loadMemories() {
