@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Gemini-Hack-Manim</title>
+    <title>Gemini Manim Animator</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css">
     <style>
       @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
@@ -215,7 +215,7 @@
       button.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
 
       .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-      .row.small { grid-template-columns: 1fr auto auto; align-items: center; }
+      .row.small { grid-template-columns: 1fr auto auto auto; align-items: center; }
       .muted { color: var(--muted); font-size: 12px; }
       code { font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
 
@@ -306,16 +306,30 @@
 
       .timeline-wrap { margin-top: 12px; }
       .timeline-ruler {
-        height: 24px;
-        background: repeating-linear-gradient(
-          90deg,
-          rgba(255,255,255,0.08),
-          rgba(255,255,255,0.08) 1px,
-          transparent 1px,
-          transparent 40px
-        );
+        position: relative;
+        height: 26px;
+        background: #0b1220;
         border-radius: 8px;
         border: 1px solid var(--border);
+        overflow: hidden;
+      }
+      .timeline-ruler .tick {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 1px;
+        background: rgba(255,255,255,0.10);
+      }
+      .timeline-ruler .tick.major {
+        background: rgba(106,169,255,0.45);
+      }
+      .timeline-ruler .tick-label {
+        position: absolute;
+        top: 6px;
+        transform: translateX(-50%);
+        font-size: 10px;
+        color: var(--muted);
+        white-space: nowrap;
       }
       .timeline-track {
         display: flex;
@@ -451,9 +465,28 @@
         margin-bottom: 8px;
       }
 
+      .toast {
+        position: fixed;
+        bottom: 14px;
+        right: 14px;
+        max-width: 420px;
+        background: rgba(15, 20, 29, 0.95);
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 12px;
+        padding: 10px 12px;
+        font-size: 12px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+        z-index: 40;
+      }
+      .toast.ok { border-color: rgba(34, 197, 94, 0.6); }
+      .toast.err { border-color: rgba(239, 68, 68, 0.6); }
+
       @media (max-width: 1200px) {
         .layout { grid-template-columns: 1fr; grid-template-rows: auto; height: auto; }
-        .splitter { display: none; }
+        /* Undo column pinning on smaller viewports to avoid implicit off-screen columns. */
+        #leftPanel, #splitterLeft, main.workspace, #splitterRight, #rightPanel { grid-column: 1 !important; grid-row: auto !important; }
+        .splitter { display: none !important; }
         .canvas-grid { grid-template-columns: 1fr; }
         .settings-drawer { width: 100%; }
       }
@@ -466,7 +499,7 @@
         <span class="dot yellow"></span>
         <span class="dot green"></span>
       </div>
-      <div class="topbar-title">Gemini-Hack-Manim</div>
+      <div class="topbar-title">Gemini Manim Animator</div>
       <div class="topbar-actions">
         <button id="backBtn" class="icon-btn" title="Back" aria-label="Back" data-tip="Back">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
@@ -498,6 +531,9 @@
           <div class="section-title">Workspace</div>
           <div class="row small" style="margin-top:8px;">
             <input id="newPath" placeholder="notes/outline.md" />
+            <button id="applyRename" class="ghost hidden" title="Apply rename" aria-label="Apply rename">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+            </button>
             <button id="createFolder" class="ghost" title="Create folder">+ Folder</button>
             <button id="createFile" class="ghost" title="Create file">+ File</button>
           </div>
@@ -702,7 +738,7 @@
 
                 <div class="timeline-wrap">
                   <div class="muted" id="timelineLabel">Timeline</div>
-                  <div class="timeline-ruler" style="margin-top:6px;"></div>
+                  <div class="timeline-ruler" id="timelineRuler" style="margin-top:6px;"></div>
                   <div class="timeline-track" id="timelineTrack"></div>
                   <input id="timelineScrub" type="range" min="0" max="100" value="0" style="margin-top:8px;" />
                   <div class="row" style="margin-top:8px;">
@@ -733,7 +769,7 @@
           </section>
         </div>
 
-        <div class="terminal" id="terminalPanel">
+        <div class="terminal hidden" id="terminalPanel">
           <div class="toolbar" style="margin:0 0 8px 0;">
             <div class="muted">Terminal</div>
             <div class="spacer"></div>
@@ -829,14 +865,25 @@
 
       <div class="drawer-section">
         <div class="drawer-title">Rendering</div>
-        <label for="settingsManimPy">Manim Python path</label>
+        <label for="settingsManimPy">Python executable for Manim</label>
         <input id="settingsManimPy" type="text" placeholder="python3" />
+
+        <div class="muted" style="margin-top:6px;">
+          This is the python executable used to run <code>python -m manim</code>. Leave blank to auto-detect.
+          Outputs are saved under <code>work/jobs/&lt;job_id&gt;/out.mp4</code>.
+        </div>
 
         <div class="row" style="margin-top:10px;">
           <button id="saveSettings">Save</button>
           <button id="runHealth" class="secondary">Health</button>
         </div>
         <pre id="health" class="muted" style="margin-top:8px; white-space:pre-wrap;">No checks yet.</pre>
+      </div>
+
+      <div class="drawer-section">
+        <div class="drawer-title">Layout</div>
+        <div class="muted">If panels disappear or sizes feel broken, reset the layout.</div>
+        <button id="resetLayout" class="secondary" style="margin-top:8px;">Reset layout</button>
       </div>
 
       <div class="drawer-section">
@@ -860,11 +907,14 @@
       </div>
     </div>
 
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
     <script>
       const jobFileListEl = document.getElementById('jobFileList');
       const jobIdEl = document.getElementById('jobId');
       const workspaceTreeEl = document.getElementById('workspaceTree');
       const newPathEl = document.getElementById('newPath');
+      const applyRenameBtn = document.getElementById('applyRename');
       const createFolderBtn = document.getElementById('createFolder');
       const createFileBtn = document.getElementById('createFile');
       const fileStatusEl = document.getElementById('fileStatus');
@@ -908,6 +958,7 @@
       const previewSlot = document.getElementById('previewSlot');
       const downloadBtnEl = document.getElementById('downloadBtn');
       const shareBtnEl = document.getElementById('shareBtn');
+      const timelineRulerEl = document.getElementById('timelineRuler');
       const timelineTrackEl = document.getElementById('timelineTrack');
       const timelineLabelEl = document.getElementById('timelineLabel');
       const timelineScrubEl = document.getElementById('timelineScrub');
@@ -926,6 +977,19 @@
       const terminalPanel = document.getElementById('terminalPanel');
       const termCmdEl = document.getElementById('termCmd');
       const termRunEl = document.getElementById('termRun');
+      const toastEl = document.getElementById('toast');
+      let toastTimer = null;
+
+      function showToast(message, kind = '') {
+        if (!toastEl) return;
+        toastEl.textContent = String(message || '');
+        toastEl.classList.remove('ok', 'err', 'hidden');
+        if (kind) toastEl.classList.add(kind);
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => {
+          toastEl.classList.add('hidden');
+        }, 2600);
+      }
 
       window.addEventListener('error', (e) => {
         const msg = e?.error?.stack || e?.message || String(e);
@@ -959,6 +1023,7 @@
       const saveSettingsBtn = document.getElementById('saveSettings');
       const runHealthBtn = document.getElementById('runHealth');
       const healthEl = document.getElementById('health');
+      const resetLayoutBtn = document.getElementById('resetLayout');
 
       const rulesTextEl = document.getElementById('rulesText');
       const subagentsTextEl = document.getElementById('subagentsText');
@@ -975,21 +1040,30 @@
 
       downloadBtnEl.addEventListener('click', () => {
         if (!lastVideoUrl) return;
-        window.open(lastVideoUrl, '_blank');
+        const a = document.createElement('a');
+        a.href = lastVideoUrl;
+        a.download = currentJobId ? `${currentJobId}.mp4` : 'out.mp4';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        showToast('Downloading video…', 'ok');
       });
       shareBtnEl.addEventListener('click', async () => {
         if (!lastVideoUrl) return;
         try {
           if (navigator.share) {
-            await navigator.share({ title: 'Gemini-Hack-Manim', url: lastVideoUrl });
+            await navigator.share({ title: 'Gemini Manim Animator', url: lastVideoUrl });
           } else if (navigator.clipboard) {
             await navigator.clipboard.writeText(lastVideoUrl);
             statusEl.textContent = 'Copied video link to clipboard.';
+            showToast('Copied video link.', 'ok');
           } else {
             statusEl.textContent = 'Sharing not supported in this browser.';
+            showToast('Sharing not supported in this browser.', 'err');
           }
         } catch (e) {
           statusEl.textContent = 'Share cancelled.';
+          showToast('Share cancelled.', 'err');
         }
       });
 
@@ -1002,6 +1076,7 @@
       let openFilePath = null;
       let pendingRenameFrom = null;
       let lastAssets = { background: '', foreground: '' };
+      const mqNarrow = window.matchMedia('(max-width: 1200px)');
 
       function getSources() {
         try {
@@ -1022,13 +1097,22 @@
         sourceStatusEl.textContent = sources.map((s, i) => `${i + 1}. ${s.url || '(no url)'}\n${(s.notes || '').slice(0, 240)}${(s.notes || '').length > 240 ? '…' : ''}`).join('\n\n');
       }
 
+      function clampNumber(n, min, max) {
+        return Math.max(min, Math.min(max, n));
+      }
+
       function getLayoutSizes() {
-        const stored = JSON.parse(localStorage.getItem('layoutSizes') || '{}');
+        let stored = {};
+        try {
+          stored = JSON.parse(localStorage.getItem('layoutSizes') || '{}');
+        } catch {
+          stored = {};
+        }
         const leftNum = Number(stored.left);
         const rightNum = Number(stored.right);
         return {
-          left: Number.isFinite(leftNum) ? leftNum : 280,
-          right: Number.isFinite(rightNum) ? rightNum : 360,
+          left: Number.isFinite(leftNum) ? clampNumber(leftNum, 220, 520) : 280,
+          right: Number.isFinite(rightNum) ? clampNumber(rightNum, 260, 560) : 360,
         };
       }
 
@@ -1037,6 +1121,13 @@
       }
 
       function applyLayoutColumns() {
+        if (mqNarrow.matches) {
+          // Let the CSS media query control the stack layout (no inline override).
+          layoutRoot.style.removeProperty('grid-template-columns');
+          splitterLeft.classList.add('hidden');
+          splitterRight.classList.add('hidden');
+          return;
+        }
         const leftVisible = !leftPanel.classList.contains('hidden');
         const rightVisible = !rightPanel.classList.contains('hidden');
         const sizes = getLayoutSizes();
@@ -1049,6 +1140,14 @@
         layoutRoot.style.gridTemplateColumns = `${leftW}px ${splitL}px 1fr ${splitR}px ${rightW}px`;
       }
 
+      function resetLayout() {
+        try { localStorage.removeItem('layoutSizes'); } catch {}
+        leftPanel.classList.remove('hidden');
+        rightPanel.classList.remove('hidden');
+        applyLayoutColumns();
+        showToast('Layout reset.', 'ok');
+      }
+
       document.getElementById('toggleLeft').addEventListener('click', () => {
         leftPanel.classList.toggle('hidden');
         applyLayoutColumns();
@@ -1058,7 +1157,10 @@
         applyLayoutColumns();
       });
       document.getElementById('toggleTerminal').addEventListener('click', () => {
-        terminalPanel.classList.toggle('hidden');
+        const isHidden = terminalPanel.classList.toggle('hidden');
+        if (!isHidden) {
+          setTimeout(() => termCmdEl.focus(), 0);
+        }
       });
 
       document.getElementById('backBtn').addEventListener('click', () => {
@@ -1137,6 +1239,13 @@
       }
       initSplitter(splitterLeft, 'left');
       initSplitter(splitterRight, 'right');
+      // Keep layout sane across resizes and avoid "panels disappeared" glitches.
+      try {
+        mqNarrow.addEventListener('change', applyLayoutColumns);
+      } catch {
+        try { mqNarrow.addListener(applyLayoutColumns); } catch {}
+      }
+      window.addEventListener('resize', applyLayoutColumns);
 
       function setPreviewAspect(ratio) {
         let val = '9 / 16';
@@ -1333,6 +1442,7 @@
           return;
         }
         logsEl.textContent = `Saved: ${openFilePath}`;
+        showToast(`Saved: ${openFilePath}`, 'ok');
       }
 
       function startRename(fromPath) {
@@ -1347,6 +1457,7 @@
           newPathEl.setSelectionRange(selStart, selEnd);
         } catch {}
         fileStatusEl.textContent = 'Rename: edit the path above and press Enter.';
+        applyRenameBtn.classList.remove('hidden');
       }
 
       async function renamePending() {
@@ -1356,6 +1467,7 @@
         if (!toPath) {
           fileStatusEl.textContent = 'Rename cancelled: empty path.';
           pendingRenameFrom = null;
+          applyRenameBtn.classList.add('hidden');
           return;
         }
         fileStatusEl.textContent = 'Renaming...';
@@ -1376,6 +1488,7 @@
           return;
         }
         pendingRenameFrom = null;
+        applyRenameBtn.classList.add('hidden');
         newPathEl.value = '';
         fileStatusEl.textContent = `Renamed: ${fromPath} → ${toPath}`;
         if (openFilePath === fromPath) {
@@ -1399,15 +1512,20 @@
           let idx = 0;
           while (idx < 50) {
             const candidate = idx === 0 ? 'New Folder' : `New Folder ${idx + 1}`;
-            const resp = await fetch('/api/files/folder', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ path: candidate })
-            });
-            const data = await resp.json();
-            if (data.ok) {
-              loadWorkspaceFiles();
-              startRename(data.path);
+            try {
+              const resp = await fetch('/api/files/folder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: candidate })
+              });
+              const data = await resp.json();
+              if (data.ok) {
+                loadWorkspaceFiles();
+                startRename(data.path);
+                return;
+              }
+            } catch (e) {
+              fileStatusEl.textContent = 'Failed to reach backend. Is the server running?';
               return;
             }
             idx += 1;
@@ -1444,16 +1562,21 @@
           let idx = 0;
           while (idx < 50) {
             const candidate = idx === 0 ? 'untitled.md' : `untitled-${idx + 1}.md`;
-            const resp = await fetch('/api/files/file', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ path: candidate, content: '' })
-            });
-            const data = await resp.json();
-            if (data.ok) {
-              loadWorkspaceFiles();
-              startRename(data.path);
-              await openWorkspaceFile(data.path);
+            try {
+              const resp = await fetch('/api/files/file', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: candidate, content: '' })
+              });
+              const data = await resp.json();
+              if (data.ok) {
+                loadWorkspaceFiles();
+                startRename(data.path);
+                await openWorkspaceFile(data.path);
+                return;
+              }
+            } catch (e) {
+              fileStatusEl.textContent = 'Failed to reach backend. Is the server running?';
               return;
             }
             idx += 1;
@@ -1607,7 +1730,7 @@
         if (data.manim_version) lines.push(data.manim_version);
         if (cands) lines.push(`python candidates: ${cands}`);
         if (ffmpegPath) lines.push(`ffmpeg path: ${ffmpegPath}`);
-        if (!data.manim_ok) lines.push('Fix: set Manim Python path to an env with Manim.');
+        if (!data.manim_ok) lines.push('Fix: set "Python executable for Manim" to an env with Manim installed.');
         if (!data.ffmpeg_ok) lines.push('Fix (macOS): brew install ffmpeg');
         healthEl.textContent = lines.join('\n');
       }
@@ -1677,16 +1800,54 @@
         return Array.from(skillListEl.querySelectorAll('input[type="checkbox"]')).filter(cb => cb.checked).map(cb => cb.dataset.id);
       }
 
+      function renderTimelineRuler(totalSeconds) {
+        if (!timelineRulerEl) return;
+        timelineRulerEl.innerHTML = '';
+        const total = Math.max(1, Math.floor(Number(totalSeconds || 1)));
+
+        let minor = 1;
+        let major = 5;
+        if (total > 30 && total <= 120) { minor = 5; major = 10; }
+        else if (total > 120 && total <= 300) { minor = 10; major = 30; }
+        else if (total > 300) { minor = 30; major = 60; }
+
+        function addTick(t, isMajor) {
+          const pct = (t / total) * 100;
+          const tick = document.createElement('div');
+          tick.className = 'tick' + (isMajor ? ' major' : '');
+          tick.style.left = `${pct}%`;
+          timelineRulerEl.appendChild(tick);
+          if (isMajor) {
+            const label = document.createElement('div');
+            label.className = 'tick-label';
+            label.style.left = `${pct}%`;
+            label.textContent = `${t}s`;
+            timelineRulerEl.appendChild(label);
+          }
+        }
+
+        for (let t = 0; t <= total; t += minor) {
+          addTick(t, t % major === 0);
+        }
+        if (total % minor !== 0) addTick(total, true);
+      }
+
       function renderTimeline() {
         timelineTrackEl.innerHTML = '';
         if (!timelineState.length) {
           timelineLabelEl.textContent = 'Timeline';
+          if (timelineRulerEl) timelineRulerEl.innerHTML = '';
           return;
         }
         const total = timelineState.reduce((s, sc) => s + sc.seconds, 0);
         timelineLabelEl.textContent = `Total ${total}s • ${timelineState.length} scenes`;
+        renderTimelineRuler(total);
 
+        let cursor = 0;
         timelineState.forEach((scene, idx) => {
+          const start = cursor;
+          const end = start + Number(scene.seconds || 0);
+          cursor = end;
           const block = document.createElement('div');
           block.className = 'timeline-block';
           block.draggable = true;
@@ -1695,7 +1856,7 @@
 
           const header = document.createElement('div');
           header.className = 'timeline-block-header';
-          header.textContent = `${idx + 1}. ${(scene.goal || 'Scene').slice(0, 42)}`;
+          header.textContent = `${idx + 1}. ${start}s–${end}s • ${(scene.goal || 'Scene').slice(0, 36)}`;
 
           const assetLine = document.createElement('div');
           assetLine.className = 'muted';
@@ -1865,6 +2026,7 @@
         const data = await resp.json();
         if (!data.ok) {
           statusEl.textContent = data.error || 'Plan failed.';
+          showToast(data.error || 'Plan failed.', 'err');
           setStep('plan', 'error');
           return;
         }
@@ -1932,6 +2094,7 @@
         const data = await resp.json();
         if (!data.ok) {
           statusEl.textContent = data.error || 'Render failed.';
+          showToast(data.error || 'Render failed.', 'err');
           setStep('code', 'error');
           setStep('render', 'error');
           logsEl.textContent = data.logs || data.error || 'Render failed.';
@@ -1949,6 +2112,7 @@
         updateEditorMode();
         updateJobFiles(data.job_files);
         logsEl.textContent = data.image_warning ? data.image_warning : (data.logs || 'Render complete.');
+        showToast('Render complete.', 'ok');
 
         // Asset thumbnails (job-level background/foreground)
         lastAssets = { background: '', foreground: '' };
@@ -2002,6 +2166,7 @@
         const data = await resp.json();
         if (!data.ok) {
           statusEl.textContent = data.error || 'Render failed.';
+          showToast(data.error || 'Render failed.', 'err');
           logsEl.textContent = data.logs || data.error || 'Render failed.';
           return;
         }
@@ -2013,11 +2178,18 @@
         updateEditorMode();
         updateJobFiles(data.job_files);
         logsEl.textContent = data.logs || 'Render complete.';
+        showToast('Render complete.', 'ok');
       });
 
       downloadVideoBtn.addEventListener('click', () => {
         if (!videoEl.src) return;
-        window.open(videoEl.src, '_blank');
+        const a = document.createElement('a');
+        a.href = videoEl.src;
+        a.download = currentJobId ? `${currentJobId}.mp4` : 'out.mp4';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        showToast('Downloading video…', 'ok');
       });
 
       async function runTerminalCommand() {
@@ -2070,10 +2242,12 @@
       planBtn.addEventListener('click', createPlan);
       saveSettingsBtn.addEventListener('click', saveSettings);
       runHealthBtn.addEventListener('click', runHealth);
+      resetLayoutBtn.addEventListener('click', resetLayout);
       addMemoryBtn.addEventListener('click', addMemory);
       saveSkillBtn.addEventListener('click', saveSkill);
       generateSkillBtn.addEventListener('click', generateSkill);
       aspectEl.addEventListener('change', () => setPreviewAspect(aspectEl.value));
+      applyRenameBtn.addEventListener('click', renamePending);
       createFolderBtn.addEventListener('click', createFolder);
       createFileBtn.addEventListener('click', createFile);
       newPathEl.addEventListener('keydown', (e) => {

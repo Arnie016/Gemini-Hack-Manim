@@ -255,16 +255,29 @@ def health():
     candidates: list[str] = []
     if manim_py_setting:
         candidates.append(manim_py_setting)
-    candidates.extend(["python", "python3"])
     venv_py = ROOT / ".venv" / "bin" / "python"
     if venv_py.exists():
         candidates.append(str(venv_py))
+    candidates.extend(["python3", "python"])
     seen = set()
     candidates = [c for c in candidates if not (c in seen or seen.add(c))]
 
+    def _exists(cmd: str) -> bool:
+        # Filter out non-existent executables so the UI doesn't show confusing
+        # "[Errno 2] No such file or directory: 'python'".
+        try:
+            p = Path(cmd)
+            if p.is_absolute() or "/" in cmd:
+                return p.exists()
+        except Exception:
+            pass
+        return shutil.which(cmd) is not None
+
+    candidates = [c for c in candidates if _exists(c)]
+
     manim_ok = False
     manim_out = ""
-    used_py = ""
+    used_py = candidates[0] if candidates else (manim_py_setting or "python3")
     for cand in candidates:
         ok, out = _run([cand, "-m", "manim", "--version"])
         if ok:
@@ -274,7 +287,6 @@ def health():
             break
         if not manim_out:
             manim_out = out
-            used_py = cand
 
     ffmpeg_path = shutil.which("ffmpeg")
     if ffmpeg_path:
