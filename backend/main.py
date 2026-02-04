@@ -9,8 +9,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from gemini_http import GeminiError, generate_content, generate_image
-from prompts import (
+from .gemini_http import GeminiError, generate_content, generate_image
+from .prompts import (
     MANIM_CODE_SYSTEM,
     REPAIR_SYSTEM,
     SCENE_PLAN_SCHEMA,
@@ -18,10 +18,10 @@ from prompts import (
     manim_code_user_prompt,
     scene_plan_user_prompt,
 )
-from renderer import render_with_manim
-from storage import job_paths, new_job_id
-from templates import TEMPLATES
-from context_store import (
+from .renderer import render_with_manim
+from .storage import job_paths, new_job_id
+from .templates import TEMPLATES
+from .context_store import (
     add_memory,
     delete_memory,
     get_memories_by_ids,
@@ -31,7 +31,8 @@ from context_store import (
     save_skill,
     delete_skill,
 )
-from settings_store import load_settings, update_settings
+from .settings_store import load_settings, update_settings
+from .file_store import list_tree, create_folder, write_file, read_file, delete_path
 
 ROOT = Path(__file__).resolve().parents[1]
 WORK = ROOT / "work"
@@ -113,6 +114,12 @@ class ApproveReq(BaseModel):
     quality: str = "pql"
     aspect_ratio: str = "9:16"
     model: Optional[str] = None
+
+
+class FileReq(BaseModel):
+    path: str
+    content: Optional[str] = None
+    overwrite: bool = False
 
 
 def _build_director_brief(req: AnimateReq) -> str:
@@ -264,6 +271,62 @@ def set_settings(req: SettingsReq):
         "image_model": settings.get("image_model"),
         "manim_py": settings.get("manim_py"),
     }
+
+
+@app.get("/api/files")
+def list_files():
+    return {"tree": list_tree()}
+
+
+@app.post("/api/files/folder")
+def create_folder_api(req: FileReq):
+    try:
+        path = create_folder(req.path)
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    return {"ok": True, "path": path}
+
+
+@app.post("/api/files/file")
+def create_file_api(req: FileReq):
+    try:
+        path = write_file(req.path, req.content or "", overwrite=req.overwrite)
+    except FileExistsError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=409)
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    return {"ok": True, "path": path}
+
+
+@app.put("/api/files/file")
+def update_file_api(req: FileReq):
+    try:
+        path = write_file(req.path, req.content or "", overwrite=True)
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    return {"ok": True, "path": path}
+
+
+@app.get("/api/files/file")
+def read_file_api(path: str):
+    try:
+        content = read_file(path)
+    except FileNotFoundError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=404)
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    return {"ok": True, "path": path, "content": content}
+
+
+@app.delete("/api/files/file")
+def delete_file_api(path: str):
+    try:
+        delete_path(path)
+    except FileNotFoundError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=404)
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    return {"ok": True}
 
 
 @app.get("/api/memories")
