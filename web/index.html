@@ -1553,6 +1553,16 @@
         }
         if (data.image_model) settingsImageModelEl.value = data.image_model;
         if (data.manim_py) settingsManimPyEl.value = data.manim_py;
+        if (!data.has_api_key) {
+          statusEl.textContent = 'Hackathon tip: open Settings and paste your Gemini API key.';
+          try {
+            const seen = localStorage.getItem('seenApiKeyHint');
+            if (!seen) {
+              settingsDrawer.classList.add('open');
+              localStorage.setItem('seenApiKeyHint', '1');
+            }
+          } catch {}
+        }
       }
 
       async function saveSettings() {
@@ -2094,6 +2104,59 @@
         sourceNotesEl.value = '';
       });
 
+      function seedDemoDefaults() {
+        // Keep this lightweight: only fill if the user hasn't typed anything.
+        if (!chatInputEl.value.trim()) {
+          chatInputEl.value = 'Explain the photoelectric effect in 60 seconds (red vs blue light, threshold frequency, Einstein equation).';
+        }
+        if (!imagePromptEl.value.trim()) {
+          imagePromptEl.value = 'Scientist walking in a park at sunrise';
+        }
+        if (!includeImagesEl.value) includeImagesEl.value = 'true';
+        if (!imageModeEl.value) imageModeEl.value = 'background';
+
+        if (!aspectEl.value) aspectEl.value = '9:16';
+        if (!audienceEl.value) audienceEl.value = 'high school';
+        if (!toneEl.value) toneEl.value = 'epic';
+        if (!styleEl.value) styleEl.value = 'cinematic';
+        if (!paceEl.value) paceEl.value = 'medium';
+        if (!paletteEl.value) paletteEl.value = 'cool';
+        if (!qualityEl.value) qualityEl.value = 'pqm';
+        if (!targetSecondsEl.value.trim()) targetSecondsEl.value = '60';
+        if (!maxScenesEl.value.trim()) maxScenesEl.value = '6';
+
+        if (!rulesTextEl.value.trim()) {
+          rulesTextEl.value = [
+            'Show 1 concept at a time.',
+            'Keep all text centered with safe padding for 9:16.',
+            'Always label variables when introduced; avoid clutter.',
+            'Use simple arrows/axes; avoid tiny text.',
+          ].join('\\n');
+        }
+        if (!subagentsTextEl.value.trim()) {
+          subagentsTextEl.value = [
+            'Director: write a tight storyboard + timings.',
+            'Animator: convert storyboard to Manim, centered layout, clean labels.',
+            'QA: check overlaps, padding, and whether the story is intuitive.',
+          ].join('\\n');
+        }
+
+        try {
+          const sources = getSources();
+          if (!sources.length) {
+            setSources([{
+              url: 'https://example.com/photoelectric-effect',
+              notes: 'Key points to include:\\n- Intensity changes number of emitted electrons (when above threshold).\\n- Frequency must exceed threshold: f > f0 (work function).\\n- Einstein: K_max = h f - ϕ.\\n- Stopping potential: e V_s = K_max.',
+              saved_at: new Date().toISOString()
+            }]);
+            renderSources();
+          }
+        } catch {}
+
+        if (termCmdEl && !termCmdEl.value.trim()) termCmdEl.value = 'help';
+        setPreviewAspect(aspectEl.value);
+      }
+
       // Boot
       loadTemplates();
       loadSettings();
@@ -2104,6 +2167,7 @@
       setPreviewAspect(aspectEl.value);
       updateEditorMode();
       applyLayoutColumns();
+      seedDemoDefaults();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
   </body>
