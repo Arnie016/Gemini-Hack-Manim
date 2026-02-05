@@ -357,8 +357,21 @@
         padding: 6px;
         display: grid;
         gap: 6px;
+        position: relative;
       }
       .timeline-block.dragging { opacity: 0.55; }
+      .timeline-handle {
+        position: absolute;
+        right: 3px;
+        top: 3px;
+        bottom: 3px;
+        width: 8px;
+        border-radius: 8px;
+        background: rgba(106,169,255,0.20);
+        cursor: ew-resize;
+        opacity: 0.65;
+      }
+      .timeline-block:hover .timeline-handle { opacity: 1; }
       .timeline-block-header {
         font-size: 11px;
         color: var(--muted);
@@ -863,6 +876,14 @@
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v14"/></svg>
                       Share
                     </button>
+                    <button id="exportBtn" class="overlay-btn" title="Download project ZIP" aria-label="Download project ZIP">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+                      Export
+                    </button>
+                    <button id="ccBtn" class="overlay-btn" title="Download captions (.srt)" aria-label="Download captions">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 5H3v14h18V5z"/><path d="M7 10h1"/><path d="M7 14h1"/><path d="M11 10h1"/><path d="M11 14h1"/><path d="M15 10h2"/><path d="M15 14h2"/></svg>
+                      CC
+                    </button>
                   </div>
                 </div>
 
@@ -1141,6 +1162,8 @@
       const previewSlot = document.getElementById('previewSlot');
       const downloadBtnEl = document.getElementById('downloadBtn');
       const shareBtnEl = document.getElementById('shareBtn');
+      const exportBtnEl = document.getElementById('exportBtn');
+      const ccBtnEl = document.getElementById('ccBtn');
       const timelineRulerEl = document.getElementById('timelineRuler');
       const timelineTrackEl = document.getElementById('timelineTrack');
       const timelineLabelEl = document.getElementById('timelineLabel');
@@ -1243,6 +1266,7 @@
       videoEl.controls = true;
       previewSlot.appendChild(videoEl);
       let lastVideoUrl = '';
+      let lastCaptionsUrl = '';
 
       function fmtTime(s) {
         const sec = Math.max(0, Math.floor(Number(s || 0)));
@@ -1301,6 +1325,24 @@
         a.remove();
         showToast('Downloading video…', 'ok');
       });
+      if (exportBtnEl) {
+        exportBtnEl.addEventListener('click', () => {
+          if (!currentJobId) {
+            showToast('Nothing to export yet.', 'err');
+            return;
+          }
+          window.open(`/api/jobs/${encodeURIComponent(currentJobId)}/download`, '_blank');
+        });
+      }
+      if (ccBtnEl) {
+        ccBtnEl.addEventListener('click', () => {
+          if (!lastCaptionsUrl) {
+            showToast('No captions yet.', 'err');
+            return;
+          }
+          window.open(lastCaptionsUrl, '_blank');
+        });
+      }
       shareBtnEl.addEventListener('click', async () => {
         if (!lastVideoUrl) return;
         try {
@@ -1330,6 +1372,7 @@
       let pendingRenameFrom = null;
       let lastAssets = { background: '', foreground: '' };
       const mqNarrow = window.matchMedia('(max-width: 1200px)');
+      let jobEventSource = null;
 
       function getSources() {
         try {
@@ -1418,6 +1461,8 @@
 
       document.getElementById('backBtn').addEventListener('click', () => {
         currentJobId = null;
+        try { if (jobEventSource) jobEventSource.close(); } catch {}
+        jobEventSource = null;
         jobIdEl.textContent = '—';
         jobFileListEl.innerHTML = '';
         codeEl.value = '';
@@ -2211,9 +2256,39 @@
             renderTimeline();
           });
 
+          const handle = document.createElement('div');
+          handle.className = 'timeline-handle';
+          handle.title = 'Drag to change duration';
+          handle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const startX = e.clientX;
+            const startSec = Number(timelineState[idx].seconds || 1);
+            const trackW = timelineTrackEl.getBoundingClientRect().width || 1;
+            const totalSec = timelineState.reduce((s, sc) => s + Number(sc.seconds || 0), 0) || 1;
+            const pxPerSec = trackW / totalSec;
+
+            function onMove(ev) {
+              const dx = ev.clientX - startX;
+              const delta = dx / Math.max(8, pxPerSec);
+              const next = Math.max(1, Math.round(startSec + delta));
+              timelineState[idx].seconds = next;
+              input.value = String(next);
+              block.style.flex = String(next);
+            }
+            function onUp() {
+              window.removeEventListener('mousemove', onMove);
+              window.removeEventListener('mouseup', onUp);
+              renderTimeline();
+            }
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+          });
+
           block.appendChild(header);
           block.appendChild(assetLine);
           block.appendChild(input);
+          block.appendChild(handle);
 
           block.addEventListener('dragstart', (e) => {
             block.classList.add('dragging');
@@ -2430,7 +2505,6 @@
         setStep('render', 'active');
         await new Promise(requestAnimationFrame);
 
-        let data = null;
         try {
           const resp = await fetch('/api/approve', {
             method: 'POST',
@@ -2447,75 +2521,109 @@
               model: chatModelEl.value || null
             })
           });
-          data = await resp.json();
+          const data = await resp.json();
+          if (!data.ok) {
+            setBusy(false, 'Render failed.');
+            showToast(data.error || 'Render failed.', 'err');
+            setStep('code', 'error');
+            setStep('render', 'error');
+            logsEl.textContent = data.error || 'Render failed.';
+            return;
+          }
         } catch (e) {
           setBusy(false, 'Failed to reach backend.');
           showToast('Backend not reachable.', 'err');
           setStep('code', 'error');
           setStep('render', 'error');
           return;
-        } finally {
-          setBusy(false);
         }
-        if (!data.ok) {
-          statusEl.textContent = data.error || 'Render failed.';
-          showToast(data.error || 'Render failed.', 'err');
-          setStep('code', 'error');
-          setStep('render', 'error');
-          logsEl.textContent = data.logs || data.error || 'Render failed.';
-          addChat('agent', 'Render failed', `<pre style="white-space:pre-wrap; margin:0;">${(data.logs || data.error || 'Render failed.').slice(0, 6000)}</pre><div class="muted" style="margin-top:6px;">Tip: open Settings → Health to verify Manim/ffmpeg.</div>`);
-          return;
-        }
-        setStep('code', 'done');
-        setStep('render', 'done');
 
-        const src = '/' + data.video_path + '?t=' + Date.now();
-        lastVideoUrl = src;
-        videoEl.src = src;
-        videoEl.load();
-        codeEl.value = data.code || '';
-        openFilePath = null;
-        updateEditorMode();
-        updateJobFiles(data.job_files);
-        logsEl.textContent = data.image_warning ? data.image_warning : (data.logs || 'Render complete.');
-        showToast('Render complete.', 'ok');
+        // Stream logs + state live via SSE until the job completes.
+        try { if (jobEventSource) jobEventSource.close(); } catch {}
+        logsEl.textContent = '';
+        const es = new EventSource(`/api/jobs/${encodeURIComponent(currentJobId)}/events`);
+        jobEventSource = es;
+        es.addEventListener('log', (e) => {
+          try {
+            const data = JSON.parse(e.data);
+            if (data.chunk) {
+              logsEl.textContent += data.chunk;
+              logsEl.scrollTop = logsEl.scrollHeight;
+            }
+          } catch {}
+        });
+        es.addEventListener('state', async (e) => {
+          let s = null;
+          try { s = JSON.parse(e.data); } catch { s = null; }
+          const status = s?.status || '';
+          const step = s?.step || '';
+          const msg = s?.message || '';
+          const err = s?.error || '';
+          if (msg) statusEl.textContent = msg;
 
-        // Asset thumbnails (job-level background/foreground)
-        lastAssets = { background: '', foreground: '' };
-        if (data.assets && (data.assets.background || data.assets.foreground)) {
-          if (data.assets.background) {
-            const url = `/work/jobs/${data.job_id}/${data.assets.background}?t=${Date.now()}`;
-            lastAssets.background = data.assets.background;
-            setThumb(bgThumbEl, { url, type: 'background', relPath: data.assets.background });
-          } else {
-            setThumb(bgThumbEl, { url: '', type: 'background', relPath: '' });
+          if (step === 'code') { setStep('code', 'active'); setStep('render', ''); }
+          if (step === 'render') { setStep('code', 'done'); setStep('render', 'active'); }
+          if (status === 'repairing') { setStep('render', 'active'); }
+
+          if (status === 'done' || status === 'failed') {
+            try { es.close(); } catch {}
+            jobEventSource = null;
+            setBusy(false);
+            const stResp = await fetch(`/api/jobs/${encodeURIComponent(currentJobId)}`);
+            const st = await stResp.json();
+            if (!st.ok) {
+              showToast(st.error || 'Failed to load job results.', 'err');
+              return;
+            }
+            if (st.status === 'failed') {
+              setStep('code', 'error');
+              setStep('render', 'error');
+              const retryBtn = document.createElement('button');
+              retryBtn.textContent = 'Retry Render';
+              retryBtn.className = 'secondary';
+              retryBtn.addEventListener('click', () => approvePlan(lastPlanBox ? lastPlanBox.value : planText));
+              const wrap = document.createElement('div');
+              wrap.appendChild(retryBtn);
+              addChat('agent', 'Render failed', `<pre style="white-space:pre-wrap; margin:0;">${(st.logs_tail || err || 'Render failed.').slice(0, 6000)}</pre><div class="muted" style="margin-top:6px;">Tip: Settings → Health to verify Manim/ffmpeg.</div>`, wrap);
+              showToast('Render failed.', 'err');
+              return;
+            }
+
+            setStep('code', 'done');
+            setStep('render', 'done');
+            if (st.video_path) {
+              const src = '/' + st.video_path + '?t=' + Date.now();
+              lastVideoUrl = src;
+              videoEl.src = src;
+              videoEl.load();
+            }
+            lastCaptionsUrl = '';
+            if (st.captions_path) {
+              lastCaptionsUrl = '/' + st.captions_path + '?t=' + Date.now();
+            }
+            if (st.code) {
+              codeEl.value = st.code;
+              openFilePath = null;
+              updateEditorMode();
+            }
+            if (st.plan && st.plan.scenes) {
+              timelineMeta.title = st.plan.title || 'Scene Plan';
+              timelineState = st.plan.scenes.map(sc => ({
+                seconds: sc.seconds || 3,
+                goal: sc.goal,
+                elements: sc.elements,
+                actions: sc.actions,
+                narration: sc.narration,
+                assets: sc.assets || {}
+              }));
+              renderTimeline();
+            }
+            if (st.job_files) updateJobFiles(st.job_files);
+            if (st.logs_tail) logsEl.textContent = st.logs_tail;
+            addChat('agent', 'Render complete', st.video_path ? `<a href="/${st.video_path}" target="_blank">Open video</a>` : 'Done.');
+            showToast('Render complete.', 'ok');
           }
-          if (data.assets.foreground) {
-            const url = `/work/jobs/${data.job_id}/${data.assets.foreground}?t=${Date.now()}`;
-            lastAssets.foreground = data.assets.foreground;
-            setThumb(fgThumbEl, { url, type: 'foreground', relPath: data.assets.foreground });
-          } else {
-            setThumb(fgThumbEl, { url: '', type: 'foreground', relPath: '' });
-          }
-        } else {
-          setThumb(bgThumbEl, { url: '', type: 'background', relPath: '' });
-          setThumb(fgThumbEl, { url: '', type: 'foreground', relPath: '' });
-        }
-
-        if (data.plan && data.plan.scenes) {
-          timelineMeta.title = data.plan.title || 'Scene Plan';
-          timelineState = data.plan.scenes.map(sc => ({
-            seconds: sc.seconds || 3,
-            goal: sc.goal,
-            elements: sc.elements,
-            actions: sc.actions,
-            narration: sc.narration,
-            assets: sc.assets || {}
-          }));
-          renderTimeline();
-        }
-
-        addChat('agent', 'Render complete', `<a href="${src}" target="_blank">Open video</a>`);
+        });
       }
 
       renderCodeBtn.addEventListener('click', async () => {

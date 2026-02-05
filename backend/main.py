@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from .gemini_http import GeminiError, generate_content, generate_image
@@ -42,6 +43,8 @@ from .file_store import (
     write_file,
 )
 from .terminal_runner import TerminalError, run_terminal_command
+from .job_manager import JobManager
+from .job_state import JobState, append_event, load_state, write_state
 
 ROOT = Path(__file__).resolve().parents[1]
 WORK = ROOT / "work"
@@ -53,6 +56,7 @@ JOBS.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI()
 app.mount("/work", StaticFiles(directory=WORK), name="work")
+job_manager = JobManager()
 
 
 class AnimateReq(BaseModel):
@@ -127,6 +131,10 @@ class ApproveReq(BaseModel):
     quality: str = "pql"
     aspect_ratio: str = "9:16"
     model: Optional[str] = None
+
+
+class JobDownloadReq(BaseModel):
+    job_id: str
 
 
 class FileReq(BaseModel):
@@ -610,6 +618,19 @@ def plan(req: PlanReq):
             status_code=400,
         )
 
+    st = JobState(
+        job_id=job_id,
+        status="planned",
+        step="idle",
+        message="Plan ready.",
+        updated_at=__import__("time").time(),
+        plan_path=str(paths.plan_path),
+        scene_path=str(paths.scene_path),
+        logs_path=str(paths.logs_path),
+    )
+    write_state(paths.job_dir, st)
+    append_event(paths.job_dir, type_="state", payload={"status": st.status, "step": st.step, "message": st.message})
+
     return {
         "ok": True,
         "job_id": job_id,
@@ -627,7 +648,6 @@ def approve(req: ApproveReq):
     settings = load_settings()
     api_key = settings.get("api_key")
     text_model = req.model or settings.get("text_model")
-    image_model = req.image_model or settings.get("image_model")
     manim_py = settings.get("manim_py")
 
     try:
@@ -639,119 +659,149 @@ def approve(req: ApproveReq):
             status_code=400,
         )
 
-    # Optional image generation
+    # Describe any pre-generated assets already present on disk (created via /api/images/generate).
     assets_description = ""
-    bg_rel = None
-    fg_rel = None
-    image_warning: Optional[str] = None
-    if req.include_images and req.image_prompt and req.image_prompt.strip():
-        try:
-            bg_rel, fg_rel, image_warning, assets_description = _generate_assets(
-                job_dir=paths.job_dir,
-                image_prompt=req.image_prompt,
-                image_mode=req.image_mode,
-                api_key=api_key,
-                image_model=image_model,
-            )
-        except ValueError as exc:
-            return JSONResponse(
-                {"ok": False, "job_id": req.job_id, "error": str(exc)}, status_code=400
-            )
+    bg_rel = "assets/background.png"
+    fg_rel = "assets/foreground.png"
+    if (paths.job_dir / bg_rel).exists():
+        assets_description += f"- background: {bg_rel} (full-frame backdrop, low motion, z_index -10)\n"
+    if (paths.job_dir / fg_rel).exists():
+        assets_description += f"- foreground: {fg_rel} (small prop/character in lower third)\n"
 
-    try:
-        code = generate_content(
-            manim_code_user_prompt(
-                json.dumps(plan_obj),
-                assets_description=assets_description,
-                render_settings=_render_settings_ratio(req.aspect_ratio),
-            ),
-            system_text=MANIM_CODE_SYSTEM,
-            api_key=api_key,
-            model=text_model,
-        )
-        code = format_python(code)
-        paths.scene_path.write_text(code, encoding="utf-8")
-    except GeminiError as exc:
-        return JSONResponse(
-            {
-                "ok": False,
-                "job_id": req.job_id,
-                "error": f"Code generation failed: {exc}",
-            },
-            status_code=400,
-        )
+    # Mark planned state and kick off async approve worker.
+    st = JobState(
+        job_id=req.job_id,
+        status="running",
+        step="code",
+        message="Queued…",
+        updated_at=__import__("time").time(),
+        plan_path=str(paths.plan_path),
+        scene_path=str(paths.scene_path),
+        logs_path=str(paths.logs_path),
+    )
+    write_state(paths.job_dir, st)
+    append_event(paths.job_dir, type_="state", payload={"status": st.status, "step": st.step, "message": st.message})
 
-    ok, logs = render_with_manim(
-        paths.scene_path,
-        paths.out_mp4,
+    job_manager.start_approve(
+        job_id=req.job_id,
+        job_dir=paths.job_dir,
+        plan_obj=plan_obj,
+        plan_text=req.plan_text,
+        assets_description=assets_description,
+        render_settings=_render_settings_ratio(req.aspect_ratio),
         quality=req.quality,
         manim_py=manim_py,
+        api_key=api_key,
+        text_model=text_model,
     )
-    paths.logs_path.write_text(logs, encoding="utf-8")
 
-    if not ok:
-        # Single repair attempt (makes approve flow more reliable for demos)
-        repair_user = (
-            "The render failed.\n"
-            "Here are the logs:\n"
-            f"{logs}\n\n"
-            "Here is the code:\n"
-            f"{code}\n\n"
-            "Return a fixed full python file."
-        )
-        try:
-            code2 = generate_content(
-                repair_user,
-                system_text=REPAIR_SYSTEM,
-                api_key=api_key,
-                model=text_model,
-            )
-            code2 = format_python(code2)
-            paths.scene_path.write_text(code2, encoding="utf-8")
-            ok, logs = render_with_manim(
-                paths.scene_path,
-                paths.out_mp4,
-                quality=req.quality,
-                manim_py=manim_py,
-            )
-            paths.logs_path.write_text(logs, encoding="utf-8")
-            code = code2
-        except GeminiError as exc:
-            return JSONResponse(
-                {
-                    "ok": False,
-                    "job_id": req.job_id,
-                    "error": f"Repair failed: {exc}",
-                    "logs": logs,
-                },
-                status_code=500,
-            )
+    return {"ok": True, "job_id": req.job_id}
 
-        if not ok:
-            return JSONResponse(
-                {
-                    "ok": False,
-                    "job_id": req.job_id,
-                    "error": "Render failed",
-                    "logs": logs,
-                },
-                status_code=500,
-            )
 
-    response = {
+@app.get("/api/jobs/{job_id}")
+def job_status(job_id: str):
+    paths = job_paths(JOBS, job_id)
+    if not paths.job_dir.exists():
+        return JSONResponse({"ok": False, "job_id": job_id, "error": "Unknown job_id"}, status_code=404)
+    st = load_state(paths.job_dir, job_id)
+    resp: Dict[str, Any] = {
         "ok": True,
-        "job_id": req.job_id,
-        "video_path": str(paths.out_mp4.relative_to(ROOT)),
-        "plan": plan_obj,
-        "code": paths.scene_path.read_text(encoding="utf-8"),
-        "logs": logs,
-        "job_files": _job_files(paths),
+        "job_id": job_id,
+        "status": st.status,
+        "step": st.step,
+        "message": st.message,
+        "updated_at": st.updated_at,
+        "error": st.error,
+        "running": job_manager.is_running(job_id),
     }
-    if image_warning:
-        response["image_warning"] = image_warning
-    if bg_rel or fg_rel:
-        response["assets"] = {"background": bg_rel, "foreground": fg_rel}
-    return response
+    if paths.out_mp4.exists():
+        resp["video_path"] = str(paths.out_mp4.relative_to(ROOT))
+    if paths.scene_path.exists():
+        resp["code"] = paths.scene_path.read_text(encoding="utf-8")
+    if paths.plan_path.exists():
+        resp["plan"] = json.loads(paths.plan_path.read_text(encoding="utf-8"))
+    if paths.logs_path.exists():
+        # Avoid sending huge logs; UI will use SSE for tail.
+        txt = paths.logs_path.read_text(encoding="utf-8")
+        resp["logs_tail"] = txt[-6000:]
+    captions = paths.job_dir / "captions.srt"
+    if captions.exists():
+        resp["captions_path"] = str(captions.relative_to(ROOT))
+    resp["job_files"] = _job_files(paths) + ([str(captions.relative_to(ROOT))] if captions.exists() else [])
+    return resp
+
+
+@app.get("/api/jobs/{job_id}/events")
+def job_events(job_id: str):
+    import time
+    import json as _json
+
+    paths = job_paths(JOBS, job_id)
+    if not paths.job_dir.exists():
+        return JSONResponse({"ok": False, "job_id": job_id, "error": "Unknown job_id"}, status_code=404)
+
+    def gen():
+        # Initial state snapshot.
+        st = load_state(paths.job_dir, job_id)
+        yield f"event: state\ndata: {_json.dumps({'status': st.status, 'step': st.step, 'message': st.message, 'error': st.error})}\n\n"
+
+        log_pos = 0
+        state_mtime = 0.0
+        while True:
+            # Stream log growth.
+            try:
+                if paths.logs_path.exists():
+                    size = paths.logs_path.stat().st_size
+                    if size < log_pos:
+                        log_pos = 0
+                    if size > log_pos:
+                        with paths.logs_path.open("r", encoding="utf-8", errors="ignore") as f:
+                            f.seek(log_pos)
+                            chunk = f.read(min(24_000, size - log_pos))
+                            log_pos = f.tell()
+                        if chunk:
+                            yield f"event: log\ndata: {_json.dumps({'chunk': chunk})}\n\n"
+            except Exception:
+                pass
+
+            # Stream state changes.
+            try:
+                sp = paths.job_dir / "state.json"
+                if sp.exists():
+                    mt = sp.stat().st_mtime
+                    if mt != state_mtime:
+                        state_mtime = mt
+                        st = load_state(paths.job_dir, job_id)
+                        yield f"event: state\ndata: {_json.dumps({'status': st.status, 'step': st.step, 'message': st.message, 'error': st.error})}\n\n"
+                        if st.status in {"done", "failed"}:
+                            break
+            except Exception:
+                pass
+
+            time.sleep(0.4)
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@app.get("/api/jobs/{job_id}/download")
+def job_download(job_id: str):
+    import zipfile
+
+    paths = job_paths(JOBS, job_id)
+    if not paths.job_dir.exists():
+        return JSONResponse({"ok": False, "job_id": job_id, "error": "Unknown job_id"}, status_code=404)
+
+    zip_path = paths.job_dir / "export.zip"
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for p in paths.job_dir.rglob("*"):
+            if p.is_dir():
+                continue
+            # Avoid zipping the zip itself while writing.
+            if p.name == zip_path.name:
+                continue
+            zf.write(p, arcname=str(p.relative_to(paths.job_dir)))
+
+    return FileResponse(zip_path, filename=f"{job_id}.zip")
 
 
 @app.post("/api/animate")
