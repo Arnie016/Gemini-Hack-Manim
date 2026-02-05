@@ -141,6 +141,13 @@ class RenameReq(BaseModel):
     overwrite: bool = False
 
 
+class ImageGenReq(BaseModel):
+    job_id: str
+    image_prompt: str
+    image_mode: str = "background"
+    image_model: Optional[str] = None
+
+
 def _build_director_brief(req: AnimateReq) -> str:
     eq_text = "Include 1–2 simple equations." if req.include_equations else "Avoid equations."
     graph_text = "Include at least one simple graph/axis." if req.include_graphs else "Avoid graphs."
@@ -234,6 +241,63 @@ def _parse_json(text: str) -> Dict[str, Any]:
 @app.get("/")
 def index():
     return FileResponse(WEB / "index.html")
+
+
+def _generate_assets(
+    *,
+    job_dir: Path,
+    image_prompt: str,
+    image_mode: str,
+    api_key: Optional[str],
+    image_model: Optional[str],
+) -> tuple[Optional[str], Optional[str], Optional[str], str]:
+    """Generate optional background/foreground assets in job_dir/assets.
+
+    Returns: (bg_rel, fg_rel, warning, assets_description)
+    """
+    assets_dir = job_dir / "assets"
+    assets_dir.mkdir(parents=True, exist_ok=True)
+
+    mode = (image_mode or "background").lower().strip()
+    if mode not in {"background", "foreground", "both"}:
+        raise ValueError(f"Invalid image_mode '{image_mode}'")
+
+    base_prompt = (image_prompt or "").strip()
+    if not base_prompt:
+        return None, None, None, ""
+
+    bg_rel = None
+    fg_rel = None
+    warning: Optional[str] = None
+    try:
+        if mode in {"background", "both"}:
+            bg_bytes = generate_image(
+                f"Wide background scene, no text, cinematic lighting: {base_prompt}",
+                api_key=api_key,
+                model=image_model,
+            )
+            (assets_dir / "background.png").write_bytes(bg_bytes)
+            bg_rel = "assets/background.png"
+
+        if mode in {"foreground", "both"}:
+            fg_bytes = generate_image(
+                f"Single character or prop, centered, clean background, no text: {base_prompt}",
+                api_key=api_key,
+                model=image_model,
+            )
+            (assets_dir / "foreground.png").write_bytes(fg_bytes)
+            fg_rel = "assets/foreground.png"
+    except GeminiError as exc:
+        warning = f"Image generation failed: {exc}"
+        bg_rel = None
+        fg_rel = None
+
+    desc = ""
+    if bg_rel:
+        desc += f"- background: {bg_rel} (full-frame backdrop, low motion, z_index -10)\n"
+    if fg_rel:
+        desc += f"- foreground: {fg_rel} (small prop/character in lower third)\n"
+    return bg_rel, fg_rel, warning, desc
 
 
 @app.get("/api/health")
@@ -414,6 +478,42 @@ def rename_file_api(req: RenameReq):
     return {"ok": True, "rename": res}
 
 
+@app.post("/api/images/generate")
+def generate_images(req: ImageGenReq):
+    paths = job_paths(JOBS, req.job_id)
+    if not paths.job_dir.exists():
+        return JSONResponse(
+            {"ok": False, "job_id": req.job_id, "error": "Unknown job_id"},
+            status_code=404,
+        )
+
+    settings = load_settings()
+    api_key = settings.get("api_key")
+    image_model = req.image_model or settings.get("image_model")
+    try:
+        bg_rel, fg_rel, warning, desc = _generate_assets(
+            job_dir=paths.job_dir,
+            image_prompt=req.image_prompt,
+            image_mode=req.image_mode,
+            api_key=api_key,
+            image_model=image_model,
+        )
+    except ValueError as exc:
+        return JSONResponse(
+            {"ok": False, "job_id": req.job_id, "error": str(exc)}, status_code=400
+        )
+
+    resp: Dict[str, Any] = {
+        "ok": True,
+        "job_id": req.job_id,
+        "assets": {"background": bg_rel, "foreground": fg_rel},
+        "assets_description": desc,
+    }
+    if warning:
+        resp["warning"] = warning
+    return resp
+
+
 @app.get("/api/memories")
 def get_memories():
     return {"memories": list_memories()}
@@ -523,8 +623,6 @@ def plan(req: PlanReq):
 def approve(req: ApproveReq):
     paths = job_paths(JOBS, req.job_id)
     paths.job_dir.mkdir(parents=True, exist_ok=True)
-    assets_dir = paths.job_dir / "assets"
-    assets_dir.mkdir(parents=True, exist_ok=True)
 
     settings = load_settings()
     api_key = settings.get("api_key")
@@ -547,50 +645,18 @@ def approve(req: ApproveReq):
     fg_rel = None
     image_warning: Optional[str] = None
     if req.include_images and req.image_prompt and req.image_prompt.strip():
-        mode = req.image_mode.lower().strip()
-        if mode not in {"background", "foreground", "both"}:
-            return JSONResponse(
-                {
-                    "ok": False,
-                    "job_id": req.job_id,
-                    "error": f"Invalid image_mode '{req.image_mode}'",
-                },
-                status_code=400,
-            )
-        base_prompt = req.image_prompt.strip()
         try:
-            if mode in {"background", "both"}:
-                bg_bytes = generate_image(
-                    f"Wide background scene, no text, cinematic lighting: {base_prompt}",
-                    api_key=api_key,
-                    model=image_model,
-                )
-                bg_path = assets_dir / "background.png"
-                bg_path.write_bytes(bg_bytes)
-                bg_rel = "assets/background.png"
-
-            if mode in {"foreground", "both"}:
-                fg_bytes = generate_image(
-                    f"Single character or prop, centered, clean background, no text: {base_prompt}",
-                    api_key=api_key,
-                    model=image_model,
-                )
-                fg_path = assets_dir / "foreground.png"
-                fg_path.write_bytes(fg_bytes)
-                fg_rel = "assets/foreground.png"
-        except GeminiError as exc:
-            image_warning = f"Image generation failed: {exc}"
-            bg_rel = None
-            fg_rel = None
-
-    if bg_rel:
-        assets_description += (
-            f"- background: {bg_rel} (full-frame backdrop, low motion, z_index -10)\n"
-        )
-    if fg_rel:
-        assets_description += (
-            f"- foreground: {fg_rel} (small prop/character in lower third)\n"
-        )
+            bg_rel, fg_rel, image_warning, assets_description = _generate_assets(
+                job_dir=paths.job_dir,
+                image_prompt=req.image_prompt,
+                image_mode=req.image_mode,
+                api_key=api_key,
+                image_model=image_model,
+            )
+        except ValueError as exc:
+            return JSONResponse(
+                {"ok": False, "job_id": req.job_id, "error": str(exc)}, status_code=400
+            )
 
     try:
         code = generate_content(
@@ -693,8 +759,6 @@ def animate(req: AnimateReq):
     job_id = new_job_id()
     paths = job_paths(JOBS, job_id)
     paths.job_dir.mkdir(parents=True, exist_ok=True)
-    assets_dir = paths.job_dir / "assets"
-    assets_dir.mkdir(parents=True, exist_ok=True)
     image_warning: Optional[str] = None
     settings = load_settings()
     api_key = settings.get("api_key")
@@ -731,51 +795,18 @@ def animate(req: AnimateReq):
     bg_rel = None
     fg_rel = None
     if req.include_images and req.image_prompt and req.image_prompt.strip():
-        mode = req.image_mode.lower().strip()
-        if mode not in {"background", "foreground", "both"}:
-            return JSONResponse(
-                {
-                    "ok": False,
-                    "job_id": job_id,
-                    "error": f"Invalid image_mode '{req.image_mode}'",
-                },
-                status_code=400,
-            )
-
-        base_prompt = req.image_prompt.strip()
         try:
-            if mode in {"background", "both"}:
-                bg_bytes = generate_image(
-                    f"Wide background scene, no text, cinematic lighting: {base_prompt}",
-                    api_key=api_key,
-                    model=image_model,
-                )
-                bg_path = assets_dir / "background.png"
-                bg_path.write_bytes(bg_bytes)
-                bg_rel = "assets/background.png"
-
-            if mode in {"foreground", "both"}:
-                fg_bytes = generate_image(
-                    f"Single character or prop, centered, clean background, no text: {base_prompt}",
-                    api_key=api_key,
-                    model=image_model,
-                )
-                fg_path = assets_dir / "foreground.png"
-                fg_path.write_bytes(fg_bytes)
-                fg_rel = "assets/foreground.png"
-        except GeminiError as exc:
-            image_warning = f"Image generation failed: {exc}"
-            bg_rel = None
-            fg_rel = None
-
-    if bg_rel:
-        assets_description += (
-            f"- background: {bg_rel} (full-frame backdrop, low motion, z_index -10)\n"
-        )
-    if fg_rel:
-        assets_description += (
-            f"- foreground: {fg_rel} (small prop/character in lower third)\n"
-        )
+            bg_rel, fg_rel, image_warning, assets_description = _generate_assets(
+                job_dir=paths.job_dir,
+                image_prompt=req.image_prompt,
+                image_mode=req.image_mode,
+                api_key=api_key,
+                image_model=image_model,
+            )
+        except ValueError as exc:
+            return JSONResponse(
+                {"ok": False, "job_id": job_id, "error": str(exc)}, status_code=400
+            )
 
     # 3) Code
     try:

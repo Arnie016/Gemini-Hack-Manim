@@ -355,6 +355,49 @@
       }
       .timeline-block input { font-size: 11px; padding: 6px; }
 
+      .timeline-controls {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-top: 8px;
+      }
+      .timeline-controls .ctl {
+        width: auto;
+        padding: 8px 10px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: #0f141d;
+        color: var(--text);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+      }
+      .timeline-controls .ctl svg { width: 16px; height: 16px; }
+      .timeline-controls .spacer { flex: 1; }
+
+      .preview-busy {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at center, rgba(15,20,29,0.55), rgba(11,13,18,0.85));
+        border-radius: 16px;
+        z-index: 8;
+        pointer-events: none;
+      }
+      .spinner {
+        width: 32px;
+        height: 32px;
+        border-radius: 999px;
+        border: 3px solid rgba(255,255,255,0.18);
+        border-top-color: rgba(106,169,255,0.9);
+        animation: spin 0.9s linear infinite;
+      }
+      @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
       .terminal {
         border-top: 1px solid var(--border);
         background: #0b1119;
@@ -395,6 +438,19 @@
       .agent-step.done { border-color: var(--accent-2); color: var(--accent-2); }
       .agent-step.error { border-color: var(--danger); color: var(--danger); }
 
+      @keyframes glowPulse {
+        0% { box-shadow: 0 0 0 rgba(106,169,255,0.0); transform: translateY(0); }
+        50% { box-shadow: 0 0 22px rgba(106,169,255,0.30); transform: translateY(-1px); }
+        100% { box-shadow: 0 0 0 rgba(106,169,255,0.0); transform: translateY(0); }
+      }
+      @keyframes glowPulseOk {
+        0% { box-shadow: 0 0 0 rgba(34,197,94,0.0); }
+        50% { box-shadow: 0 0 22px rgba(34,197,94,0.25); }
+        100% { box-shadow: 0 0 0 rgba(34,197,94,0.0); }
+      }
+      .agent-step.active { animation: glowPulse 1.2s ease-in-out infinite; }
+      .agent-step.done { animation: glowPulseOk 0.8s ease-in-out 1; }
+
       .context-block summary {
         cursor: pointer;
         color: var(--muted);
@@ -403,11 +459,13 @@
         text-transform: uppercase;
         letter-spacing: 1px;
       }
-      .context-grid { display: grid; gap: 8px; margin-top: 8px; }
+      .context-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
 
       .drop-target { outline: 2px dashed var(--accent); }
 
       .hidden { display: none !important; }
+
+      .status-pulse { animation: glowPulse 1.2s ease-in-out infinite; border-radius: 10px; padding: 6px 8px; display: inline-block; }
 
       button:disabled, input:disabled, select:disabled, textarea:disabled {
         opacity: 0.55;
@@ -489,6 +547,7 @@
         .splitter { display: none !important; }
         .canvas-grid { grid-template-columns: 1fr; }
         .settings-drawer { width: 100%; }
+        .context-grid { grid-template-columns: 1fr; }
       }
     </style>
   </head>
@@ -572,6 +631,14 @@
                       <option value="foreground">Foreground</option>
                       <option value="both">Both</option>
                     </select>
+                  </div>
+                </div>
+                <div class="row" style="margin-top:8px;">
+                  <button id="genImages" class="secondary" title="Generate background/foreground previews using the image model (Nano Banana)">
+                    Generate images
+                  </button>
+                  <div class="muted" style="display:flex; align-items:center;">
+                    Tip: click “Generate images” after “Create plan” (job created), then drag BG/FG into scenes.
                   </div>
                 </div>
 
@@ -724,6 +791,12 @@
                 <div class="muted" style="margin-bottom:6px;">Preview</div>
                 <div class="preview-wrap">
                   <div class="preview-shell" id="previewSlot"></div>
+                  <div class="preview-busy hidden" id="busyOverlay" aria-hidden="true">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                      <div class="spinner"></div>
+                      <div class="muted">Rendering…</div>
+                    </div>
+                  </div>
                   <div class="preview-overlay">
                     <button id="downloadBtn" class="overlay-btn" title="Download video" aria-label="Download video">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
@@ -741,6 +814,30 @@
                   <div class="timeline-ruler" id="timelineRuler" style="margin-top:6px;"></div>
                   <div class="timeline-track" id="timelineTrack"></div>
                   <input id="timelineScrub" type="range" min="0" max="100" value="0" style="margin-top:8px;" />
+                  <div class="timeline-controls">
+                    <button id="rew10" class="ctl" title="Rewind 10s" aria-label="Rewind 10 seconds">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 19l-9-7 9-7v14z"/><path d="M22 19l-9-7 9-7v14z"/></svg>
+                      10s
+                    </button>
+                    <button id="rew5" class="ctl" title="Back 5s" aria-label="Back 5 seconds">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 19l-9-7 9-7v14z"/><path d="M22 5v14"/></svg>
+                      5s
+                    </button>
+                    <button id="playPause" class="ctl" title="Play/Pause" aria-label="Play pause">
+                      <svg id="playPauseIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5v14l11-7z"/></svg>
+                      Play
+                    </button>
+                    <button id="ff5" class="ctl" title="Forward 5s" aria-label="Forward 5 seconds">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 19l9-7-9-7v14z"/><path d="M2 5v14"/></svg>
+                      5s
+                    </button>
+                    <button id="ff10" class="ctl" title="Forward 10s" aria-label="Forward 10 seconds">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 19l9-7-9-7v14z"/><path d="M2 19l9-7-9-7v14z"/></svg>
+                      10s
+                    </button>
+                    <div class="spacer"></div>
+                    <div class="muted" id="timeReadout">0:00</div>
+                  </div>
                   <div class="row" style="margin-top:8px;">
                     <button id="applyTimeline" class="secondary">Apply to plan</button>
                     <button id="resetTimeline" class="ghost">Reset</button>
@@ -795,8 +892,8 @@
           <div class="chat-messages" id="chatMessages"></div>
 
           <details class="context-block">
-          <summary>Memory (Context) & Skills</summary>
-          <div class="context-grid">
+            <summary>Context</summary>
+            <div class="context-grid">
               <div>
                 <label for="memoryTitle">Memory title</label>
                 <input id="memoryTitle" placeholder="Key idea" />
@@ -806,15 +903,15 @@
                 <div class="tree" id="memoryList" style="margin-top:6px;"></div>
               </div>
               <div>
-                <label for="skillName">Skill name</label>
-                <input id="skillName" placeholder="Physics explainers" />
-                <label for="skillContent" style="margin-top:6px;">Skill instructions</label>
-                <input id="skillContent" placeholder="Always define variables on screen" />
-                <button id="saveSkill" style="margin-top:6px;">Save skill</button>
-                <label for="skillIdea" style="margin-top:6px;">Generate skill idea</label>
-                <input id="skillIdea" placeholder="Make a concise storyboard rule" />
-                <input id="skillGenerateName" placeholder="Skill name (optional)" style="margin-top:6px;" />
-                <button id="generateSkill" class="secondary" style="margin-top:6px;">Generate skill</button>
+                <div class="muted" style="margin-bottom:6px;">Docs / indexing (paste a link + notes)</div>
+                <label for="sourceUrl">Source link</label>
+                <input id="sourceUrl" placeholder="https://..." />
+                <label for="sourceNotes" style="margin-top:6px;">Notes / transcript</label>
+                <textarea id="sourceNotes" placeholder="Paste transcript or key points here"></textarea>
+                <button id="saveSource" class="secondary" style="margin-top:6px;">Save source</button>
+                <pre id="sourceStatus" class="muted" style="margin-top:8px; white-space:pre-wrap;">No sources yet.</pre>
+
+                <div class="muted" style="margin-top:10px;">Skills (select for this run). Manage skills in Settings.</div>
                 <div class="tree" id="skillList" style="margin-top:6px;"></div>
               </div>
             </div>
@@ -896,14 +993,17 @@
       </div>
 
       <div class="drawer-section">
-        <div class="drawer-title">Docs / Indexing (MVP)</div>
-        <div class="muted">Paste a URL + notes/transcript. This gets injected into the plan prompt. (Auto-scraping is not implemented yet.)</div>
-        <label for="sourceUrl" style="margin-top:8px;">Source link</label>
-        <input id="sourceUrl" placeholder="https://..." />
-        <label for="sourceNotes" style="margin-top:8px;">Notes / transcript</label>
-        <textarea id="sourceNotes" placeholder="Paste transcript or key points here"></textarea>
-        <button id="saveSource" class="secondary" style="margin-top:8px;">Save source</button>
-        <pre id="sourceStatus" class="muted" style="margin-top:8px; white-space:pre-wrap;">No sources yet.</pre>
+        <div class="drawer-title">Skills</div>
+        <div class="muted">Skills are reusable instruction blocks. Create them here, then select them in the Chat Context.</div>
+        <label for="skillName" style="margin-top:8px;">Skill name</label>
+        <input id="skillName" placeholder="Physics explainers" />
+        <label for="skillContent" style="margin-top:6px;">Skill instructions</label>
+        <textarea id="skillContent" placeholder="Always define variables on screen. Keep text centered."></textarea>
+        <button id="saveSkill" style="margin-top:6px;">Save skill</button>
+        <label for="skillIdea" style="margin-top:10px;">Generate skill idea</label>
+        <input id="skillIdea" placeholder="Make a concise storyboard rule" />
+        <input id="skillGenerateName" placeholder="Skill name (optional)" style="margin-top:6px;" />
+        <button id="generateSkill" class="secondary" style="margin-top:6px;">Generate skill</button>
       </div>
     </div>
 
@@ -923,6 +1023,7 @@
       const templateDescriptionEl = document.getElementById('templateDescription');
       const imagePromptEl = document.getElementById('imagePrompt');
       const imageModeEl = document.getElementById('imageMode');
+      const genImagesBtn = document.getElementById('genImages');
       const includeImagesEl = document.getElementById('includeImages');
       const aspectEl = document.getElementById('aspect');
       const audienceEl = document.getElementById('audience');
@@ -962,6 +1063,13 @@
       const timelineTrackEl = document.getElementById('timelineTrack');
       const timelineLabelEl = document.getElementById('timelineLabel');
       const timelineScrubEl = document.getElementById('timelineScrub');
+      const rew10Btn = document.getElementById('rew10');
+      const rew5Btn = document.getElementById('rew5');
+      const playPauseBtn = document.getElementById('playPause');
+      const playPauseIcon = document.getElementById('playPauseIcon');
+      const ff5Btn = document.getElementById('ff5');
+      const ff10Btn = document.getElementById('ff10');
+      const timeReadoutEl = document.getElementById('timeReadout');
       const applyTimelineBtn = document.getElementById('applyTimeline');
       const resetTimelineBtn = document.getElementById('resetTimeline');
       const codeEl = document.getElementById('code');
@@ -977,6 +1085,7 @@
       const terminalPanel = document.getElementById('terminalPanel');
       const termCmdEl = document.getElementById('termCmd');
       const termRunEl = document.getElementById('termRun');
+      const busyOverlayEl = document.getElementById('busyOverlay');
       const toastEl = document.getElementById('toast');
       let toastTimer = null;
 
@@ -989,6 +1098,18 @@
         toastTimer = setTimeout(() => {
           toastEl.classList.add('hidden');
         }, 2600);
+      }
+
+      let isBusy = false;
+      function setBusy(on, message) {
+        isBusy = !!on;
+        if (busyOverlayEl) busyOverlayEl.classList.toggle('hidden', !isBusy);
+        if (statusEl) statusEl.classList.toggle('status-pulse', isBusy);
+        if (typeof message === 'string' && statusEl) statusEl.textContent = message;
+        if (planBtn) planBtn.disabled = isBusy;
+        if (renderCodeBtn) renderCodeBtn.disabled = isBusy ? true : renderCodeBtn.disabled;
+        if (toggleHighlightBtn) toggleHighlightBtn.disabled = isBusy;
+        if (!isBusy) updateEditorMode();
       }
 
       window.addEventListener('error', (e) => {
@@ -1037,6 +1158,53 @@
       videoEl.controls = true;
       previewSlot.appendChild(videoEl);
       let lastVideoUrl = '';
+
+      function fmtTime(s) {
+        const sec = Math.max(0, Math.floor(Number(s || 0)));
+        const m = Math.floor(sec / 60);
+        const r = sec % 60;
+        return `${m}:${String(r).padStart(2, '0')}`;
+      }
+
+      function updateTransportUI() {
+        if (!timeReadoutEl) return;
+        const cur = videoEl.currentTime || 0;
+        const dur = videoEl.duration || 0;
+        timeReadoutEl.textContent = `${fmtTime(cur)} / ${fmtTime(dur)}`;
+        if (!playPauseBtn) return;
+        const isPaused = videoEl.paused;
+        playPauseBtn.lastChild.textContent = isPaused ? ' Play' : ' Pause';
+        if (playPauseIcon) {
+          playPauseIcon.innerHTML = isPaused
+            ? '<path d="M8 5v14l11-7z"/>'
+            : '<path d="M6 5h4v14H6z"/><path d="M14 5h4v14h-4z"/>';
+        }
+      }
+
+      function nudgeVideo(dt) {
+        if (!Number.isFinite(videoEl.duration)) return;
+        const next = Math.max(0, Math.min(videoEl.duration || 0, (videoEl.currentTime || 0) + dt));
+        videoEl.currentTime = next;
+        updateTransportUI();
+      }
+
+      if (playPauseBtn) {
+        playPauseBtn.addEventListener('click', async () => {
+          if (!videoEl.src) return;
+          try {
+            if (videoEl.paused) await videoEl.play();
+            else videoEl.pause();
+          } catch {}
+          updateTransportUI();
+        });
+      }
+      if (rew5Btn) rew5Btn.addEventListener('click', () => nudgeVideo(-5));
+      if (ff5Btn) ff5Btn.addEventListener('click', () => nudgeVideo(5));
+      if (rew10Btn) rew10Btn.addEventListener('click', () => nudgeVideo(-10));
+      if (ff10Btn) ff10Btn.addEventListener('click', () => nudgeVideo(10));
+      videoEl.addEventListener('loadedmetadata', updateTransportUI);
+      videoEl.addEventListener('play', updateTransportUI);
+      videoEl.addEventListener('pause', updateTransportUI);
 
       downloadBtnEl.addEventListener('click', () => {
         if (!lastVideoUrl) return;
@@ -1177,6 +1345,7 @@
         videoEl.load();
         timelineTrackEl.innerHTML = '';
         timelineState = [];
+        if (genImagesBtn) genImagesBtn.disabled = true;
       });
 
       openSettingsBtn.addEventListener('click', () => {
@@ -1400,6 +1569,66 @@
           e.dataTransfer.setData('text/asset-path', relPath);
           e.dataTransfer.effectAllowed = 'copy';
         }, { once: true });
+      }
+
+      async function generateImages() {
+        if (!currentJobId) {
+          showToast('Create a plan first (job not created yet).', 'err');
+          return;
+        }
+        const prompt = (imagePromptEl.value || '').trim();
+        if (!prompt) {
+          showToast('Add an image prompt first.', 'err');
+          return;
+        }
+        if (genImagesBtn) genImagesBtn.disabled = true;
+        setBusy(true, 'Generating images…');
+        await new Promise(requestAnimationFrame);
+        let data = null;
+        try {
+          const resp = await fetch('/api/images/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              job_id: currentJobId,
+              image_prompt: prompt,
+              image_mode: imageModeEl.value,
+              image_model: imageModelOverrideEl.value || null
+            })
+          });
+          data = await resp.json();
+        } catch (e) {
+          setBusy(false, 'Failed to reach backend.');
+          showToast('Backend not reachable.', 'err');
+          if (genImagesBtn) genImagesBtn.disabled = false;
+          return;
+        } finally {
+          setBusy(false);
+        }
+        if (!data.ok) {
+          showToast(data.error || 'Image generation failed.', 'err');
+          if (genImagesBtn) genImagesBtn.disabled = false;
+          return;
+        }
+        const bgRel = data.assets?.background || '';
+        const fgRel = data.assets?.foreground || '';
+        if (bgRel) {
+          setThumb(bgThumbEl, { url: `/work/jobs/${currentJobId}/${bgRel}?t=${Date.now()}`, type: 'background', relPath: bgRel });
+        } else {
+          setThumb(bgThumbEl, { url: '', type: 'background', relPath: '' });
+        }
+        if (fgRel) {
+          setThumb(fgThumbEl, { url: `/work/jobs/${currentJobId}/${fgRel}?t=${Date.now()}`, type: 'foreground', relPath: fgRel });
+        } else {
+          setThumb(fgThumbEl, { url: '', type: 'foreground', relPath: '' });
+        }
+        if (data.warning) {
+          logsEl.textContent = data.warning;
+          showToast('Images: partial failure (see logs).', 'err');
+        } else {
+          showToast('Images generated. Drag BG/FG into scenes.', 'ok');
+        }
+        if (genImagesBtn) genImagesBtn.disabled = false;
       }
 
       async function openWorkspaceFile(path) {
@@ -1996,34 +2225,45 @@
         if (await runSlashCommand(idea)) return;
 
         addChat('user', 'You', idea);
-        statusEl.textContent = 'Planning...';
+        setBusy(true, 'Planning…');
+        await new Promise(requestAnimationFrame);
 
-        const resp = await fetch('/api/plan', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            idea,
-            audience: audienceEl.value,
-            tone: toneEl.value,
-            style: styleEl.value,
-            pace: paceEl.value,
-            color_palette: paletteEl.value,
-            include_equations: equationsEl.value === 'true',
-            include_graphs: graphsEl.value === 'true',
-            include_narration: narrationEl.value === 'true',
-            target_seconds: targetSecondsEl.value ? Number(targetSecondsEl.value) : null,
-            max_scenes: maxScenesEl.value ? Number(maxScenesEl.value) : null,
-            max_objects: maxObjectsEl.value ? Number(maxObjectsEl.value) : null,
-            aspect_ratio: aspectEl.value,
-            director_brief: buildDirectorBrief(),
-            include_images: includeImagesEl.value === 'true',
-            image_prompt: imagePromptEl.value || null,
-            memory_ids: selectedMemoryIds(),
-            skill_ids: selectedSkillIds(),
-            model: chatModelEl.value || null
-          })
-        });
-        const data = await resp.json();
+        let data = null;
+        try {
+          const resp = await fetch('/api/plan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              idea,
+              audience: audienceEl.value,
+              tone: toneEl.value,
+              style: styleEl.value,
+              pace: paceEl.value,
+              color_palette: paletteEl.value,
+              include_equations: equationsEl.value === 'true',
+              include_graphs: graphsEl.value === 'true',
+              include_narration: narrationEl.value === 'true',
+              target_seconds: targetSecondsEl.value ? Number(targetSecondsEl.value) : null,
+              max_scenes: maxScenesEl.value ? Number(maxScenesEl.value) : null,
+              max_objects: maxObjectsEl.value ? Number(maxObjectsEl.value) : null,
+              aspect_ratio: aspectEl.value,
+              director_brief: buildDirectorBrief(),
+              include_images: includeImagesEl.value === 'true',
+              image_prompt: imagePromptEl.value || null,
+              memory_ids: selectedMemoryIds(),
+              skill_ids: selectedSkillIds(),
+              model: chatModelEl.value || null
+            })
+          });
+          data = await resp.json();
+        } catch (e) {
+          setBusy(false, 'Failed to reach backend.');
+          showToast('Backend not reachable.', 'err');
+          setStep('plan', 'error');
+          return;
+        } finally {
+          setBusy(false);
+        }
         if (!data.ok) {
           statusEl.textContent = data.error || 'Plan failed.';
           showToast(data.error || 'Plan failed.', 'err');
@@ -2034,6 +2274,7 @@
         currentPlanText = data.plan_text;
         jobIdEl.textContent = currentJobId;
         updateJobFiles(data.job_files);
+        if (genImagesBtn) genImagesBtn.disabled = false;
 
         const planBox = document.createElement('textarea');
         planBox.style.width = '100%';
@@ -2054,7 +2295,11 @@
         setStep('approve', 'active');
 
         approveBtn.addEventListener('click', async () => {
+          approveBtn.disabled = true;
+          approveBtn.textContent = 'Rendering…';
           await approvePlan(planBox.value);
+          approveBtn.disabled = false;
+          approveBtn.textContent = 'Approve & Render';
         });
 
         if (data.plan && data.plan.scenes) {
@@ -2072,32 +2317,46 @@
 
       async function approvePlan(planText) {
         if (!currentJobId) return;
-        statusEl.textContent = 'Generating video...';
+        setBusy(true, 'Generating video…');
         setStep('approve', 'done');
         setStep('code', 'active');
+        setStep('render', 'active');
+        await new Promise(requestAnimationFrame);
 
-        const resp = await fetch('/api/approve', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            job_id: currentJobId,
-            plan_text: planText,
-            include_images: includeImagesEl.value === 'true',
-            image_prompt: imagePromptEl.value || null,
-            image_mode: imageModeEl.value,
-            image_model: imageModelOverrideEl.value || null,
-            quality: qualityEl.value,
-            aspect_ratio: aspectEl.value,
-            model: chatModelEl.value || null
-          })
-        });
-        const data = await resp.json();
+        let data = null;
+        try {
+          const resp = await fetch('/api/approve', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              job_id: currentJobId,
+              plan_text: planText,
+              include_images: includeImagesEl.value === 'true',
+              image_prompt: imagePromptEl.value || null,
+              image_mode: imageModeEl.value,
+              image_model: imageModelOverrideEl.value || null,
+              quality: qualityEl.value,
+              aspect_ratio: aspectEl.value,
+              model: chatModelEl.value || null
+            })
+          });
+          data = await resp.json();
+        } catch (e) {
+          setBusy(false, 'Failed to reach backend.');
+          showToast('Backend not reachable.', 'err');
+          setStep('code', 'error');
+          setStep('render', 'error');
+          return;
+        } finally {
+          setBusy(false);
+        }
         if (!data.ok) {
           statusEl.textContent = data.error || 'Render failed.';
           showToast(data.error || 'Render failed.', 'err');
           setStep('code', 'error');
           setStep('render', 'error');
           logsEl.textContent = data.logs || data.error || 'Render failed.';
+          addChat('agent', 'Render failed', `<pre style="white-space:pre-wrap; margin:0;">${(data.logs || data.error || 'Render failed.').slice(0, 6000)}</pre><div class="muted" style="margin-top:6px;">Tip: open Settings → Health to verify Manim/ffmpeg.</div>`);
           return;
         }
         setStep('code', 'done');
@@ -2227,10 +2486,12 @@
         if (!videoEl.duration) return;
         const pct = Number(timelineScrubEl.value) / 100;
         videoEl.currentTime = pct * videoEl.duration;
+        updateTransportUI();
       });
       videoEl.addEventListener('timeupdate', () => {
         if (!videoEl.duration) return;
         timelineScrubEl.value = Math.floor((videoEl.currentTime / videoEl.duration) * 100);
+        updateTransportUI();
       });
 
       applyTimelineBtn.addEventListener('click', syncPlanFromTimeline);
@@ -2248,6 +2509,7 @@
       generateSkillBtn.addEventListener('click', generateSkill);
       aspectEl.addEventListener('change', () => setPreviewAspect(aspectEl.value));
       applyRenameBtn.addEventListener('click', renamePending);
+      genImagesBtn.addEventListener('click', generateImages);
       createFolderBtn.addEventListener('click', createFolder);
       createFileBtn.addEventListener('click', createFile);
       newPathEl.addEventListener('keydown', (e) => {
@@ -2332,6 +2594,7 @@
       }
 
       // Boot
+      if (genImagesBtn) genImagesBtn.disabled = true;
       loadTemplates();
       loadSettings();
       loadMemories();
