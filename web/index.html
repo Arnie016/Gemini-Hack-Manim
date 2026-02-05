@@ -518,9 +518,17 @@
       }
       .compose-send svg { stroke: #0b0f14; }
       .compose-model {
-        width: 1%;
-        min-width: 180px;
-        flex: 1;
+        width: auto;
+        flex: 0 0 auto;
+        min-width: 0;
+        max-width: 220px;
+        padding: 8px 10px;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.10);
+        background: rgba(11, 13, 18, 0.65);
+        font-weight: 700;
+        letter-spacing: 0.2px;
+        color: var(--text);
       }
       .bubble {
         background: #0b1220;
@@ -566,7 +574,25 @@
         text-transform: uppercase;
         letter-spacing: 1px;
       }
-      .context-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+      .context-tabs { display: flex; gap: 8px; margin-top: 10px; }
+      .ctx-tab {
+        width: auto;
+        padding: 8px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.10);
+        background: rgba(15, 19, 26, 0.55);
+        color: var(--muted);
+        font-weight: 700;
+        font-size: 12px;
+      }
+      .ctx-tab.active {
+        color: var(--text);
+        border-color: rgba(106,169,255,0.55);
+        background: rgba(106,169,255,0.12);
+      }
+      .context-panel { display: none; margin-top: 10px; }
+      .context-panel.active { display: block; }
+      .context-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
 
       .drop-target { outline: 2px dashed var(--accent); }
 
@@ -1210,27 +1236,47 @@
 
           <details class="context-block">
             <summary>Context</summary>
-            <div class="context-grid">
-              <div>
-                <label for="memoryTitle">Memory title</label>
-                <input id="memoryTitle" placeholder="Key idea" />
-                <label for="memoryContent" style="margin-top:6px;">Memory content</label>
-                <input id="memoryContent" placeholder="Threshold frequency depends on work function" />
-                <button id="addMemory" style="margin-top:6px;">Add memory</button>
-                <div class="tree" id="memoryList" style="margin-top:6px;"></div>
-              </div>
-              <div>
-                <div class="muted" style="margin-bottom:6px;">Docs / indexing (paste a link + notes)</div>
-                <label for="sourceUrl">Source link</label>
-                <input id="sourceUrl" placeholder="https://..." />
-                <label for="sourceNotes" style="margin-top:6px;">Notes / transcript</label>
-                <textarea id="sourceNotes" placeholder="Paste transcript or key points here"></textarea>
-                <button id="saveSource" class="secondary" style="margin-top:6px;">Save source</button>
-                <pre id="sourceStatus" class="muted" style="margin-top:8px; white-space:pre-wrap;">No sources yet.</pre>
+            <div class="context-tabs" role="tablist" aria-label="Context tabs">
+              <button class="ctx-tab active" data-ctx="memory" role="tab" aria-selected="true">Memory</button>
+              <button class="ctx-tab" data-ctx="docs" role="tab" aria-selected="false">Docs</button>
+              <button class="ctx-tab" data-ctx="skills" role="tab" aria-selected="false">Skills</button>
+            </div>
 
-                <div class="muted" style="margin-top:10px;">Skills (select for this run). Manage skills in Settings.</div>
-                <div class="tree" id="skillList" style="margin-top:6px;"></div>
+            <div class="context-panel active" data-ctx="memory" role="tabpanel">
+              <div class="muted" style="margin-bottom:6px;">Save key facts you want Gemini to remember for this run.</div>
+              <div class="row">
+                <div>
+                  <label for="memoryTitle">Title</label>
+                  <input id="memoryTitle" placeholder="Key idea" />
+                </div>
+                <div>
+                  <label for="memoryContent">Content</label>
+                  <input id="memoryContent" placeholder="Threshold frequency depends on work function" />
+                </div>
               </div>
+              <button id="addMemory" style="margin-top:8px;">Add memory</button>
+              <div class="tree" id="memoryList" style="margin-top:8px;"></div>
+            </div>
+
+            <div class="context-panel" data-ctx="docs" role="tabpanel">
+              <div class="muted" style="margin-bottom:6px;">Paste a link + transcript/notes. This is appended to the director brief.</div>
+              <div class="row">
+                <div>
+                  <label for="sourceUrl">Link</label>
+                  <input id="sourceUrl" placeholder="https://..." />
+                </div>
+                <div>
+                  <label for="sourceNotes">Notes / transcript</label>
+                  <textarea id="sourceNotes" placeholder="Paste transcript or key points here"></textarea>
+                </div>
+              </div>
+              <button id="saveSource" class="secondary" style="margin-top:8px;">Save source</button>
+              <pre id="sourceStatus" class="muted" style="margin-top:10px; white-space:pre-wrap;">No sources yet.</pre>
+            </div>
+
+            <div class="context-panel" data-ctx="skills" role="tabpanel">
+              <div class="muted" style="margin-bottom:6px;">Select skills to apply to this run (manage in Settings → Skills).</div>
+              <div class="tree" id="skillList" style="margin-top:6px;"></div>
             </div>
           </details>
 
@@ -1327,6 +1373,8 @@
       const memoryContentEl = document.getElementById('memoryContent');
       const addMemoryBtn = document.getElementById('addMemory');
       const memoryListEl = document.getElementById('memoryList');
+      const ctxTabs = Array.from(document.querySelectorAll('.ctx-tab'));
+      const ctxPanels = Array.from(document.querySelectorAll('.context-panel'));
       const skillNameEl = document.getElementById('skillName');
       const skillContentEl = document.getElementById('skillContent');
       const saveSkillBtn = document.getElementById('saveSkill');
@@ -1597,8 +1645,8 @@
         const leftNum = Number(stored.left);
         const rightNum = Number(stored.right);
         return {
-          left: Number.isFinite(leftNum) ? clampNumber(leftNum, 220, 520) : 280,
-          right: Number.isFinite(rightNum) ? clampNumber(rightNum, 260, 560) : 360,
+          left: Number.isFinite(leftNum) ? clampNumber(leftNum, 260, 600) : 320,
+          right: Number.isFinite(rightNum) ? clampNumber(rightNum, 320, 680) : 420,
         };
       }
 
@@ -1845,6 +1893,16 @@
         tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabId));
         panels.forEach(p => p.classList.toggle('active', p.dataset.tab === tabId));
       }
+
+      function setContextTab(id) {
+        ctxTabs.forEach(b => {
+          const on = b.dataset.ctx === id;
+          b.classList.toggle('active', on);
+          b.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        ctxPanels.forEach(p => p.classList.toggle('active', p.dataset.ctx === id));
+      }
+      ctxTabs.forEach(b => b.addEventListener('click', () => setContextTab(b.dataset.ctx)));
 
       function updateEditorMode() {
         if (!openFilePath) {
