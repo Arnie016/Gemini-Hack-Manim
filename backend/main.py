@@ -747,6 +747,8 @@ def job_events(job_id: str):
 
         log_pos = 0
         state_mtime = 0.0
+        code_mtime = 0.0
+        sent_code = False
         while True:
             # Stream log growth.
             try:
@@ -761,6 +763,18 @@ def job_events(job_id: str):
                             log_pos = f.tell()
                         if chunk:
                             yield f"event: log\ndata: {_json.dumps({'chunk': chunk})}\n\n"
+            except Exception:
+                pass
+
+            # Stream code once it exists (gives IDE-like feedback).
+            try:
+                if paths.scene_path.exists():
+                    mt = paths.scene_path.stat().st_mtime
+                    if (not sent_code) or (mt != code_mtime and st.status in {"running", "repairing"}):
+                        code_mtime = mt
+                        sent_code = True
+                        txt = paths.scene_path.read_text(encoding="utf-8", errors="ignore")
+                        yield f"event: code\ndata: {_json.dumps({'code': txt})}\n\n"
             except Exception:
                 pass
 

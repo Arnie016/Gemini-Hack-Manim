@@ -252,9 +252,21 @@
       .card.scroll { overflow: auto; }
       .timeline-card { grid-column: 1 / -1; }
 
+      .preview-area {
+        height: clamp(360px, 54vh, 760px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(11, 13, 18, 0.4);
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.06);
+        padding: 10px;
+        overflow: hidden;
+      }
       .preview-shell {
-        width: 100%;
+        height: 100%;
         aspect-ratio: var(--preview-aspect, 9 / 16);
+        width: auto;
         background: #000;
         border-radius: 12px;
         overflow: hidden;
@@ -468,6 +480,35 @@
         gap: 10px;
       }
       .chat-messages { flex: 1; overflow: auto; display: grid; gap: 10px; }
+      .chat-compose {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .compose-btn, .compose-send {
+        width: auto;
+        padding: 10px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: #0f141d;
+        color: var(--text);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .compose-btn svg, .compose-send svg { width: 18px; height: 18px; }
+      .compose-send {
+        background: var(--accent);
+        color: #0b0f14;
+        border: none;
+      }
+      .compose-send svg { stroke: #0b0f14; }
+      .compose-model {
+        width: 1%;
+        min-width: 180px;
+        flex: 1;
+      }
       .bubble {
         background: #0b1220;
         border: 1px solid var(--border);
@@ -889,7 +930,9 @@
               <div class="card">
                 <div class="muted" style="margin-bottom:6px;">Preview</div>
                 <div class="preview-wrap">
-                  <div class="preview-shell" id="previewSlot"></div>
+                  <div class="preview-area">
+                    <div class="preview-shell" id="previewSlot"></div>
+                  </div>
                   <div class="preview-busy hidden" id="busyOverlay" aria-hidden="true">
                     <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
                       <div style="display:flex; align-items:center; gap:10px;">
@@ -1033,17 +1076,25 @@
             Tip: use <code>/</code> commands like <code>/health</code> and drag files into the prompt.
           </div>
 
-          <label for="chatModel">Text model</label>
-          <select id="chatModel">
-            <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
-            <option value="gemini-3-pro-preview">gemini-3-pro-preview</option>
-            <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-            <option value="gemini-2.5-pro">gemini-2.5-pro</option>
-          </select>
-
-          <label for="chatInput" style="margin-top:8px;">Prompt</label>
-          <textarea id="chatInput" placeholder="Make an animation of the photoelectric effect"></textarea>
-          <button id="planBtn" style="margin-top:8px;">Create plan</button>
+          <textarea id="chatInput" placeholder="Type a prompt… (or /health, /settings, /attach notes/outline.md)"></textarea>
+          <div class="chat-compose">
+            <input id="filePicker" type="file" class="hidden" multiple />
+            <button id="attachBtn" class="compose-btn" title="Attach file (+)" aria-label="Attach file">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            </button>
+            <select id="chatModel" class="compose-model" title="Model" aria-label="Model">
+              <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
+              <option value="gemini-3-pro-preview">gemini-3-pro-preview</option>
+              <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+              <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+            </select>
+            <button id="voiceBtn" class="compose-btn" title="Voice input" aria-label="Voice input">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v4"/><path d="M8 23h8"/></svg>
+            </button>
+            <button id="planBtn" class="compose-send" title="Send / Create plan" aria-label="Send">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+            </button>
+          </div>
           <div class="muted" id="status">Ready.</div>
         </div>
       </aside>
@@ -1268,6 +1319,9 @@
       const chatInputEl = document.getElementById('chatInput');
       const chatModelEl = document.getElementById('chatModel');
       const planBtn = document.getElementById('planBtn');
+      const attachBtnEl = document.getElementById('attachBtn');
+      const filePickerEl = document.getElementById('filePicker');
+      const voiceBtnEl = document.getElementById('voiceBtn');
       const statusEl = document.getElementById('status');
       const agentStepsEl = document.getElementById('agentSteps');
 
@@ -1740,6 +1794,118 @@
         requestAnimationFrame(tick);
       }
 
+      async function tryWriteWorkspaceFile(path, content) {
+        try {
+          const resp = await fetch('/api/files/file', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path, content: content || '' })
+          });
+          const data = await resp.json();
+          if (data.ok) return data.path;
+          return null;
+        } catch {
+          return null;
+        }
+      }
+
+      async function attachFilesFromPicker(files) {
+        const list = Array.from(files || []);
+        if (!list.length) return;
+        for (const f of list) {
+          if (f.size > 800_000) {
+            showToast(`Skipped ${f.name}: file too large for inline attach.`, 'err');
+            continue;
+          }
+          const isText = /^text\\//.test(f.type) || /\\.(md|txt|py|json|yaml|yml|csv)$/i.test(f.name);
+          if (!isText) {
+            showToast(`Skipped ${f.name}: only text files are supported right now.`, 'err');
+            continue;
+          }
+          const text = await f.text();
+          chatInputEl.value += `\\n\\n[File: ${f.name}]\\n${text}\\n`;
+          // Also save into workspace for later re-use.
+          const base = `notes/uploads/${f.name}`;
+          let saved = await tryWriteWorkspaceFile(base, text);
+          if (!saved) {
+            // If name collides, try suffixes.
+            for (let i = 2; i < 20 && !saved; i++) {
+              const cand = `notes/uploads/${f.name.replace(/(\\.[^.]*)?$/, `-${i}$1`)}`;
+              saved = await tryWriteWorkspaceFile(cand, text);
+            }
+          }
+          if (saved) {
+            loadWorkspaceFiles();
+            showToast(`Attached + saved: ${saved}`, 'ok');
+          } else {
+            showToast(`Attached: ${f.name}`, 'ok');
+          }
+        }
+      }
+
+      if (attachBtnEl && filePickerEl) {
+        attachBtnEl.addEventListener('click', () => filePickerEl.click());
+        filePickerEl.addEventListener('change', (e) => {
+          attachFilesFromPicker(e.target.files);
+          e.target.value = '';
+        });
+      }
+
+      // Voice input (Chrome Web Speech). This is a best-effort enhancement.
+      let recognition = null;
+      let voiceOn = false;
+      function setVoiceOn(on) {
+        voiceOn = !!on;
+        if (voiceBtnEl) voiceBtnEl.style.borderColor = voiceOn ? 'rgba(34,197,94,0.7)' : 'var(--border)';
+      }
+      if (voiceBtnEl) {
+        voiceBtnEl.addEventListener('click', () => {
+          const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+          if (!Rec) {
+            showToast('Voice input not supported in this browser.', 'err');
+            return;
+          }
+          if (!recognition) {
+            recognition = new Rec();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'en-US';
+            recognition.onresult = (event) => {
+              let finalText = '';
+              let interim = '';
+              for (let i = event.resultIndex; i < event.results.length; i++) {
+                const res = event.results[i];
+                const t = res[0]?.transcript || '';
+                if (res.isFinal) finalText += t;
+                else interim += t;
+              }
+              if (finalText) chatInputEl.value += (chatInputEl.value.endsWith(' ') ? '' : ' ') + finalText.trim() + ' ';
+              if (interim) statusEl.textContent = `Listening… ${interim.trim()}`;
+            };
+            recognition.onerror = () => {
+              setVoiceOn(false);
+              statusEl.textContent = 'Voice stopped.';
+            };
+            recognition.onend = () => {
+              setVoiceOn(false);
+              statusEl.textContent = 'Ready.';
+            };
+          }
+          if (!voiceOn) {
+            try {
+              recognition.start();
+              setVoiceOn(true);
+              statusEl.textContent = 'Listening…';
+            } catch {
+              // Ignore repeated start errors.
+            }
+          } else {
+            try { recognition.stop(); } catch {}
+            setVoiceOn(false);
+          }
+        });
+      }
+
       let highlightOn = false;
       function refreshHighlight() {
         codePrettyEl.textContent = codeEl.value || '';
@@ -1793,10 +1959,9 @@
           return;
         }
         if (genImagesBtn) genImagesBtn.disabled = true;
-        setBusy(true, 'Generating images…');
-        await new Promise(requestAnimationFrame);
-        let data = null;
         try {
+          setBusy(true, 'Generating images…');
+          await new Promise(requestAnimationFrame);
           const resp = await fetch('/api/images/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1807,39 +1972,35 @@
               image_model: imageModelOverrideEl.value || null
             })
           });
-          data = await resp.json();
+          const data = await resp.json();
+          if (!data.ok) {
+            showToast(data.error || 'Image generation failed.', 'err');
+            return;
+          }
+          const bgRel = data.assets?.background || '';
+          const fgRel = data.assets?.foreground || '';
+          if (bgRel) {
+            setThumb(bgThumbEl, { url: `/work/jobs/${currentJobId}/${bgRel}?t=${Date.now()}`, type: 'background', relPath: bgRel });
+          } else {
+            setThumb(bgThumbEl, { url: '', type: 'background', relPath: '' });
+          }
+          if (fgRel) {
+            setThumb(fgThumbEl, { url: `/work/jobs/${currentJobId}/${fgRel}?t=${Date.now()}`, type: 'foreground', relPath: fgRel });
+          } else {
+            setThumb(fgThumbEl, { url: '', type: 'foreground', relPath: '' });
+          }
+          if (data.warning) {
+            logsEl.textContent = data.warning;
+            showToast('Images: partial failure (see logs).', 'err');
+          } else {
+            showToast('Images generated. Drag BG/FG into scenes.', 'ok');
+          }
         } catch (e) {
-          setBusy(false, 'Failed to reach backend.');
           showToast('Backend not reachable.', 'err');
-          if (genImagesBtn) genImagesBtn.disabled = false;
-          return;
         } finally {
           setBusy(false);
-        }
-        if (!data.ok) {
-          showToast(data.error || 'Image generation failed.', 'err');
           if (genImagesBtn) genImagesBtn.disabled = false;
-          return;
         }
-        const bgRel = data.assets?.background || '';
-        const fgRel = data.assets?.foreground || '';
-        if (bgRel) {
-          setThumb(bgThumbEl, { url: `/work/jobs/${currentJobId}/${bgRel}?t=${Date.now()}`, type: 'background', relPath: bgRel });
-        } else {
-          setThumb(bgThumbEl, { url: '', type: 'background', relPath: '' });
-        }
-        if (fgRel) {
-          setThumb(fgThumbEl, { url: `/work/jobs/${currentJobId}/${fgRel}?t=${Date.now()}`, type: 'foreground', relPath: fgRel });
-        } else {
-          setThumb(fgThumbEl, { url: '', type: 'foreground', relPath: '' });
-        }
-        if (data.warning) {
-          logsEl.textContent = data.warning;
-          showToast('Images: partial failure (see logs).', 'err');
-        } else {
-          showToast('Images generated. Drag BG/FG into scenes.', 'ok');
-        }
-        if (genImagesBtn) genImagesBtn.disabled = false;
       }
 
       async function openWorkspaceFile(path) {
@@ -2613,6 +2774,17 @@
             }
           } catch {}
         });
+        es.addEventListener('code', (e) => {
+          try {
+            const data = JSON.parse(e.data);
+            if (data.code && !openFilePath) {
+              didAnimateCode = true;
+              animateCodeIntoEditor(data.code);
+              // Optional: bring user attention to Code tab without forcing a tab switch.
+              showToast('Code generated.', 'ok');
+            }
+          } catch {}
+        });
         es.addEventListener('state', async (e) => {
           let s = null;
           try { s = JSON.parse(e.data); } catch { s = null; }
@@ -2654,6 +2826,11 @@
             if (st.status === 'failed') {
               setStep('code', 'error');
               setStep('render', 'error');
+              const tail = (st.logs_tail || err || 'Render failed.');
+              if (/no module named manim/i.test(tail) || /manim/i.test(tail) && /not found|no such file|missing/i.test(tail)) {
+                settingsDrawer.classList.add('open');
+                try { await runHealth(); } catch {}
+              }
               const retryBtn = document.createElement('button');
               retryBtn.textContent = 'Retry Render';
               retryBtn.className = 'secondary';
