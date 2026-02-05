@@ -174,6 +174,8 @@
         flex: 1;
       }
       .tab-panel.active { display: block; }
+      /* Keep the middle pane fixed; allow only internal cards to scroll. */
+      .tab-panel[data-tab="canvas"] { overflow: hidden; }
 
       .tree {
         font-family: 'IBM Plex Mono', monospace;
@@ -232,13 +234,23 @@
 
       .workspace { display: grid; grid-template-rows: auto 1fr auto; height: 100%; }
 
-      .canvas-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 12px; }
+      .canvas-grid {
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        grid-template-rows: minmax(0, 1fr) auto;
+        gap: 12px;
+        height: 100%;
+        min-height: 0;
+      }
       .card {
         border: 1px solid var(--border);
         border-radius: 12px;
         background: var(--panel-2);
         padding: 12px;
+        min-height: 0;
       }
+      .card.scroll { overflow: auto; }
+      .timeline-card { grid-column: 1 / -1; }
 
       .preview-shell {
         width: 100%;
@@ -411,6 +423,23 @@
         border-radius: 16px;
         z-index: 8;
         pointer-events: none;
+      }
+      .busy-title {
+        font-size: 18px;
+        font-weight: 800;
+        letter-spacing: 0.4px;
+        background: linear-gradient(90deg, #93c5fd, #22c55e, #93c5fd);
+        background-size: 220% 100%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        animation: shimmer 1.8s ease-in-out infinite;
+      }
+      .busy-sub { color: var(--muted); font-size: 12px; margin-top: 4px; max-width: 260px; text-align: center; }
+      @keyframes shimmer {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
       }
       .spinner {
         width: 32px;
@@ -682,7 +711,7 @@
         <div class="tab-panels">
           <section class="tab-panel active" data-tab="canvas">
             <div class="canvas-grid">
-              <div class="card">
+              <div class="card scroll">
                 <label for="templateSelect">Template</label>
                 <select id="templateSelect"></select>
 
@@ -862,9 +891,12 @@
                 <div class="preview-wrap">
                   <div class="preview-shell" id="previewSlot"></div>
                   <div class="preview-busy hidden" id="busyOverlay" aria-hidden="true">
-                    <div style="display:flex; align-items:center; gap:10px;">
-                      <div class="spinner"></div>
-                      <div class="muted">Rendering…</div>
+                    <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+                      <div style="display:flex; align-items:center; gap:10px;">
+                        <div class="spinner"></div>
+                        <div class="busy-title" id="busyTitle">Rendering</div>
+                      </div>
+                      <div class="busy-sub" id="busySub">Directing scenes…</div>
                     </div>
                   </div>
                   <div class="preview-overlay">
@@ -886,7 +918,9 @@
                     </button>
                   </div>
                 </div>
+              </div>
 
+              <div class="card timeline-card">
                 <div class="timeline-wrap">
                   <div class="muted" id="timelineLabel">Timeline</div>
                   <div class="timeline-ruler" id="timelineRuler" style="margin-top:6px;"></div>
@@ -1191,6 +1225,8 @@
       const termCmdEl = document.getElementById('termCmd');
       const termRunEl = document.getElementById('termRun');
       const busyOverlayEl = document.getElementById('busyOverlay');
+      const busyTitleEl = document.getElementById('busyTitle');
+      const busySubEl = document.getElementById('busySub');
       const toastEl = document.getElementById('toast');
       let toastTimer = null;
 
@@ -1211,6 +1247,8 @@
         if (busyOverlayEl) busyOverlayEl.classList.toggle('hidden', !isBusy);
         if (statusEl) statusEl.classList.toggle('status-pulse', isBusy);
         if (typeof message === 'string' && statusEl) statusEl.textContent = message;
+        if (typeof message === 'string' && busySubEl) busySubEl.textContent = message || 'Working…';
+        if (busyTitleEl) busyTitleEl.textContent = isBusy ? 'Rendering' : 'Ready';
         if (planBtn) planBtn.disabled = isBusy;
         if (renderCodeBtn) renderCodeBtn.disabled = isBusy ? true : renderCodeBtn.disabled;
         if (toggleHighlightBtn) toggleHighlightBtn.disabled = isBusy;
@@ -1373,6 +1411,7 @@
       let lastAssets = { background: '', foreground: '' };
       const mqNarrow = window.matchMedia('(max-width: 1200px)');
       let jobEventSource = null;
+      let didAnimateCode = false;
 
       function getSources() {
         try {
@@ -1475,7 +1514,6 @@
         videoEl.load();
         timelineTrackEl.innerHTML = '';
         timelineState = [];
-        if (genImagesBtn) genImagesBtn.disabled = true;
       });
 
       openSettingsBtn.addEventListener('click', () => {
@@ -1681,6 +1719,27 @@
 
       addSelectionBtn.addEventListener('click', addSelectionToPrompt);
 
+      function animateCodeIntoEditor(code, opts) {
+        const immediate = !!(opts && opts.immediate);
+        const target = String(code || '');
+        if (immediate || target.length < 400) {
+          codeEl.value = target;
+          if (highlightOn) refreshHighlight();
+          return;
+        }
+        // Fast "typing" illusion: chunk in quickly without freezing the UI.
+        codeEl.value = '';
+        const chunk = 220;
+        let i = 0;
+        function tick() {
+          i = Math.min(target.length, i + chunk);
+          codeEl.value = target.slice(0, i);
+          if (highlightOn) refreshHighlight();
+          if (i < target.length) requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+      }
+
       let highlightOn = false;
       function refreshHighlight() {
         codePrettyEl.textContent = codeEl.value || '';
@@ -1725,7 +1784,7 @@
 
       async function generateImages() {
         if (!currentJobId) {
-          showToast('Create a plan first (job not created yet).', 'err');
+          showToast('Create a plan first (job_id is created there).', 'err');
           return;
         }
         const prompt = (imagePromptEl.value || '').trim();
@@ -2453,6 +2512,7 @@
           return;
         }
         currentJobId = data.job_id;
+        didAnimateCode = false;
         currentPlanText = data.plan_text;
         jobIdEl.textContent = currentJobId;
         updateJobFiles(data.job_files);
@@ -2499,6 +2559,7 @@
 
       async function approvePlan(planText) {
         if (!currentJobId) return;
+        didAnimateCode = false;
         setBusy(true, 'Generating video…');
         setStep('approve', 'done');
         setStep('code', 'active');
@@ -2560,9 +2621,24 @@
           const msg = s?.message || '';
           const err = s?.error || '';
           if (msg) statusEl.textContent = msg;
+          if (busySubEl && msg) busySubEl.textContent = msg;
 
           if (step === 'code') { setStep('code', 'active'); setStep('render', ''); }
-          if (step === 'render') { setStep('code', 'done'); setStep('render', 'active'); }
+          if (step === 'render') {
+            setStep('code', 'done');
+            setStep('render', 'active');
+            if (!didAnimateCode) {
+              didAnimateCode = true;
+              try {
+                const stResp = await fetch(`/api/jobs/${encodeURIComponent(currentJobId)}`);
+                const st = await stResp.json();
+                if (st.ok && st.code && !openFilePath) {
+                  // "IDE feel": show code appearing as soon as it exists.
+                  animateCodeIntoEditor(st.code);
+                }
+              } catch {}
+            }
+          }
           if (status === 'repairing') { setStep('render', 'active'); }
 
           if (status === 'done' || status === 'failed') {
@@ -2602,7 +2678,7 @@
               lastCaptionsUrl = '/' + st.captions_path + '?t=' + Date.now();
             }
             if (st.code) {
-              codeEl.value = st.code;
+              if (!openFilePath) animateCodeIntoEditor(st.code, { immediate: true });
               openFilePath = null;
               updateEditorMode();
             }
@@ -2809,7 +2885,7 @@
       }
 
       // Boot
-      if (genImagesBtn) genImagesBtn.disabled = true;
+      // Keep the button clickable; if there's no job_id yet we'll show a hint toast.
       loadTemplates();
       loadSettings();
       loadMemories();

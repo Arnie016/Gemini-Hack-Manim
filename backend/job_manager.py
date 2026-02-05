@@ -104,13 +104,7 @@ class JobManager:
         api_key: Optional[str],
         text_model: Optional[str],
     ) -> None:
-        state = load_state(job_dir, job_id)
-        state.status = "running"
-        state.step = "code"
-        state.message = "Generating Manim code…"
-        state.updated_at = time.time()
-        write_state(job_dir, state)
-        append_event(job_dir, type_="state", payload={"status": state.status, "step": state.step, "message": state.message})
+        import traceback
 
         plan_path = job_dir / "plan.json"
         scene_path = job_dir / "scene.py"
@@ -118,13 +112,25 @@ class JobManager:
         out_mp4 = job_dir / "out.mp4"
         captions_path = job_dir / "captions.srt"
 
-        # Captions are cheap: generate from plan narration.
+        state = load_state(job_dir, job_id)
         try:
-            captions_path.write_text(_build_srt(plan_obj), encoding="utf-8")
-        except Exception:
-            pass
+            state.status = "running"
+            state.step = "code"
+            state.message = "Generating Manim code…"
+            state.updated_at = time.time()
+            write_state(job_dir, state)
+            append_event(
+                job_dir,
+                type_="state",
+                payload={"status": state.status, "step": state.step, "message": state.message},
+            )
 
-        try:
+            # Captions are cheap: generate from plan narration.
+            try:
+                captions_path.write_text(_build_srt(plan_obj), encoding="utf-8")
+            except Exception:
+                pass
+
             code = generate_content(
                 manim_code_user_prompt(
                     json.dumps(plan_obj),
@@ -137,48 +143,45 @@ class JobManager:
             )
             code = format_python(code)
             scene_path.write_text(code, encoding="utf-8")
-        except GeminiError as exc:
-            state.status = "failed"
-            state.step = "code"
-            state.error = f"Code generation failed: {exc}"
-            state.message = "Failed."
+
+            state.step = "render"
+            state.message = "Rendering MP4…"
             state.updated_at = time.time()
+            state.plan_path = str(plan_path)
+            state.scene_path = str(scene_path)
+            state.logs_path = str(logs_path)
             write_state(job_dir, state)
-            append_event(job_dir, type_="state", payload={"status": state.status, "step": state.step, "error": state.error})
-            return
+            append_event(
+                job_dir,
+                type_="state",
+                payload={"status": state.status, "step": state.step, "message": state.message},
+            )
 
-        state.step = "render"
-        state.message = "Rendering MP4…"
-        state.updated_at = time.time()
-        state.plan_path = str(plan_path)
-        state.scene_path = str(scene_path)
-        state.logs_path = str(logs_path)
-        write_state(job_dir, state)
-        append_event(job_dir, type_="state", payload={"status": state.status, "step": state.step, "message": state.message})
+            ok = render_with_manim_stream(
+                scene_file=scene_path,
+                out_mp4=out_mp4,
+                logs_path=logs_path,
+                quality=quality,
+                manim_py=manim_py,
+            )
 
-        ok = render_with_manim_stream(
-            scene_file=scene_path,
-            out_mp4=out_mp4,
-            logs_path=logs_path,
-            quality=quality,
-            manim_py=manim_py,
-        )
+            if not ok:
+                state.status = "repairing"
+                state.step = "repair"
+                state.message = "Repairing code (1 retry)…"
+                state.updated_at = time.time()
+                write_state(job_dir, state)
+                append_event(
+                    job_dir,
+                    type_="state",
+                    payload={"status": state.status, "step": state.step, "message": state.message},
+                )
 
-        if not ok:
-            state.status = "repairing"
-            state.step = "repair"
-            state.message = "Repairing code (1 retry)…"
-            state.updated_at = time.time()
-            write_state(job_dir, state)
-            append_event(job_dir, type_="state", payload={"status": state.status, "step": state.step, "message": state.message})
+                try:
+                    logs = logs_path.read_text(encoding="utf-8")
+                except Exception:
+                    logs = ""
 
-            logs = ""
-            try:
-                logs = logs_path.read_text(encoding="utf-8")
-            except Exception:
-                logs = ""
-
-            try:
                 repair_user = (
                     "The render failed.\n"
                     "Here are the logs:\n"
@@ -195,46 +198,74 @@ class JobManager:
                 )
                 code2 = format_python(code2)
                 scene_path.write_text(code2, encoding="utf-8")
-            except GeminiError as exc:
+
+                state.status = "running"
+                state.step = "render"
+                state.message = "Rendering MP4 (retry)…"
+                state.updated_at = time.time()
+                write_state(job_dir, state)
+                append_event(
+                    job_dir,
+                    type_="state",
+                    payload={"status": state.status, "step": state.step, "message": state.message},
+                )
+
+                ok = render_with_manim_stream(
+                    scene_file=scene_path,
+                    out_mp4=out_mp4,
+                    logs_path=logs_path,
+                    quality=quality,
+                    manim_py=manim_py,
+                )
+
+            if not ok:
                 state.status = "failed"
-                state.step = "repair"
-                state.error = f"Repair failed: {exc}"
+                state.step = "render"
+                state.error = "Render failed"
                 state.message = "Failed."
                 state.updated_at = time.time()
                 write_state(job_dir, state)
-                append_event(job_dir, type_="state", payload={"status": state.status, "step": state.step, "error": state.error})
+                append_event(
+                    job_dir,
+                    type_="state",
+                    payload={"status": state.status, "step": state.step, "error": state.error},
+                )
                 return
 
-            state.status = "running"
-            state.step = "render"
-            state.message = "Rendering MP4 (retry)…"
+            state.status = "done"
+            state.step = "idle"
+            state.message = "Render complete."
+            state.video_path = str(out_mp4)
             state.updated_at = time.time()
             write_state(job_dir, state)
-            append_event(job_dir, type_="state", payload={"status": state.status, "step": state.step, "message": state.message})
-
-            ok = render_with_manim_stream(
-                scene_file=scene_path,
-                out_mp4=out_mp4,
-                logs_path=logs_path,
-                quality=quality,
-                manim_py=manim_py,
+            append_event(
+                job_dir,
+                type_="state",
+                payload={"status": state.status, "step": state.step, "message": state.message},
             )
 
-        if not ok:
+        except GeminiError as exc:
             state.status = "failed"
-            state.step = "render"
-            state.error = "Render failed"
+            state.step = state.step or "code"
+            state.error = str(exc)
             state.message = "Failed."
             state.updated_at = time.time()
             write_state(job_dir, state)
             append_event(job_dir, type_="state", payload={"status": state.status, "step": state.step, "error": state.error})
-            return
-
-        state.status = "done"
-        state.step = "idle"
-        state.message = "Render complete."
-        state.video_path = str(out_mp4)
-        state.updated_at = time.time()
-        write_state(job_dir, state)
-        append_event(job_dir, type_="state", payload={"status": state.status, "step": state.step, "message": state.message})
-
+        except Exception as exc:
+            # Never let the thread die silently (UI would look "stuck rendering").
+            try:
+                logs_path.parent.mkdir(parents=True, exist_ok=True)
+                with logs_path.open("a", encoding="utf-8") as f:
+                    f.write("\n\n=== worker crash ===\n")
+                    f.write(str(exc) + "\n")
+                    f.write(traceback.format_exc() + "\n")
+            except Exception:
+                pass
+            state.status = "failed"
+            state.step = state.step or "render"
+            state.error = f"Internal error: {exc}"
+            state.message = "Failed."
+            state.updated_at = time.time()
+            write_state(job_dir, state)
+            append_event(job_dir, type_="state", payload={"status": state.status, "step": state.step, "error": state.error})
