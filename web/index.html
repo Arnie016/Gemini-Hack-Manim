@@ -58,6 +58,17 @@
         font-weight: 600;
         color: #d7dce5;
         letter-spacing: 0.4px;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .badge {
+        font-size: 11px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.16);
+        background: rgba(12, 15, 20, 0.35);
+        color: var(--muted);
       }
       .topbar-actions {
         display: flex;
@@ -540,6 +551,46 @@
       .toast.ok { border-color: rgba(34, 197, 94, 0.6); }
       .toast.err { border-color: rgba(239, 68, 68, 0.6); }
 
+      .modal {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0,0,0,0.55);
+        z-index: 50;
+        padding: 16px;
+      }
+      .modal.open { display: flex; }
+      .modal-card {
+        width: min(720px, 96vw);
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        background: linear-gradient(180deg, rgba(20,23,29,0.98), rgba(15,19,26,0.98));
+        box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+        padding: 14px;
+      }
+      .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+        margin-bottom: 10px;
+      }
+      .modal-title { font-weight: 700; letter-spacing: 0.2px; }
+      .modal-body { color: var(--text); font-size: 13px; line-height: 1.45; }
+      .modal-body kbd {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 12px;
+        padding: 2px 6px;
+        border: 1px solid rgba(255,255,255,0.12);
+        border-bottom-color: rgba(255,255,255,0.18);
+        border-radius: 8px;
+        background: rgba(11,13,18,0.6);
+      }
+
       @media (max-width: 1200px) {
         .layout { grid-template-columns: 1fr; grid-template-rows: auto; height: auto; }
         /* Undo column pinning on smaller viewports to avoid implicit off-screen columns. */
@@ -558,7 +609,10 @@
         <span class="dot yellow"></span>
         <span class="dot green"></span>
       </div>
-      <div class="topbar-title">Gemini Manim Animator</div>
+      <div class="topbar-title">
+        Gemini Manim Animator
+        <span class="badge">Gemini Hackathon 2026</span>
+      </div>
       <div class="topbar-actions">
         <button id="backBtn" class="icon-btn" title="Back" aria-label="Back" data-tip="Back">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
@@ -571,6 +625,9 @@
         </button>
         <button id="toggleTerminal" class="icon-btn" title="Terminal" aria-label="Terminal" data-tip="Terminal">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-5-6-5"/><path d="M12 19h8"/></svg>
+        </button>
+        <button id="openInfo" class="icon-btn" title="How It Works" aria-label="How it works" data-tip="How it works">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
         </button>
         <button id="openSettings" class="icon-btn primary" title="Settings" aria-label="Settings" data-tip="Settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/><path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.03.03a2.2 2.2 0 0 1-1.56 3.75 2.2 2.2 0 0 1-1.56-.65l-.03-.03a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.08 1.65V22a2.2 2.2 0 0 1-4.4 0v-.04a1.8 1.8 0 0 0-1.08-1.65 1.8 1.8 0 0 0-1.98.36l-.03.03a2.2 2.2 0 0 1-3.12 0 2.2 2.2 0 0 1 0-3.12l.03-.03A1.8 1.8 0 0 0 4.6 15a1.8 1.8 0 0 0-1.65-1.08H2.9a2.2 2.2 0 0 1 0-4.4h.04A1.8 1.8 0 0 0 4.6 8.44a1.8 1.8 0 0 0-.36-1.98l-.03-.03a2.2 2.2 0 0 1 3.12-3.12l.03.03A1.8 1.8 0 0 0 9.34 3.7 1.8 1.8 0 0 0 10.42 2.05V2a2.2 2.2 0 0 1 4.4 0v.04a1.8 1.8 0 0 0 1.08 1.65 1.8 1.8 0 0 0 1.98-.36l.03-.03a2.2 2.2 0 0 1 3.12 3.12l-.03.03a1.8 1.8 0 0 0-.36 1.98 1.8 1.8 0 0 0 1.65 1.08H22a2.2 2.2 0 0 1 0 4.4h-.04A1.8 1.8 0 0 0 19.4 15z"/></svg>
@@ -802,7 +859,7 @@
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
                       Download
                     </button>
-                    <button id="shareBtn" class="overlay-btn" title="Share" aria-label="Share">
+                    <button id="shareBtn" class="overlay-btn" title="Share link" aria-label="Share link">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v14"/></svg>
                       Share
                     </button>
@@ -1009,6 +1066,31 @@
 
     <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
+    <div id="infoModal" class="modal" aria-hidden="true">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-title">How It Works</div>
+          <button id="closeInfo" class="icon-btn" style="width:auto;" title="Close" aria-label="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div style="margin-bottom:10px;">
+            Fast path:
+            <code>Create plan → Generate images → (optional drag into scenes) → Approve & Render</code>
+          </div>
+          <div class="muted" style="margin-bottom:10px;">
+            Tips: use <kbd>/health</kbd> if rendering fails; drag a file from Explorer into the prompt to attach it; select code + press <kbd>@</kbd> to reference it.
+          </div>
+          <div style="display:grid; gap:8px;">
+            <div><strong>Create plan</strong>: Gemini writes a strict JSON scene plan (timings + actions).</div>
+            <div><strong>Generate images</strong>: Nano Banana generates BG/FG thumbnails you can drag into scene blocks.</div>
+            <div><strong>Approve & Render</strong>: Gemini generates Manim code, then the backend renders an MP4 (with one auto-repair attempt).</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script>
       const jobFileListEl = document.getElementById('jobFileList');
       const jobIdEl = document.getElementById('jobId');
@@ -1136,6 +1218,9 @@
 
       const settingsDrawer = document.getElementById('settingsDrawer');
       const openSettingsBtn = document.getElementById('openSettings');
+      const openInfoBtn = document.getElementById('openInfo');
+      const infoModal = document.getElementById('infoModal');
+      const closeInfoBtn = document.getElementById('closeInfo');
       const settingsApiKeyEl = document.getElementById('settingsApiKey');
       const settingsShowKeyBtn = document.getElementById('settingsShowKey');
       const settingsTextModelEl = document.getElementById('settingsTextModel');
@@ -1351,6 +1436,28 @@
       openSettingsBtn.addEventListener('click', () => {
         settingsDrawer.classList.toggle('open');
       });
+
+      function openInfo() {
+        if (!infoModal) return;
+        infoModal.classList.add('open');
+        infoModal.setAttribute('aria-hidden', 'false');
+      }
+      function closeInfo() {
+        if (!infoModal) return;
+        infoModal.classList.remove('open');
+        infoModal.setAttribute('aria-hidden', 'true');
+      }
+      if (openInfoBtn) openInfoBtn.addEventListener('click', openInfo);
+      if (closeInfoBtn) closeInfoBtn.addEventListener('click', closeInfo);
+      if (infoModal) {
+        infoModal.addEventListener('click', (e) => {
+          if (e.target === infoModal) closeInfo();
+        });
+      }
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeInfo();
+      });
+
       settingsShowKeyBtn.addEventListener('click', () => {
         const isHidden = settingsApiKeyEl.type === 'password';
         settingsApiKeyEl.type = isHidden ? 'text' : 'password';
