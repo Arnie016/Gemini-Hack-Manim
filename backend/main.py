@@ -649,6 +649,18 @@ def approve(req: ApproveReq):
     api_key = settings.get("api_key")
     text_model = req.model or settings.get("text_model")
     manim_py = settings.get("manim_py")
+    if manim_py:
+        # If the user saved "python" on macOS (often missing), don't hard-fail renders.
+        import shutil
+        from pathlib import Path as _Path
+
+        try:
+            p = _Path(str(manim_py))
+            exists = (p.exists() if (p.is_absolute() or "/" in str(manim_py)) else False) or (shutil.which(str(manim_py)) is not None)
+        except Exception:
+            exists = False
+        if not exists:
+            manim_py = None
 
     try:
         plan_obj = _parse_json(req.plan_text)

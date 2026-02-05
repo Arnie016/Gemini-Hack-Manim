@@ -170,12 +170,19 @@
       .tab-panel {
         display: none;
         padding: 12px;
-        overflow: auto;
         flex: 1;
+        min-height: 0;
+        /* Keep the middle pane "IDE fixed". Specific panels implement their own internal scrolling. */
+        overflow: hidden;
       }
       .tab-panel.active { display: block; }
       /* Keep the middle pane fixed; allow only internal cards to scroll. */
       .tab-panel[data-tab="canvas"] { overflow: hidden; }
+      .tab-panel[data-tab="code"].active,
+      .tab-panel[data-tab="settings"].active {
+        display: flex;
+        flex-direction: column;
+      }
 
       .tree {
         font-family: 'IBM Plex Mono', monospace;
@@ -251,9 +258,11 @@
       }
       .card.scroll { overflow: auto; }
       .timeline-card { grid-column: 1 / -1; }
+      .preview-card { display: flex; flex-direction: column; min-height: 0; }
 
       .preview-area {
-        height: clamp(360px, 54vh, 760px);
+        height: 100%;
+        min-height: 240px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -267,6 +276,8 @@
         height: 100%;
         aspect-ratio: var(--preview-aspect, 9 / 16);
         width: auto;
+        max-width: 100%;
+        max-height: 100%;
         background: #000;
         border-radius: 12px;
         overflow: hidden;
@@ -305,6 +316,8 @@
 
       .preview-wrap {
         position: relative;
+        flex: 1;
+        min-height: 0;
       }
 
       .asset-tray {
@@ -583,30 +596,73 @@
         max-height: 520px;
       }
 
-      .settings-drawer {
-        position: fixed;
-        top: 48px;
-        right: 0;
-        width: 380px;
-        height: calc(100vh - 48px);
-        background: var(--panel);
-        border-left: 1px solid var(--border);
-        box-shadow: -20px 0 40px rgba(0,0,0,0.4);
+      /* Settings live in the middle panel (IDE style). */
+      .tab-panel[data-tab="settings"] { padding: 0; }
+      .settings-shell {
+        flex: 1;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: 180px 1fr;
+        gap: 12px;
         padding: 12px;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        transform: translateX(100%);
-        transition: transform 0.2s ease;
-        z-index: 20;
       }
-      .settings-drawer.open { transform: translateX(0); }
+      .settings-nav {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--panel-2);
+        padding: 8px;
+        display: grid;
+        gap: 6px;
+        align-content: start;
+        min-height: 0;
+      }
+      .settings-nav button {
+        width: 100%;
+        background: #0f141d;
+        border: 1px solid rgba(255,255,255,0.08);
+        color: var(--muted);
+        text-align: left;
+        font-weight: 700;
+      }
+      .settings-nav button.active {
+        border-color: rgba(106,169,255,0.55);
+        color: var(--text);
+        background: rgba(106,169,255,0.12);
+      }
+      .settings-content {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--panel-2);
+        padding: 12px;
+        overflow: auto;
+        min-height: 0;
+      }
+      .settings-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 12px;
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+      }
+      .settings-title { font-weight: 800; letter-spacing: 0.2px; }
+      .settings-section { display: none; }
+      .settings-section.active { display: block; }
+
+      /* Code tab: fixed toolbar + scrollable editor body. */
+      .tab-panel[data-tab="code"] { padding: 12px; }
+      .code-body {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+      }
 
       .drawer-section {
         border: 1px solid var(--border);
-        background: var(--panel-2);
+        background: rgba(15, 19, 26, 0.55);
         border-radius: 12px;
         padding: 10px;
+        margin-bottom: 10px;
       }
       .drawer-title {
         font-weight: 700;
@@ -680,8 +736,8 @@
         #leftPanel, #splitterLeft, main.workspace, #splitterRight, #rightPanel { grid-column: 1 !important; grid-row: auto !important; }
         .splitter { display: none !important; }
         .canvas-grid { grid-template-columns: 1fr; }
-        .settings-drawer { width: 100%; }
         .context-grid { grid-template-columns: 1fr; }
+        .settings-shell { grid-template-columns: 1fr; }
       }
     </style>
   </head>
@@ -747,6 +803,7 @@
         <div class="tabs">
           <button class="tab active" data-tab="canvas">Canvas</button>
           <button class="tab" data-tab="code">Code</button>
+          <button class="tab" data-tab="settings">Settings</button>
         </div>
 
         <div class="tab-panels">
@@ -927,7 +984,7 @@
                 </details>
               </div>
 
-              <div class="card">
+              <div class="card preview-card">
                 <div class="muted" style="margin-bottom:6px;">Preview</div>
                 <div class="preview-wrap">
                   <div class="preview-area">
@@ -1016,8 +1073,113 @@
               <button id="downloadVideo" class="secondary btn-inline">Download video</button>
               <button id="toggleHighlight" class="ghost btn-inline" title="Toggle syntax highlighting">Highlight</button>
             </div>
-            <textarea id="code" style="min-height:420px; font-family:'IBM Plex Mono', monospace;"></textarea>
-            <pre id="codePrettyWrap" class="hljs hidden"><code id="codePretty" class="language-python"></code></pre>
+            <div class="code-body">
+              <textarea id="code" style="min-height:420px; font-family:'IBM Plex Mono', monospace;"></textarea>
+              <pre id="codePrettyWrap" class="hljs hidden"><code id="codePretty" class="language-python"></code></pre>
+            </div>
+          </section>
+
+          <section class="tab-panel" data-tab="settings" id="settingsPanel">
+            <div class="settings-header">
+              <div class="settings-title">Settings</div>
+              <button id="closeSettings" class="icon-btn" title="Close settings" aria-label="Close settings" style="width:auto;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+              </button>
+            </div>
+
+            <div class="settings-shell">
+              <div class="settings-nav" id="settingsNav">
+                <button class="ghost active" data-stab="api">API & Models</button>
+                <button class="ghost" data-stab="render">Rendering</button>
+                <button class="ghost" data-stab="agent">Agent</button>
+                <button class="ghost" data-stab="skills">Skills</button>
+                <button class="ghost" data-stab="layout">Layout</button>
+              </div>
+
+              <div class="settings-content">
+                <div class="settings-section active" data-stab="api">
+                  <div class="drawer-section">
+                    <div class="drawer-title">API & Models</div>
+                    <label for="settingsApiKey">Gemini API key</label>
+                    <input id="settingsApiKey" type="password" placeholder="Paste key" />
+                    <button id="settingsShowKey" class="ghost" style="margin-top:6px;">Show / Hide key</button>
+
+                    <div class="row" style="margin-top:10px;">
+                      <div>
+                        <label for="settingsTextModel">Default text model</label>
+                        <select id="settingsTextModel">
+                          <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
+                          <option value="gemini-3-pro-preview">gemini-3-pro-preview</option>
+                          <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                          <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label for="settingsImageModel">Default image model</label>
+                        <select id="settingsImageModel">
+                          <option value="gemini-2.5-flash-image">gemini-2.5-flash-image (Nano Banana)</option>
+                          <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="muted" style="margin-top:6px;">Nano Banana = <code>gemini-2.5-flash-image</code></div>
+                    <button id="saveSettings" style="margin-top:10px;">Save</button>
+                  </div>
+                </div>
+
+                <div class="settings-section" data-stab="render">
+                  <div class="drawer-section">
+                    <div class="drawer-title">Rendering</div>
+                    <label for="settingsManimPy">Python executable for Manim</label>
+                    <input id="settingsManimPy" type="text" placeholder="python3" />
+                    <div class="muted" style="margin-top:6px;">
+                      This is the python executable used to run <code>python -m manim</code>. Leave blank to auto-detect.
+                      Outputs are saved under <code>work/jobs/&lt;job_id&gt;/out.mp4</code>.
+                    </div>
+                    <div class="row" style="margin-top:10px;">
+                      <button id="runHealth" class="secondary">Health</button>
+                      <button id="openInstallGuide" class="ghost">Install guide</button>
+                    </div>
+                    <pre id="health" class="muted" style="margin-top:8px; white-space:pre-wrap;">No checks yet.</pre>
+                  </div>
+                </div>
+
+                <div class="settings-section" data-stab="agent">
+                  <div class="drawer-section">
+                    <div class="drawer-title">Agent Structure</div>
+                    <div class="muted">These rules/subagents are appended to your director brief.</div>
+                    <label for="rulesText" style="margin-top:8px;">Rules</label>
+                    <textarea id="rulesText" placeholder="Example: 1 concept per scene. Always label variables. Keep text centered."></textarea>
+                    <label for="subagentsText" style="margin-top:8px;">Subagents (optional)</label>
+                    <textarea id="subagentsText" placeholder="Example:\nDirector: creates storyboard\nAnimator: writes manim code\nQA: validates labels + spacing"></textarea>
+                  </div>
+                </div>
+
+                <div class="settings-section" data-stab="skills">
+                  <div class="drawer-section">
+                    <div class="drawer-title">Skills</div>
+                    <div class="muted">Create reusable instruction blocks. Select them in Chat → Context.</div>
+                    <label for="skillName" style="margin-top:8px;">Skill name</label>
+                    <input id="skillName" placeholder="Physics explainers" />
+                    <label for="skillContent" style="margin-top:6px;">Skill instructions</label>
+                    <textarea id="skillContent" placeholder="Always define variables on screen. Keep text centered."></textarea>
+                    <button id="saveSkill" style="margin-top:6px;">Save skill</button>
+                    <label for="skillIdea" style="margin-top:10px;">Generate skill idea</label>
+                    <input id="skillIdea" placeholder="Make a concise storyboard rule" />
+                    <input id="skillGenerateName" placeholder="Skill name (optional)" style="margin-top:6px;" />
+                    <button id="generateSkill" class="secondary" style="margin-top:6px;">Generate skill</button>
+                  </div>
+                </div>
+
+                <div class="settings-section" data-stab="layout">
+                  <div class="drawer-section">
+                    <div class="drawer-title">Layout</div>
+                    <div class="muted">If panels disappear or sizes feel broken, reset the layout.</div>
+                    <button id="resetLayout" class="secondary" style="margin-top:8px;">Reset layout</button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </section>
         </div>
 
@@ -1100,75 +1262,7 @@
       </aside>
     </div>
 
-    <div class="settings-drawer" id="settingsDrawer">
-      <div class="drawer-section">
-        <div class="drawer-title">API & Models</div>
-        <label for="settingsApiKey">Gemini API key</label>
-        <input id="settingsApiKey" type="password" placeholder="Paste key" />
-        <button id="settingsShowKey" class="ghost" style="margin-top:6px;">Show / Hide key</button>
-
-        <label for="settingsTextModel" style="margin-top:10px;">Default text model</label>
-        <select id="settingsTextModel">
-          <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
-          <option value="gemini-3-pro-preview">gemini-3-pro-preview</option>
-          <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-          <option value="gemini-2.5-pro">gemini-2.5-pro</option>
-        </select>
-
-        <label for="settingsImageModel" style="margin-top:10px;">Default image model</label>
-        <select id="settingsImageModel">
-          <option value="gemini-2.5-flash-image">gemini-2.5-flash-image (Nano Banana)</option>
-          <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
-        </select>
-        <div class="muted" style="margin-top:6px;">Nano Banana = <code>gemini-2.5-flash-image</code></div>
-      </div>
-
-      <div class="drawer-section">
-        <div class="drawer-title">Rendering</div>
-        <label for="settingsManimPy">Python executable for Manim</label>
-        <input id="settingsManimPy" type="text" placeholder="python3" />
-
-        <div class="muted" style="margin-top:6px;">
-          This is the python executable used to run <code>python -m manim</code>. Leave blank to auto-detect.
-          Outputs are saved under <code>work/jobs/&lt;job_id&gt;/out.mp4</code>.
-        </div>
-
-        <div class="row" style="margin-top:10px;">
-          <button id="saveSettings">Save</button>
-          <button id="runHealth" class="secondary">Health</button>
-        </div>
-        <pre id="health" class="muted" style="margin-top:8px; white-space:pre-wrap;">No checks yet.</pre>
-      </div>
-
-      <div class="drawer-section">
-        <div class="drawer-title">Layout</div>
-        <div class="muted">If panels disappear or sizes feel broken, reset the layout.</div>
-        <button id="resetLayout" class="secondary" style="margin-top:8px;">Reset layout</button>
-      </div>
-
-      <div class="drawer-section">
-        <div class="drawer-title">Agent Structure</div>
-        <div class="muted">This is a lightweight “agentic” control layer. It appends to your director brief.</div>
-        <label for="rulesText" style="margin-top:8px;">Rules</label>
-        <textarea id="rulesText" placeholder="Example: 1 concept per scene. Always label variables. Keep text centered."></textarea>
-        <label for="subagentsText" style="margin-top:8px;">Subagents (optional)</label>
-        <textarea id="subagentsText" placeholder="Example:\nDirector: creates storyboard\nAnimator: writes manim code\nQA: validates labels + spacing"></textarea>
-      </div>
-
-      <div class="drawer-section">
-        <div class="drawer-title">Skills</div>
-        <div class="muted">Skills are reusable instruction blocks. Create them here, then select them in the Chat Context.</div>
-        <label for="skillName" style="margin-top:8px;">Skill name</label>
-        <input id="skillName" placeholder="Physics explainers" />
-        <label for="skillContent" style="margin-top:6px;">Skill instructions</label>
-        <textarea id="skillContent" placeholder="Always define variables on screen. Keep text centered."></textarea>
-        <button id="saveSkill" style="margin-top:6px;">Save skill</button>
-        <label for="skillIdea" style="margin-top:10px;">Generate skill idea</label>
-        <input id="skillIdea" placeholder="Make a concise storyboard rule" />
-        <input id="skillGenerateName" placeholder="Skill name (optional)" style="margin-top:6px;" />
-        <button id="generateSkill" class="secondary" style="margin-top:6px;">Generate skill</button>
-      </div>
-    </div>
+    <!-- settings drawer removed (settings are now in the middle panel) -->
 
     <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
@@ -1331,7 +1425,10 @@
       const splitterLeft = document.getElementById('splitterLeft');
       const splitterRight = document.getElementById('splitterRight');
 
-      const settingsDrawer = document.getElementById('settingsDrawer');
+      const settingsPanelEl = document.getElementById('settingsPanel');
+      const closeSettingsBtn = document.getElementById('closeSettings');
+      const settingsNavEl = document.getElementById('settingsNav');
+      const openInstallGuideBtn = document.getElementById('openInstallGuide');
       const openSettingsBtn = document.getElementById('openSettings');
       const openInfoBtn = document.getElementById('openInfo');
       const infoModal = document.getElementById('infoModal');
@@ -1570,9 +1667,27 @@
         timelineState = [];
       });
 
-      openSettingsBtn.addEventListener('click', () => {
-        settingsDrawer.classList.toggle('open');
-      });
+      function openSettingsTab(stab) {
+        setActiveTab('settings');
+        if (stab) setSettingsSubtab(stab);
+      }
+      openSettingsBtn.addEventListener('click', () => openSettingsTab('api'));
+      if (closeSettingsBtn) closeSettingsBtn.addEventListener('click', () => setActiveTab('canvas'));
+
+      function setSettingsSubtab(id) {
+        if (!settingsNavEl) return;
+        const btns = Array.from(settingsNavEl.querySelectorAll('button[data-stab]'));
+        btns.forEach(b => b.classList.toggle('active', b.dataset.stab === id));
+        const secs = Array.from(document.querySelectorAll('.settings-section[data-stab]'));
+        secs.forEach(s => s.classList.toggle('active', s.dataset.stab === id));
+      }
+      if (settingsNavEl) {
+        settingsNavEl.addEventListener('click', (e) => {
+          const t = e.target.closest('button[data-stab]');
+          if (!t) return;
+          setSettingsSubtab(t.dataset.stab);
+        });
+      }
 
       function openInfo() {
         if (!infoModal) return;
@@ -2282,7 +2397,7 @@
           try {
             const seen = localStorage.getItem('seenApiKeyHint');
             if (!seen) {
-              settingsDrawer.classList.add('open');
+              openSettingsTab('api');
               localStorage.setItem('seenApiKeyHint', '1');
             }
           } catch {}
@@ -2331,8 +2446,17 @@
         if (data.manim_version) lines.push(data.manim_version);
         if (cands) lines.push(`python candidates: ${cands}`);
         if (ffmpegPath) lines.push(`ffmpeg path: ${ffmpegPath}`);
-        if (!data.manim_ok) lines.push('Fix: set "Python executable for Manim" to an env with Manim installed.');
-        if (!data.ffmpeg_ok) lines.push('Fix (macOS): brew install ffmpeg');
+        if (!data.manim_ok) {
+          lines.push('');
+          lines.push('Fix: choose a Python that has Manim installed (or leave blank to auto-detect).');
+          lines.push('macOS quickstart (from repo root):');
+          lines.push('- source .venv/bin/activate');
+          lines.push('- python -m pip install manim');
+        }
+        if (!data.ffmpeg_ok) {
+          lines.push('');
+          lines.push('Fix (macOS): brew install ffmpeg');
+        }
         healthEl.textContent = lines.join('\n');
       }
 
@@ -2586,12 +2710,12 @@
         const parts = raw.split(/\s+/g);
         const cmd = parts[0].toLowerCase();
         if (cmd === '/health') {
-          settingsDrawer.classList.add('open');
+          openSettingsTab('render');
           await runHealth();
           return true;
         }
         if (cmd === '/settings') {
-          settingsDrawer.classList.toggle('open');
+          openSettingsTab('api');
           return true;
         }
         if (cmd === '/clear') {
@@ -2828,7 +2952,7 @@
               setStep('render', 'error');
               const tail = (st.logs_tail || err || 'Render failed.');
               if (/no module named manim/i.test(tail) || /manim/i.test(tail) && /not found|no such file|missing/i.test(tail)) {
-                settingsDrawer.classList.add('open');
+                openSettingsTab('render');
                 try { await runHealth(); } catch {}
               }
               const retryBtn = document.createElement('button');
