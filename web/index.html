@@ -345,7 +345,7 @@
       .overlay-btn {
         pointer-events: auto;
         width: auto;
-        padding: 8px 10px;
+        padding: 8px;
         border-radius: 10px;
         border: 1px solid rgba(255,255,255,0.18);
         background: rgba(12, 15, 20, 0.72);
@@ -353,7 +353,7 @@
         color: var(--text);
         display: inline-flex;
         align-items: center;
-        gap: 8px;
+        gap: 0;
       }
       .overlay-btn svg { width: 16px; height: 16px; }
       .overlay-btn:disabled {
@@ -566,7 +566,14 @@
         height: 100%;
         gap: 10px;
       }
-      .chat-messages { flex: 1; overflow: auto; display: grid; gap: 10px; }
+      .chat-messages {
+        flex: 1;
+        overflow: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 4px;
+      }
       .chat-compose {
         display: flex;
         align-items: center;
@@ -605,14 +612,98 @@
         color: var(--text);
       }
       .bubble {
-        background: #0b1220;
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 10px;
+        max-width: 92%;
+        border-radius: 16px;
+        padding: 10px 12px;
+        border: 1px solid rgba(255,255,255,0.06);
+        background: rgba(11, 18, 32, 0.55);
+        backdrop-filter: blur(8px);
       }
-      .bubble.user { border-left: 3px solid var(--accent); }
-      .bubble.agent { border-left: 3px solid var(--accent-2); }
+      .bubble.user {
+        align-self: flex-end;
+        border-color: rgba(106,169,255,0.14);
+        background: linear-gradient(180deg, rgba(106,169,255,0.16), rgba(11,18,32,0.35));
+      }
+      .bubble.agent {
+        align-self: flex-start;
+        border-color: rgba(34,197,94,0.12);
+        background: linear-gradient(180deg, rgba(34,197,94,0.10), rgba(11,18,32,0.35));
+      }
       .bubble-title { font-weight: 600; font-size: 12px; color: var(--muted); }
+
+      /* Code editor (editable) with line numbers. */
+      .code-editor {
+        display: grid;
+        grid-template-columns: 52px 1fr;
+        gap: 0;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        overflow: hidden;
+        background: rgba(11, 13, 18, 0.6);
+      }
+      .code-gutter {
+        padding: 12px 8px;
+        border-right: 1px solid rgba(255,255,255,0.08);
+        color: rgba(255,255,255,0.38);
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 12px;
+        line-height: 18px;
+        text-align: right;
+        user-select: none;
+        background: rgba(11, 13, 18, 0.75);
+      }
+      .code-editor textarea {
+        border: none;
+        outline: none;
+        border-radius: 0;
+        min-height: 520px;
+        padding: 12px;
+        resize: none;
+        background: transparent;
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 12px;
+        line-height: 18px;
+      }
+
+      /* Highlighted code view with line numbers. */
+      pre.hljs {
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        padding: 0;
+        overflow: auto;
+        max-height: 640px;
+        background: rgba(11, 13, 18, 0.6);
+      }
+      .code-lines {
+        counter-reset: line;
+        padding: 12px 0;
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 12px;
+        line-height: 18px;
+      }
+      .code-line {
+        display: grid;
+        grid-template-columns: 52px 1fr;
+        gap: 0;
+        padding: 0 12px 0 0;
+      }
+      .code-line::before {
+        counter-increment: line;
+        content: counter(line);
+        padding: 0 10px 0 0;
+        text-align: right;
+        color: rgba(255,255,255,0.38);
+        user-select: none;
+      }
+      .code-line > span {
+        display: block;
+        padding-left: 12px;
+        border-left: 1px solid rgba(255,255,255,0.08);
+        white-space: pre;
+      }
+      .code-line.highlight {
+        background: rgba(106,169,255,0.08);
+      }
 
       .agent-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
       .agent-step {
@@ -687,14 +778,6 @@
       }
       .toolbar .spacer { flex: 1; }
       .btn-inline { width: auto; padding: 8px 10px; }
-
-      pre.hljs {
-        border-radius: 12px;
-        border: 1px solid var(--border);
-        padding: 12px;
-        overflow: auto;
-        max-height: 520px;
-      }
 
       /* Settings live in the middle panel (IDE style). */
       .tab-panel[data-tab="settings"] { padding: 0; }
@@ -864,6 +947,9 @@
         </button>
         <button id="toggleTerminal" class="icon-btn" title="Terminal" aria-label="Terminal" data-tip="Terminal">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-5-6-5"/><path d="M12 19h8"/></svg>
+        </button>
+        <button id="saveProject" class="icon-btn" title="Save" aria-label="Save" data-tip="Save">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>
         </button>
         <button id="openInfo" class="icon-btn" title="How It Works" aria-label="How it works" data-tip="How it works">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
@@ -1107,19 +1193,15 @@
                   <div class="preview-overlay">
                     <button id="downloadBtn" class="overlay-btn" title="Download video" aria-label="Download video" disabled>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
-                      Download
                     </button>
                     <button id="shareBtn" class="overlay-btn" title="Share link" aria-label="Share link" disabled>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v14"/></svg>
-                      Share
                     </button>
                     <button id="exportBtn" class="overlay-btn" title="Download project ZIP" aria-label="Download project ZIP" disabled>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
-                      Export
                     </button>
                     <button id="ccBtn" class="overlay-btn" title="Download captions (.srt)" aria-label="Download captions" disabled>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 5H3v14h18V5z"/><path d="M7 10h1"/><path d="M7 14h1"/><path d="M11 10h1"/><path d="M11 14h1"/><path d="M15 10h2"/><path d="M15 14h2"/></svg>
-                      CC
                     </button>
                   </div>
                 </div>
@@ -1179,8 +1261,11 @@
               <button id="toggleHighlight" class="ghost btn-inline" title="Toggle syntax highlighting">Highlight</button>
             </div>
             <div class="code-body">
-              <textarea id="code" style="min-height:420px; font-family:'IBM Plex Mono', monospace;"></textarea>
-              <pre id="codePrettyWrap" class="hljs hidden"><code id="codePretty" class="language-python"></code></pre>
+              <div class="code-editor" id="codeEditor">
+                <div class="code-gutter" id="codeGutter">1</div>
+                <textarea id="code" spellcheck="false"></textarea>
+              </div>
+              <pre id="codePrettyWrap" class="hljs hidden"><code id="codePretty" class="language-python code-lines"></code></pre>
             </div>
           </section>
 
@@ -1490,6 +1575,8 @@
       const applyTimelineBtn = document.getElementById('applyTimeline');
       const resetTimelineBtn = document.getElementById('resetTimeline');
       const codeEl = document.getElementById('code');
+      const codeEditorEl = document.getElementById('codeEditor');
+      const codeGutterEl = document.getElementById('codeGutter');
       const editorLabelEl = document.getElementById('editorLabel');
       const addSelectionBtn = document.getElementById('addSelection');
       const saveFileBtn = document.getElementById('saveFile');
@@ -1561,6 +1648,7 @@
       const toggleLeftBtn = document.getElementById('toggleLeft');
       const toggleRightBtn = document.getElementById('toggleRight');
       const toggleTerminalBtn = document.getElementById('toggleTerminal');
+      const saveProjectBtn = document.getElementById('saveProject');
 
       const settingsPanelEl = document.getElementById('settingsPanel');
       const closeSettingsBtn = document.getElementById('closeSettings');
@@ -1710,6 +1798,96 @@
       const mqNarrow = window.matchMedia('(max-width: 1200px)');
       let jobEventSource = null;
       let didAnimateCode = false;
+      let pendingImagesAfterPlan = false;
+
+      const AUTOSAVE_KEY = 'gmma_autosave_v1';
+      let autosaveTimer = null;
+      let pendingRestore = null;
+
+      function snapshotProject() {
+        return {
+          v: 1,
+          saved_at: new Date().toISOString(),
+          template_id: templateSelectEl?.value || '',
+          prompt: chatInputEl?.value || '',
+          chat_model: chatModelEl?.value || '',
+          director_brief: directorBriefEl?.value || '',
+          controls: {
+            include_images: includeImagesEl?.value || 'true',
+            image_prompt: imagePromptEl?.value || '',
+            image_mode: imageModeEl?.value || 'background',
+            aspect: aspectEl?.value || '9:16',
+            audience: audienceEl?.value || 'general',
+            tone: toneEl?.value || 'epic',
+            style: styleEl?.value || 'cinematic',
+            pace: paceEl?.value || 'medium',
+            palette: paletteEl?.value || 'cool',
+            quality: qualityEl?.value || 'pqm',
+            target_seconds: targetSecondsEl?.value || '',
+            max_scenes: maxScenesEl?.value || '',
+            max_objects: maxObjectsEl?.value || '',
+            equations: equationsEl?.value || 'true',
+            graphs: graphsEl?.value || 'true',
+            narration: narrationEl?.value || 'true',
+            image_model_override: imageModelOverrideEl?.value || '',
+          },
+          plan_text: currentPlanText || '',
+          timeline: Array.isArray(timelineState) ? timelineState : [],
+          code: codeEl?.value || '',
+        };
+      }
+
+      function saveProject(auto = false) {
+        try {
+          localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(snapshotProject()));
+          if (!auto) showToast('Saved.', 'ok');
+        } catch {
+          if (!auto) showToast('Save failed (storage blocked).', 'err');
+        }
+      }
+
+      function scheduleAutosave() {
+        clearTimeout(autosaveTimer);
+        autosaveTimer = setTimeout(() => saveProject(true), 500);
+      }
+
+      function restoreProject() {
+        let raw = '';
+        try { raw = localStorage.getItem(AUTOSAVE_KEY) || ''; } catch { raw = ''; }
+        if (!raw) return false;
+        let snap = null;
+        try { snap = JSON.parse(raw); } catch { snap = null; }
+        if (!snap || snap.v !== 1) return false;
+
+        pendingRestore = snap;
+        // Apply what we can immediately (templates load async).
+        if (snap.prompt && chatInputEl) chatInputEl.value = snap.prompt;
+        if (snap.chat_model && chatModelEl) chatModelEl.value = snap.chat_model;
+        if (snap.director_brief && directorBriefEl) directorBriefEl.value = snap.director_brief;
+        const c = snap.controls || {};
+        if (includeImagesEl && c.include_images) includeImagesEl.value = c.include_images;
+        if (imagePromptEl && c.image_prompt) imagePromptEl.value = c.image_prompt;
+        if (imageModeEl && c.image_mode) imageModeEl.value = c.image_mode;
+        if (aspectEl && c.aspect) { aspectEl.value = c.aspect; setPreviewAspect(c.aspect); }
+        if (audienceEl && c.audience) audienceEl.value = c.audience;
+        if (toneEl && c.tone) toneEl.value = c.tone;
+        if (styleEl && c.style) styleEl.value = c.style;
+        if (paceEl && c.pace) paceEl.value = c.pace;
+        if (paletteEl && c.palette) paletteEl.value = c.palette;
+        if (qualityEl && c.quality) qualityEl.value = c.quality;
+        if (targetSecondsEl && c.target_seconds !== undefined) targetSecondsEl.value = c.target_seconds;
+        if (maxScenesEl && c.max_scenes !== undefined) maxScenesEl.value = c.max_scenes;
+        if (maxObjectsEl && c.max_objects !== undefined) maxObjectsEl.value = c.max_objects;
+        if (equationsEl && c.equations) equationsEl.value = c.equations;
+        if (graphsEl && c.graphs) graphsEl.value = c.graphs;
+        if (narrationEl && c.narration) narrationEl.value = c.narration;
+        if (imageModelOverrideEl) imageModelOverrideEl.value = c.image_model_override || '';
+
+        if (snap.plan_text) currentPlanText = snap.plan_text;
+        if (Array.isArray(snap.timeline)) { timelineState = snap.timeline; renderTimeline(); }
+        if (typeof snap.code === 'string') { codeEl.value = snap.code; refreshGutter(); if (highlightOn) refreshHighlight(); }
+        return true;
+      }
 
       function getSources() {
         try {
@@ -1823,6 +2001,7 @@
         jobIdEl.textContent = '—';
         jobFileListEl.innerHTML = '';
         codeEl.value = '';
+        refreshGutter();
         openFilePath = null;
         updateEditorMode();
         logsEl.textContent = 'Cleared.';
@@ -2039,6 +2218,34 @@
       }
       ctxTabs.forEach(b => b.addEventListener('click', () => setContextTab(b.dataset.ctx)));
 
+      if (saveProjectBtn) saveProjectBtn.addEventListener('click', () => saveProject(false));
+
+      function bindAutosave(el, ev = 'input') {
+        if (!el) return;
+        el.addEventListener(ev, () => scheduleAutosave());
+      }
+      bindAutosave(chatInputEl, 'input');
+      bindAutosave(chatModelEl, 'change');
+      bindAutosave(directorBriefEl, 'input');
+      bindAutosave(templateSelectEl, 'change');
+      bindAutosave(imagePromptEl, 'input');
+      bindAutosave(imageModeEl, 'change');
+      bindAutosave(includeImagesEl, 'change');
+      bindAutosave(aspectEl, 'change');
+      bindAutosave(audienceEl, 'change');
+      bindAutosave(toneEl, 'change');
+      bindAutosave(styleEl, 'change');
+      bindAutosave(paceEl, 'change');
+      bindAutosave(paletteEl, 'change');
+      bindAutosave(qualityEl, 'change');
+      bindAutosave(targetSecondsEl, 'input');
+      bindAutosave(maxScenesEl, 'input');
+      bindAutosave(maxObjectsEl, 'input');
+      bindAutosave(equationsEl, 'change');
+      bindAutosave(graphsEl, 'change');
+      bindAutosave(narrationEl, 'change');
+      bindAutosave(imageModelOverrideEl, 'change');
+
       function updateEditorMode() {
         if (!openFilePath) {
           editorLabelEl.textContent = 'Editor • generated code';
@@ -2086,16 +2293,19 @@
         const target = String(code || '');
         if (immediate || target.length < 400) {
           codeEl.value = target;
+          refreshGutter();
           if (highlightOn) refreshHighlight();
           return;
         }
         // Fast "typing" illusion: chunk in quickly without freezing the UI.
         codeEl.value = '';
+        refreshGutter();
         const chunk = 220;
         let i = 0;
         function tick() {
           i = Math.min(target.length, i + chunk);
           codeEl.value = target.slice(0, i);
+          refreshGutter();
           if (highlightOn) refreshHighlight();
           if (i < target.length) requestAnimationFrame(tick);
         }
@@ -2214,22 +2424,60 @@
         });
       }
 
+      function escapeHtml(s) {
+        return String(s || '')
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#39;');
+      }
+
+      function refreshGutter() {
+        if (!codeGutterEl) return;
+        const lineCount = Math.max(1, String(codeEl.value || '').split('\\n').length);
+        let out = '';
+        for (let i = 1; i <= lineCount; i++) out += i + '\\n';
+        codeGutterEl.textContent = out;
+        // Keep gutter scroll aligned.
+        codeGutterEl.scrollTop = codeEl.scrollTop;
+      }
+
       let highlightOn = false;
       function refreshHighlight() {
-        codePrettyEl.textContent = codeEl.value || '';
-        if (window.hljs) {
-          try { window.hljs.highlightElement(codePrettyEl); } catch {}
+        const src = codeEl.value || '';
+        let html = '';
+        if (window.hljs && window.hljs.highlight) {
+          try {
+            html = window.hljs.highlight(src, { language: 'python' }).value || '';
+          } catch {
+            html = escapeHtml(src);
+          }
+        } else {
+          html = escapeHtml(src);
         }
+        const lines = html.split('\\n');
+        codePrettyEl.innerHTML = lines.map((line) => {
+          // Preserve empty lines so counters stay correct.
+          const safe = (line && line.length) ? line : '&nbsp;';
+          return `<span class=\"code-line\"><span>${safe}</span></span>`;
+        }).join('\\n');
       }
+
       toggleHighlightBtn.addEventListener('click', () => {
         highlightOn = !highlightOn;
         codePrettyWrapEl.classList.toggle('hidden', !highlightOn);
-        codeEl.classList.toggle('hidden', highlightOn);
+        if (codeEditorEl) codeEditorEl.classList.toggle('hidden', highlightOn);
         toggleHighlightBtn.textContent = highlightOn ? 'Edit' : 'Highlight';
         if (highlightOn) refreshHighlight();
+        else codeEl.focus();
       });
+
+      codeEl.addEventListener('scroll', () => refreshGutter());
       codeEl.addEventListener('input', () => {
+        refreshGutter();
         if (highlightOn) refreshHighlight();
+        scheduleAutosave();
       });
       function setThumb(el, opts) {
         const url = opts?.url || '';
@@ -2258,7 +2506,10 @@
 
       async function generateImages() {
         if (!currentJobId) {
-          showToast('Create a plan first (job_id is created there).', 'err');
+          // Convenience: auto-create a plan first so image generation feels one-click.
+          pendingImagesAfterPlan = true;
+          showToast('Creating plan first…', 'ok');
+          await createPlan();
           return;
         }
         const prompt = (imagePromptEl.value || '').trim();
@@ -2303,6 +2554,7 @@
           } else {
             showToast('Images generated. Drag BG/FG into scenes.', 'ok');
           }
+          scheduleAutosave();
         } catch (e) {
           showToast('Backend not reachable.', 'err');
         } finally {
@@ -2327,6 +2579,8 @@
         }
         openFilePath = data.path;
         codeEl.value = data.content || '';
+        refreshGutter();
+        if (highlightOn) refreshHighlight();
         updateEditorMode();
         setActiveTab('code');
         codeEl.focus();
@@ -2549,6 +2803,15 @@
           if (idx === 0) opt.selected = true;
           templateSelectEl.appendChild(opt);
         });
+        // If we have an autosave snapshot, respect its template selection without
+        // re-applying template defaults (which would overwrite restored fields).
+        if (pendingRestore && pendingRestore.template_id) {
+          const wanted = String(pendingRestore.template_id);
+          const exists = templates.some(t => t.id === wanted);
+          if (exists) templateSelectEl.value = wanted;
+          showToast('Restored last session.', 'ok');
+          return;
+        }
         if (templates[0]) applyTemplate(templates[0]);
       }
 
@@ -2885,6 +3148,7 @@
 
           timelineTrackEl.appendChild(block);
         });
+        scheduleAutosave();
       }
 
       function syncPlanFromTimeline() {
@@ -3021,6 +3285,13 @@
         updateJobFiles(data.job_files);
         if (genImagesBtn) genImagesBtn.disabled = false;
         updateBackEnabled();
+        scheduleAutosave();
+
+        if (pendingImagesAfterPlan) {
+          pendingImagesAfterPlan = false;
+          // Fire-and-forget: if generation fails, UI will show the error toast/logs.
+          try { await generateImages(); } catch {}
+        }
 
         const planBox = document.createElement('textarea');
         planBox.style.width = '100%';
@@ -3422,7 +3693,8 @@
       setPreviewAspect(aspectEl.value);
       updateEditorMode();
       applyLayoutColumns();
-      seedDemoDefaults();
+      const didRestore = restoreProject();
+      if (!didRestore) seedDemoDefaults();
       setContextTab('memory');
       setVideoAvailable(false);
       updateTopbarToggles();
