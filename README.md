@@ -43,6 +43,7 @@ Gemini is not just used for text generation. It drives:
 - Scene blocks with durations and drag-reorder.
 - Inline editing for scene goal, notes, and seconds.
 - Drag/drop assets and context directly into scenes.
+- One-click append flow: add a next scene segment and stitch videos.
 
 ### 4) Context, Skills, and Sources
 - Memory blocks for reusable facts.
@@ -129,6 +130,7 @@ ffmpeg -version
 - `POST /api/approve`
 - `GET /api/jobs/{job_id}`
 - `GET /api/jobs/{job_id}/events`
+- `POST /api/jobs/append`
 - `POST /api/render-code`
 - `POST /api/images/generate`
 - `POST /api/jobs/upload-asset`

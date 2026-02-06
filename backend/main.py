@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 from urllib.parse import parse_qs, urlparse
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import StreamingResponse
@@ -24,7 +24,7 @@ from .prompts import (
     manim_code_user_prompt,
     scene_plan_user_prompt,
 )
-from .renderer import render_with_manim
+from .renderer import concat_videos, render_with_manim
 from .storage import job_paths, new_job_id
 from .templates import TEMPLATES
 from .code_format import format_python
@@ -166,6 +166,11 @@ class UploadJobAssetReq(BaseModel):
     filename: str
     content_base64: str
     role: str = "background"
+
+
+class AppendReq(BaseModel):
+    base_job_id: str
+    next_job_id: str
 
 
 class SourceIndexReq(BaseModel):
@@ -389,9 +394,38 @@ def _parse_json(text: str) -> Dict[str, Any]:
         raise
 
 
+def _merge_plans(base_plan: Dict[str, Any], next_plan: Dict[str, Any]) -> Dict[str, Any]:
+    base_scenes = list(base_plan.get("scenes") or [])
+    next_scenes = list(next_plan.get("scenes") or [])
+    merged_scenes = base_scenes + next_scenes
+    title_a = str(base_plan.get("title") or "").strip()
+    title_b = str(next_plan.get("title") or "").strip()
+    if title_a and title_b and title_a != title_b:
+        merged_title = f"{title_a} + {title_b}"
+    else:
+        merged_title = title_a or title_b or "Combined Story"
+    total = 0.0
+    for sc in merged_scenes:
+        try:
+            total += float(sc.get("seconds") or 0)
+        except Exception:
+            continue
+    return {
+        "title": merged_title,
+        "total_seconds": round(total, 2),
+        "scenes": merged_scenes,
+    }
+
+
 @app.get("/")
 def index():
     return FileResponse(WEB / "index.html")
+
+
+@app.get("/favicon.ico")
+def favicon():
+    # Browser requests this by default; avoid noisy 404 logs during demos.
+    return Response(status_code=204)
 
 
 def _generate_assets(
@@ -936,6 +970,8 @@ def plan(req: PlanReq):
 def approve(req: ApproveReq):
     paths = job_paths(JOBS, req.job_id)
     paths.job_dir.mkdir(parents=True, exist_ok=True)
+    if job_manager.is_running(req.job_id):
+        return {"ok": True, "job_id": req.job_id, "status": "already_running"}
 
     settings = load_settings()
     api_key = settings.get("api_key")
@@ -1120,6 +1156,67 @@ def job_download(job_id: str):
             zf.write(p, arcname=str(p.relative_to(paths.job_dir)))
 
     return FileResponse(zip_path, filename=f"{job_id}.zip")
+
+
+@app.post("/api/jobs/append")
+def append_job_video(req: AppendReq):
+    base_paths = job_paths(JOBS, req.base_job_id)
+    next_paths = job_paths(JOBS, req.next_job_id)
+    if not base_paths.job_dir.exists():
+        return JSONResponse(
+            {"ok": False, "error": f"Unknown base_job_id: {req.base_job_id}"},
+            status_code=404,
+        )
+    if not next_paths.job_dir.exists():
+        return JSONResponse(
+            {"ok": False, "error": f"Unknown next_job_id: {req.next_job_id}"},
+            status_code=404,
+        )
+    if not base_paths.out_mp4.exists():
+        return JSONResponse(
+            {"ok": False, "error": f"Base job has no output video: {base_paths.out_mp4.relative_to(ROOT)}"},
+            status_code=400,
+        )
+    if not next_paths.out_mp4.exists():
+        return JSONResponse(
+            {"ok": False, "error": f"Next job has no output video: {next_paths.out_mp4.relative_to(ROOT)}"},
+            status_code=400,
+        )
+
+    merged_tmp = next_paths.job_dir / "out-merged.mp4"
+    ok, logs = concat_videos(base_paths.out_mp4, next_paths.out_mp4, merged_tmp)
+    (next_paths.job_dir / "append_logs.txt").write_text(logs or "", encoding="utf-8")
+    if not ok or not merged_tmp.exists():
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Video stitching failed",
+                "logs": logs[-6000:] if logs else "",
+            },
+            status_code=500,
+        )
+    merged_tmp.replace(next_paths.out_mp4)
+
+    merged_plan: Dict[str, Any] | None = None
+    if base_paths.plan_path.exists() and next_paths.plan_path.exists():
+        try:
+            base_plan = json.loads(base_paths.plan_path.read_text(encoding="utf-8"))
+            nxt_plan = json.loads(next_paths.plan_path.read_text(encoding="utf-8"))
+            merged_plan = _merge_plans(base_plan, nxt_plan)
+            next_paths.plan_path.write_text(
+                json.dumps(merged_plan, indent=2),
+                encoding="utf-8",
+            )
+        except Exception:
+            merged_plan = None
+
+    return {
+        "ok": True,
+        "job_id": req.next_job_id,
+        "video_path": str(next_paths.out_mp4.relative_to(ROOT)),
+        "plan": merged_plan,
+        "job_files": _job_files(next_paths),
+    }
 
 
 @app.post("/api/animate")
