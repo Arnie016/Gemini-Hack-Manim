@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Gemini Manim Animator</title>
+    <title>NorthStar</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230b1220'/%3E%3Cpath d='M14 42V22h6v20h-6zm10 0V22h6v8l10-8h8L36 31l13 11h-8l-11-9v9h-6z' fill='%236aa9ff'/%3E%3C/svg%3E" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css">
     <style>
@@ -244,6 +244,13 @@
         align-items: center;
         gap: 8px;
         padding-left: 12px;
+        border-radius: 8px;
+        padding-top: 3px;
+        padding-bottom: 3px;
+      }
+      .tree-row.selected {
+        background: rgba(106,169,255,0.14);
+        border: 1px solid rgba(106,169,255,0.35);
       }
       .tree-row-name {
         overflow: hidden;
@@ -265,6 +272,11 @@
         color: var(--muted);
         font-size: 11px;
         line-height: 1;
+      }
+      .tree-act svg {
+        width: 12px;
+        height: 12px;
+        display: block;
       }
       .tree-act:hover {
         color: var(--text);
@@ -320,8 +332,11 @@
       .canvas-grid {
         display: grid;
         grid-template-columns: 1fr;
-        /* Make the video the "center of gravity": ~3/4 of the pane. */
-        grid-template-rows: minmax(0, 6.5fr) minmax(0, 2.1fr) minmax(0, 2.2fr);
+        /* Top/bottom canvas sections are draggable via splitter. */
+        --canvas-top: 72%;
+        --canvas-timeline: 16%;
+        --canvas-controls: calc(100% - var(--canvas-top) - var(--canvas-timeline) - 8px);
+        grid-template-rows: minmax(220px, var(--canvas-top)) 8px minmax(140px, var(--canvas-timeline)) minmax(180px, var(--canvas-controls));
         gap: 12px;
         height: 100%;
         min-height: 0;
@@ -337,9 +352,18 @@
       .timeline-card { grid-column: 1 / -1; }
       .timeline-card { overflow: auto; }
       .preview-card { display: flex; flex-direction: column; min-height: 0; }
-      .controls-card { grid-column: 1 / -1; grid-row: 3; }
+      .controls-card { grid-column: 1 / -1; grid-row: 4; overflow: auto; }
       .preview-card { grid-column: 1 / -1; grid-row: 1; }
-      .timeline-card { grid-column: 1 / -1; grid-row: 2; }
+      .timeline-card { grid-column: 1 / -1; grid-row: 3; }
+      .canvas-splitter {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        height: 8px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: linear-gradient(180deg, rgba(106,169,255,0.18), rgba(106,169,255,0.08));
+        cursor: row-resize;
+      }
 
       .preview-area {
         height: 100%;
@@ -496,19 +520,69 @@
         gap: 6px;
         align-items: stretch;
         margin-top: 8px;
+        overflow-x: auto;
+        padding-bottom: 6px;
       }
       .timeline-block {
-        flex: 1;
-        min-width: 64px;
+        flex: 0 0 160px;
+        min-width: 140px;
         background: #0b1220;
         border: 1px solid var(--border);
         border-radius: 10px;
-        padding: 6px;
+        padding: 7px;
         display: grid;
-        gap: 6px;
+        gap: 4px;
         position: relative;
       }
+      .timeline-edit-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 6px;
+        align-items: center;
+      }
+      .timeline-edit-input {
+        width: 100%;
+        padding: 5px 7px;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.12);
+        background: rgba(15, 20, 29, 0.9);
+        color: var(--text);
+        font-size: 12px;
+        min-height: 28px;
+      }
+      .timeline-edit-note {
+        width: 100%;
+        min-height: 44px;
+        max-height: 92px;
+        resize: vertical;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.12);
+        background: rgba(15, 20, 29, 0.9);
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.25;
+        padding: 6px 7px;
+      }
+      .timeline-edit-note::placeholder,
+      .timeline-edit-input::placeholder {
+        color: rgba(154,164,178,0.75);
+      }
+      .timeline-dur-input {
+        width: 58px;
+        padding: 4px 6px;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.12);
+        background: rgba(15, 20, 29, 0.9);
+        color: var(--text);
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 11px;
+        text-align: right;
+      }
       .timeline-block.dragging { opacity: 0.55; }
+      .timeline-block.active {
+        border-color: rgba(106,169,255,0.7);
+        box-shadow: 0 0 0 2px rgba(106,169,255,0.16) inset;
+      }
       .timeline-handle {
         position: absolute;
         right: 3px;
@@ -525,19 +599,47 @@
         font-size: 11px;
         color: var(--muted);
         line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
-      .timeline-block input { font-size: 11px; padding: 6px; }
+      .timeline-block-title {
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--text);
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .timeline-badges {
+        display: flex;
+        gap: 5px;
+        flex-wrap: wrap;
+      }
+      .timeline-badge {
+        width: auto;
+        padding: 2px 6px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.12);
+        font-size: 10px;
+        color: var(--muted);
+        background: rgba(11,13,18,0.55);
+      }
 
       .timeline-controls {
         display: flex;
         gap: 8px;
         align-items: center;
         margin-top: 8px;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding-bottom: 2px;
       }
       .timeline-controls .ctl {
         width: auto;
-        padding: 8px 10px;
+        min-width: 38px;
+        padding: 8px 9px;
         border-radius: 10px;
         border: 1px solid var(--border);
         background: #0f141d;
@@ -549,7 +651,9 @@
         font-size: 12px;
       }
       .timeline-controls .ctl svg { width: 16px; height: 16px; }
+      .timeline-controls .ctl-label { display: none; }
       .timeline-controls .spacer { flex: 1; }
+      #timeReadout { font-family: 'IBM Plex Mono', monospace; }
 
       .preview-busy {
         position: absolute;
@@ -617,6 +721,54 @@
         display: flex;
         align-items: center;
         gap: 8px;
+      }
+      .mention-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .mention-chip {
+        width: auto;
+        max-width: 220px;
+        padding: 6px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.12);
+        background: rgba(11, 13, 18, 0.65);
+        color: var(--muted);
+        font-size: 11px;
+        display: inline-flex;
+        align-items: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .mention-icon {
+        width: 16px;
+        height: 16px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        font-weight: 800;
+        margin-right: 6px;
+        border: 1px solid rgba(255,255,255,0.16);
+        background: rgba(106,169,255,0.18);
+        color: #cfe3ff;
+        flex: 0 0 auto;
+      }
+      .mention-chip.agent .mention-icon {
+        background: rgba(34,197,94,0.18);
+        color: #c7f9d7;
+      }
+      .mention-text {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .mention-chip:hover {
+        border-color: rgba(106,169,255,0.5);
+        color: var(--text);
       }
       .compose-btn, .compose-send {
         width: auto;
@@ -813,6 +965,10 @@
       .context-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
 
       .drop-target { outline: 2px dashed var(--accent); }
+      .context-drop {
+        border-color: rgba(106,169,255,0.55) !important;
+        box-shadow: 0 0 0 2px rgba(106,169,255,0.16) inset;
+      }
 
       .hidden { display: none !important; }
 
@@ -908,6 +1064,36 @@
         color: var(--muted);
         margin-bottom: 8px;
       }
+      .saved-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .saved-card {
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 10px;
+        padding: 8px;
+        background: rgba(11,13,18,0.55);
+      }
+      .saved-card[data-kind="youtube"] {
+        border-color: rgba(239, 68, 68, 0.45);
+      }
+      .saved-card[data-kind="web"] {
+        border-color: rgba(106, 169, 255, 0.4);
+      }
+      .saved-card-title {
+        font-weight: 700;
+        font-size: 12px;
+        color: var(--text);
+      }
+      .saved-card-body {
+        margin-top: 4px;
+        font-size: 12px;
+        color: var(--muted);
+        max-height: 48px;
+        overflow: hidden;
+      }
 
       .toast {
         position: fixed;
@@ -985,8 +1171,8 @@
         <span class="dot green"></span>
       </div>
       <div class="topbar-title">
-        Gemini Manim Animator
-        <span class="badge">Gemini Hackathon 2026</span>
+        NorthStar
+        <span class="badge">NorthStar • Gemini Hackathon 2026</span>
       </div>
       <div class="topbar-actions">
         <button id="backBtn" class="icon-btn" title="Back" aria-label="Back" data-tip="Back">
@@ -1017,10 +1203,18 @@
       <aside class="panel" id="leftPanel">
         <div class="panel-header">Explorer</div>
         <div class="panel-body">
-          <div class="section-title">Job</div>
-          <div class="muted">Job ID</div>
-          <div id="jobId" style="margin-bottom:8px;">—</div>
-          <div class="tree" id="jobFileList"></div>
+          <div class="section-title">Template</div>
+          <label for="templateSelect">Preset</label>
+          <select id="templateSelect"></select>
+          <div class="row" style="margin-top:8px;">
+            <button id="resetToTemplate" class="ghost" title="Reset prompt + brief to the selected template (demo fast-path)">Reset to template</button>
+            <div class="muted" style="display:flex; align-items:center;">One-click demo recovery.</div>
+          </div>
+          <div class="muted" id="templateOutputPath" style="margin-top:8px;">
+            Output: <code>work/jobs/&lt;job_id&gt;/out.mp4</code>
+          </div>
+          <label for="templateDescription" style="margin-top:8px;">Template description</label>
+          <textarea id="templateDescription" disabled></textarea>
 
           <div class="section-title">Workspace</div>
           <div class="row small" style="margin-top:8px;">
@@ -1033,6 +1227,12 @@
           </div>
           <div class="muted" id="fileStatus" style="margin-top:6px;">Tip: type a path, then click + Folder or + File.</div>
           <div class="tree" id="workspaceTree" style="margin-top:8px;"></div>
+
+          <div class="section-title">Job</div>
+          <div class="muted">Job ID</div>
+          <div id="jobId" style="margin-bottom:8px;">—</div>
+          <div class="muted" id="outputPaths" style="margin-bottom:8px;">Save path: work/jobs/&lt;job_id&gt;/out.mp4</div>
+          <div class="tree" id="jobFileList"></div>
         </div>
       </aside>
 
@@ -1042,56 +1242,48 @@
         <div class="tabs">
           <button class="tab active" data-tab="canvas">Canvas</button>
           <button class="tab" data-tab="code">Code</button>
-          <button class="tab" data-tab="settings">Settings</button>
         </div>
 
         <div class="tab-panels">
           <section class="tab-panel active" data-tab="canvas">
             <div class="canvas-grid">
               <div class="card scroll controls-card">
-                <label for="templateSelect">Template</label>
-                <select id="templateSelect"></select>
-                <div class="row" style="margin-top:8px;">
-                  <button id="resetToTemplate" class="ghost" title="Reset prompt + brief to the selected template (demo fast-path)">Reset to template</button>
-                  <div class="muted" style="display:flex; align-items:center;">One-click demo recovery.</div>
-                </div>
+                <details id="imageGenDetails" open>
+                  <summary>Image generation</summary>
+                  <div class="row" style="margin-top:8px;">
+                    <div>
+                      <label for="imagePrompt">Image prompt</label>
+                      <input id="imagePrompt" placeholder="Scientist walking in a park" />
+                    </div>
+                    <div>
+                      <label for="imageMode">Image placement</label>
+                      <select id="imageMode">
+                        <option value="background">Background</option>
+                        <option value="foreground">Foreground</option>
+                        <option value="both">Both</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="row" style="margin-top:8px;">
+                    <button id="genImages" class="secondary" title="Generate background/foreground previews using the image model (Nano Banana)">
+                      Generate images
+                    </button>
+                    <div class="muted" style="display:flex; align-items:center;">
+                      Tip: click “Generate images” after “Create plan” (job created), then drag BG/FG into scenes.
+                    </div>
+                  </div>
 
-                <label for="templateDescription" style="margin-top:8px;">Template description</label>
-                <textarea id="templateDescription" disabled></textarea>
-
-                <div class="row" style="margin-top:8px;">
-                  <div>
-                    <label for="imagePrompt">Image prompt</label>
-                    <input id="imagePrompt" placeholder="Scientist walking in a park" />
+                  <div class="asset-tray">
+                    <div class="asset-slot">
+                      <div class="asset-title">Background preview (drag into a scene)</div>
+                      <div class="asset-thumb" id="bgThumb">No image yet</div>
+                    </div>
+                    <div class="asset-slot">
+                      <div class="asset-title">Foreground preview (drag into a scene)</div>
+                      <div class="asset-thumb" id="fgThumb">No image yet</div>
+                    </div>
                   </div>
-                  <div>
-                    <label for="imageMode">Image placement</label>
-                    <select id="imageMode">
-                      <option value="background">Background</option>
-                      <option value="foreground">Foreground</option>
-                      <option value="both">Both</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="row" style="margin-top:8px;">
-                  <button id="genImages" class="secondary" title="Generate background/foreground previews using the image model (Nano Banana)">
-                    Generate images
-                  </button>
-                  <div class="muted" style="display:flex; align-items:center;">
-                    Tip: click “Generate images” after “Create plan” (job created), then drag BG/FG into scenes.
-                  </div>
-                </div>
-
-                <div class="asset-tray">
-                  <div class="asset-slot">
-                    <div class="asset-title">Background preview (drag into a scene)</div>
-                    <div class="asset-thumb" id="bgThumb">No image yet</div>
-                  </div>
-                  <div class="asset-slot">
-                    <div class="asset-title">Foreground preview (drag into a scene)</div>
-                    <div class="asset-thumb" id="fgThumb">No image yet</div>
-                  </div>
-                </div>
+                </details>
 
                 <div class="row" style="margin-top:8px;">
                   <div>
@@ -1260,6 +1452,8 @@
                 </div>
               </div>
 
+              <div class="canvas-splitter" id="canvasSplitter" title="Drag to resize preview/timeline"></div>
+
               <div class="card timeline-card">
                 <div class="timeline-wrap">
                   <div class="muted" id="timelineLabel">Timeline</div>
@@ -1269,23 +1463,23 @@
                   <div class="timeline-controls">
                     <button id="rew10" class="ctl" title="Rewind 10s" aria-label="Rewind 10 seconds">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 19l-9-7 9-7v14z"/><path d="M22 19l-9-7 9-7v14z"/></svg>
-                      10s
+                      <span class="ctl-label">10s</span>
                     </button>
                     <button id="rew5" class="ctl" title="Back 5s" aria-label="Back 5 seconds">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 19l-9-7 9-7v14z"/><path d="M22 5v14"/></svg>
-                      5s
+                      <span class="ctl-label">5s</span>
                     </button>
                     <button id="playPause" class="ctl" title="Play/Pause" aria-label="Play pause">
                       <svg id="playPauseIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5v14l11-7z"/></svg>
-                      Play
+                      <span id="playPauseLabel" class="ctl-label">Play</span>
                     </button>
                     <button id="ff5" class="ctl" title="Forward 5s" aria-label="Forward 5 seconds">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 19l9-7-9-7v14z"/><path d="M2 5v14"/></svg>
-                      5s
+                      <span class="ctl-label">5s</span>
                     </button>
                     <button id="ff10" class="ctl" title="Forward 10s" aria-label="Forward 10 seconds">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 19l9-7-9-7v14z"/><path d="M2 19l9-7-9-7v14z"/></svg>
-                      10s
+                      <span class="ctl-label">10s</span>
                     </button>
                     <div class="spacer"></div>
                     <div class="muted" id="timeReadout">0:00</div>
@@ -1304,12 +1498,14 @@
           </section>
 
           <section class="tab-panel" data-tab="code">
-            <div class="toolbar">
-              <div class="muted" id="editorLabel">Editor</div>
-              <div class="spacer"></div>
-              <button id="addSelection" class="ghost btn-inline" title="Add selected text to prompt (@reference)">@</button>
-              <button id="saveFile" class="ghost btn-inline" disabled>Save file</button>
-              <button id="renderCode" class="secondary btn-inline">Render code</button>
+              <div class="toolbar">
+                <div class="muted" id="editorLabel">Editor</div>
+                <div class="spacer"></div>
+                <button id="undoCode" class="ghost btn-inline" title="Undo">Undo</button>
+                <button id="redoCode" class="ghost btn-inline" title="Redo">Redo</button>
+                <button id="addSelection" class="ghost btn-inline" title="Add selected text to prompt (@reference)">@</button>
+                <button id="saveFile" class="ghost btn-inline" disabled>Save file</button>
+                <button id="renderCode" class="secondary btn-inline">Render code</button>
               <button id="downloadVideo" class="secondary btn-inline">Download video</button>
               <button id="toggleHighlight" class="ghost btn-inline" title="Toggle syntax highlighting">Highlight</button>
             </div>
@@ -1334,6 +1530,7 @@
               <div class="settings-nav" id="settingsNav">
                 <button class="ghost active" data-stab="api">API & Models</button>
                 <button class="ghost" data-stab="render">Rendering</button>
+                <button class="ghost" data-stab="output">Output</button>
                 <button class="ghost" data-stab="agent">Agent</button>
                 <button class="ghost" data-stab="skills">Skills</button>
                 <button class="ghost" data-stab="layout">Layout</button>
@@ -1391,6 +1588,25 @@
                   </div>
                 </div>
 
+                <div class="settings-section" data-stab="output">
+                  <div class="drawer-section">
+                    <div class="drawer-title">Output Paths</div>
+                    <div class="muted">Where your generated files go:</div>
+                    <div style="margin-top:8px;">
+                      <div class="muted">Current MP4</div>
+                      <code id="settingsOutputVideoPath">work/jobs/&lt;job_id&gt;/out.mp4</code>
+                    </div>
+                    <div style="margin-top:8px;">
+                      <div class="muted">Current scene code</div>
+                      <code id="settingsOutputCodePath">notes/generated/&lt;job_id&gt;/scene.py</code>
+                    </div>
+                    <div style="margin-top:8px;">
+                      <div class="muted">Workspace files</div>
+                      <code>work/user_files/...</code>
+                    </div>
+                  </div>
+                </div>
+
                 <div class="settings-section" data-stab="agent">
                   <div class="drawer-section">
                     <div class="drawer-title">Agent Structure</div>
@@ -1399,6 +1615,7 @@
                     <textarea id="rulesText" placeholder="Example: 1 concept per scene. Always label variables. Keep text centered."></textarea>
                     <label for="subagentsText" style="margin-top:8px;">Subagents (optional)</label>
                     <textarea id="subagentsText" placeholder="Example:\nDirector: creates storyboard\nAnimator: writes manim code\nQA: validates labels + spacing"></textarea>
+                    <div class="saved-grid" id="subagentCards"></div>
                   </div>
                 </div>
 
@@ -1415,6 +1632,7 @@
                     <input id="skillIdea" placeholder="Make a concise storyboard rule" />
                     <input id="skillGenerateName" placeholder="Skill name (optional)" style="margin-top:6px;" />
                     <button id="generateSkill" class="secondary" style="margin-top:6px;">Generate skill</button>
+                    <div class="saved-grid" id="savedSkillCards"></div>
                   </div>
                 </div>
 
@@ -1481,7 +1699,7 @@
             </div>
 
             <div class="context-panel" data-ctx="docs" role="tabpanel">
-              <div class="muted" style="margin-bottom:6px;">Paste a link + transcript/notes. This is appended to the director brief.</div>
+              <div class="muted" style="margin-bottom:6px;">Paste a YouTube/web link + notes. Indexing creates a short source summary you can drag into prompt or timeline.</div>
               <div class="row">
                 <div>
                   <label for="sourceUrl">Link</label>
@@ -1492,7 +1710,21 @@
                   <textarea id="sourceNotes" placeholder="Paste transcript or key points here"></textarea>
                 </div>
               </div>
-              <button id="saveSource" class="secondary" style="margin-top:8px;">Save source</button>
+              <div class="row" style="margin-top:8px;">
+                <div>
+                  <label for="sourceType">Source type</label>
+                  <select id="sourceType">
+                    <option value="auto">Auto detect</option>
+                    <option value="youtube">YouTube link</option>
+                    <option value="web">Web article/page</option>
+                  </select>
+                </div>
+                <div style="display:flex; align-items:end; gap:8px;">
+                  <button id="indexSource" class="secondary">Index source</button>
+                  <button id="saveSource" class="ghost">Save source</button>
+                </div>
+              </div>
+              <div id="sourceCards" class="saved-grid" style="margin-top:10px;"></div>
               <pre id="sourceStatus" class="muted" style="margin-top:10px; white-space:pre-wrap;">No sources yet.</pre>
             </div>
 
@@ -1525,6 +1757,7 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
             </button>
           </div>
+          <div id="mentionBar" class="mention-bar"></div>
           <div class="muted" id="status">Ready.</div>
         </div>
       </aside>
@@ -1562,6 +1795,7 @@
     <script>
       const jobFileListEl = document.getElementById('jobFileList');
       const jobIdEl = document.getElementById('jobId');
+      const outputPathsEl = document.getElementById('outputPaths');
       const workspaceTreeEl = document.getElementById('workspaceTree');
       const newPathEl = document.getElementById('newPath');
       const applyRenameBtn = document.getElementById('applyRename');
@@ -1572,6 +1806,8 @@
       const templateSelectEl = document.getElementById('templateSelect');
       const templateDescriptionEl = document.getElementById('templateDescription');
       const resetToTemplateBtn = document.getElementById('resetToTemplate');
+      const templateOutputPathEl = document.getElementById('templateOutputPath');
+      const imageGenDetailsEl = document.getElementById('imageGenDetails');
       const imagePromptEl = document.getElementById('imagePrompt');
       const imageModeEl = document.getElementById('imageMode');
       const genImagesBtn = document.getElementById('genImages');
@@ -1605,6 +1841,7 @@
       const skillGenerateNameEl = document.getElementById('skillGenerateName');
       const generateSkillBtn = document.getElementById('generateSkill');
       const skillListEl = document.getElementById('skillList');
+      const savedSkillCardsEl = document.getElementById('savedSkillCards');
 
       const bgThumbEl = document.getElementById('bgThumb');
       const fgThumbEl = document.getElementById('fgThumb');
@@ -1619,10 +1856,13 @@
       const timelineTrackEl = document.getElementById('timelineTrack');
       const timelineLabelEl = document.getElementById('timelineLabel');
       const timelineScrubEl = document.getElementById('timelineScrub');
+      const canvasGridEl = document.querySelector('.canvas-grid');
+      const canvasSplitterEl = document.getElementById('canvasSplitter');
       const rew10Btn = document.getElementById('rew10');
       const rew5Btn = document.getElementById('rew5');
       const playPauseBtn = document.getElementById('playPause');
       const playPauseIcon = document.getElementById('playPauseIcon');
+      const playPauseLabel = document.getElementById('playPauseLabel');
       const ff5Btn = document.getElementById('ff5');
       const ff10Btn = document.getElementById('ff10');
       const timeReadoutEl = document.getElementById('timeReadout');
@@ -1632,6 +1872,8 @@
       const codeEditorEl = document.getElementById('codeEditor');
       const codeGutterEl = document.getElementById('codeGutter');
       const editorLabelEl = document.getElementById('editorLabel');
+      const undoCodeBtn = document.getElementById('undoCode');
+      const redoCodeBtn = document.getElementById('redoCode');
       const addSelectionBtn = document.getElementById('addSelection');
       const saveFileBtn = document.getElementById('saveFile');
       const renderCodeBtn = document.getElementById('renderCode');
@@ -1648,6 +1890,7 @@
       const busySubEl = document.getElementById('busySub');
       const toastEl = document.getElementById('toast');
       let toastTimer = null;
+      document.querySelectorAll('button:not([type])').forEach((btn) => btn.setAttribute('type', 'button'));
 
       function showToast(message, kind = '') {
         if (!toastEl) return;
@@ -1661,7 +1904,7 @@
       }
 
       let isBusy = false;
-      function setBusy(on, message) {
+      function setBusy(on, message, phase) {
         isBusy = !!on;
         if (busyOverlayEl) busyOverlayEl.classList.toggle('hidden', !isBusy);
         if (previewEmptyEl && isBusy) previewEmptyEl.classList.add('hidden');
@@ -1669,9 +1912,9 @@
         if (statusEl) statusEl.classList.toggle('status-pulse', isBusy);
         if (typeof message === 'string' && statusEl) statusEl.textContent = message;
         if (typeof message === 'string' && busySubEl) busySubEl.textContent = message || 'Working…';
-        if (busyTitleEl) busyTitleEl.textContent = isBusy ? 'Rendering' : 'Ready';
+        if (busyTitleEl) busyTitleEl.textContent = isBusy ? (phase || 'Rendering') : 'Ready';
         if (planBtn) planBtn.disabled = isBusy;
-        if (renderCodeBtn) renderCodeBtn.disabled = isBusy ? true : renderCodeBtn.disabled;
+        if (renderCodeBtn) renderCodeBtn.disabled = !!isBusy;
         if (toggleHighlightBtn) toggleHighlightBtn.disabled = isBusy;
         if (!isBusy) updateEditorMode();
       }
@@ -1692,6 +1935,7 @@
       const attachBtnEl = document.getElementById('attachBtn');
       const filePickerEl = document.getElementById('filePicker');
       const voiceBtnEl = document.getElementById('voiceBtn');
+      const mentionBarEl = document.getElementById('mentionBar');
       const statusEl = document.getElementById('status');
       const agentStepsEl = document.getElementById('agentSteps');
       const agentProgressFillEl = document.getElementById('agentProgressFill');
@@ -1726,13 +1970,19 @@
       const badgeManimEl = document.getElementById('badgeManim');
       const badgeFfmpegEl = document.getElementById('badgeFfmpeg');
       const resetLayoutBtn = document.getElementById('resetLayout');
+      const settingsOutputVideoPathEl = document.getElementById('settingsOutputVideoPath');
+      const settingsOutputCodePathEl = document.getElementById('settingsOutputCodePath');
 
       const rulesTextEl = document.getElementById('rulesText');
       const subagentsTextEl = document.getElementById('subagentsText');
+      const subagentCardsEl = document.getElementById('subagentCards');
 
       const sourceUrlEl = document.getElementById('sourceUrl');
       const sourceNotesEl = document.getElementById('sourceNotes');
+      const sourceTypeEl = document.getElementById('sourceType');
+      const indexSourceBtn = document.getElementById('indexSource');
       const saveSourceBtn = document.getElementById('saveSource');
+      const sourceCardsEl = document.getElementById('sourceCards');
       const sourceStatusEl = document.getElementById('sourceStatus');
 
       const videoEl = document.createElement('video');
@@ -1761,9 +2011,10 @@
         const cur = videoEl.currentTime || 0;
         const dur = videoEl.duration || 0;
         timeReadoutEl.textContent = `${fmtTime(cur)} / ${fmtTime(dur)}`;
+        highlightTimelineAt(cur);
         if (!playPauseBtn) return;
         const isPaused = videoEl.paused;
-        playPauseBtn.lastChild.textContent = isPaused ? ' Play' : ' Pause';
+        if (playPauseLabel) playPauseLabel.textContent = isPaused ? 'Play' : 'Pause';
         if (playPauseIcon) {
           playPauseIcon.innerHTML = isPaused
             ? '<path d="M8 5v14l11-7z"/>'
@@ -1828,7 +2079,7 @@
         if (!lastVideoUrl) return;
         try {
           if (navigator.share) {
-            await navigator.share({ title: 'Gemini Manim Animator', url: lastVideoUrl });
+            await navigator.share({ title: 'NorthStar', url: lastVideoUrl });
           } else if (navigator.clipboard) {
             await navigator.clipboard.writeText(lastVideoUrl);
             statusEl.textContent = 'Copied video link to clipboard.';
@@ -1851,11 +2102,15 @@
       let timelineMeta = { title: 'Scene Plan' };
       let openFilePath = null;
       let pendingRenameFrom = null;
+      let pendingRenameKind = '';
       let lastAssets = { background: '', foreground: '' };
       const mqNarrow = window.matchMedia('(max-width: 1200px)');
       let jobEventSource = null;
       let didAnimateCode = false;
-      let pendingImagesAfterPlan = false;
+      let persistedSceneSignature = '';
+      let selectedTreePath = '';
+      let selectedTreeKind = '';
+      let skillsCache = [];
 
       const AUTOSAVE_KEY = 'gmma_autosave_v1';
       let autosaveTimer = null;
@@ -1948,21 +2203,162 @@
 
       function getSources() {
         try {
-          return JSON.parse(localStorage.getItem('sources') || '[]');
+          const raw = JSON.parse(localStorage.getItem('sources') || '[]');
+          const clean = Array.isArray(raw) ? raw.map(normalizeSourceRecord) : [];
+          if (Array.isArray(raw) && raw.some((x) => !x?.id || !x?.kind || !x?.saved_at)) {
+            localStorage.setItem('sources', JSON.stringify(clean));
+          }
+          return clean;
         } catch {
           return [];
         }
       }
       function setSources(sources) {
-        localStorage.setItem('sources', JSON.stringify(sources));
+        const clean = (Array.isArray(sources) ? sources : []).map(normalizeSourceRecord);
+        localStorage.setItem('sources', JSON.stringify(clean));
       }
+
+      function normalizeSourceRecord(src) {
+        const s = src || {};
+        const kind = String(s.kind || s.source_type || (s.video_id ? 'youtube' : 'web')).toLowerCase();
+        const id = String(s.id || `src-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`);
+        const title = cleanInline(s.title || '') || compactLabel(s.url || 'Source', 56);
+        const summary = cleanInline(s.summary || s.notes || '');
+        const promptHint = cleanInline(s.prompt_hint || s.promptHint || '');
+        const notes = String(s.notes || '').trim();
+        const keyPoints = Array.isArray(s.key_points)
+          ? s.key_points.map((x) => cleanInline(x)).filter(Boolean).slice(0, 12)
+          : [];
+        const filePath = String(s.file_path || '').trim();
+        return {
+          ...s,
+          id,
+          kind: kind === 'youtube' ? 'youtube' : 'web',
+          title,
+          summary,
+          prompt_hint: promptHint,
+          notes,
+          key_points: keyPoints,
+          file_path: filePath,
+          saved_at: s.saved_at || new Date().toISOString(),
+        };
+      }
+
+      function upsertSource(source) {
+        const normalized = normalizeSourceRecord(source);
+        const next = [normalized];
+        getSources().forEach((item) => {
+          if (item.id === normalized.id) return;
+          if (normalized.url && item.url && normalized.url === item.url) return;
+          next.push(item);
+        });
+        setSources(next.slice(0, 30));
+      }
+
+      function sourceSnippet(src) {
+        const s = normalizeSourceRecord(src);
+        const parts = [];
+        parts.push(`[Indexed source: ${s.kind}] ${s.title || s.url || 'source'}`);
+        if (s.video_id) parts.push(`YouTube ID: ${s.video_id}`);
+        if (s.file_path) parts.push(`Workspace file: ${s.file_path}`);
+        if (s.url) parts.push(`URL: ${s.url}`);
+        if (s.summary) parts.push(`Summary: ${s.summary}`);
+        const points = Array.isArray(s.key_points) ? s.key_points.filter(Boolean).slice(0, 6) : [];
+        if (points.length) {
+          parts.push('Key points:');
+          points.forEach((p) => parts.push(`- ${p}`));
+        }
+        if (s.prompt_hint) parts.push(`Prompt hint: ${s.prompt_hint}`);
+        if (s.notes) parts.push(`Notes: ${s.notes.slice(0, 400)}`);
+        return parts.join('\n');
+      }
+
+      function sourceTimelineNote(src) {
+        const s = normalizeSourceRecord(src);
+        const points = Array.isArray(s.key_points) ? s.key_points.slice(0, 3) : [];
+        const lines = [`[Source] ${s.title || s.url || 'reference'}`];
+        if (s.summary) lines.push(s.summary);
+        if (points.length) {
+          lines.push('Key points:');
+          points.forEach((p) => lines.push(`- ${p}`));
+        }
+        if (s.prompt_hint) lines.push(`Prompt hint: ${s.prompt_hint}`);
+        return lines.join('\n').slice(0, 1200);
+      }
+
+      async function persistSourceSummaryFile(indexed) {
+        if (!indexed || !indexed.markdown) return '';
+        let path = indexed.file_suggested_path || `notes/sources/source-${Date.now()}.md`;
+        let saved = await tryWriteWorkspaceFile(path, indexed.markdown);
+        if (!saved) {
+          for (let i = 2; i < 20 && !saved; i++) {
+            const cand = path.replace(/(\.[^.]*)?$/, `-${i}$1`);
+            saved = await tryWriteWorkspaceFile(cand, indexed.markdown);
+          }
+        }
+        if (saved) await loadWorkspaceFiles();
+        return saved || '';
+      }
+
       function renderSources() {
         const sources = getSources();
         if (!sources.length) {
           sourceStatusEl.textContent = 'No sources yet.';
+          if (sourceCardsEl) sourceCardsEl.innerHTML = '';
           return;
         }
-        sourceStatusEl.textContent = sources.map((s, i) => `${i + 1}. ${s.url || '(no url)'}\n${(s.notes || '').slice(0, 240)}${(s.notes || '').length > 240 ? '…' : ''}`).join('\n\n');
+        sourceStatusEl.textContent = `${sources.length} source(s) ready. Drag into prompt, timeline, or context.`;
+        if (!sourceCardsEl) return;
+        sourceCardsEl.innerHTML = '';
+        sources.forEach((raw, idx) => {
+          const s = normalizeSourceRecord(raw);
+          const card = document.createElement('div');
+          card.className = 'saved-card';
+          card.dataset.kind = s.kind || 'web';
+          const kind = s.kind === 'youtube' ? 'YouTube' : 'Web';
+          const title = compactLabel(s.title || s.url || `Source ${idx + 1}`, 64);
+          const body = compactLabel(s.summary || s.notes || '', 220);
+          card.innerHTML = `<div class="saved-card-title">${kind} • ${title}</div><div class="saved-card-body">${body || 'No summary yet.'}</div>`;
+          card.title = 'Drag into prompt/timeline/context';
+          card.draggable = true;
+          card.addEventListener('dragstart', (e) => {
+            const snippet = sourceSnippet(s);
+            const sceneNote = sourceTimelineNote(s);
+            e.dataTransfer.setData('text/plain', snippet);
+            e.dataTransfer.setData('text/source-snippet', snippet);
+            e.dataTransfer.setData('text/source-timeline', sceneNote);
+            e.dataTransfer.setData('text/source-id', s.id);
+            if (s.file_path) e.dataTransfer.setData('text/source-file', s.file_path);
+            e.dataTransfer.effectAllowed = 'copy';
+          });
+
+          const actions = document.createElement('div');
+          actions.className = 'row small';
+          actions.style.marginTop = '6px';
+          const useBtn = document.createElement('button');
+          useBtn.className = 'ghost';
+          useBtn.textContent = 'Use in prompt';
+          useBtn.addEventListener('click', () => {
+            const cur = chatInputEl.value || '';
+            const sep = cur && !/\s$/.test(cur) ? '\n\n' : '';
+            chatInputEl.value = `${cur}${sep}${sourceSnippet(s)}\n`;
+            chatInputEl.focus();
+            showToast('Indexed context inserted into prompt.', 'ok');
+          });
+          const delBtn = document.createElement('button');
+          delBtn.className = 'ghost';
+          delBtn.textContent = 'Remove';
+          delBtn.addEventListener('click', () => {
+            const next = getSources().filter((x) => x.id !== s.id);
+            setSources(next);
+            renderSources();
+            scheduleAutosave();
+          });
+          actions.appendChild(useBtn);
+          actions.appendChild(delBtn);
+          card.appendChild(actions);
+          sourceCardsEl.appendChild(card);
+        });
       }
 
       function clampNumber(n, min, max) {
@@ -1986,6 +2382,30 @@
 
       function saveLayoutSizes(left, right) {
         localStorage.setItem('layoutSizes', JSON.stringify({ left, right }));
+      }
+
+      function getCanvasTopSplit() {
+        try {
+          const raw = localStorage.getItem('canvasTopSplit');
+          const n = Number(raw);
+          if (Number.isFinite(n)) return clampNumber(n, 48, 82);
+        } catch {}
+        return 72;
+      }
+
+      function saveCanvasTopSplit(pct) {
+        try {
+          localStorage.setItem('canvasTopSplit', String(clampNumber(pct, 48, 82)));
+        } catch {}
+      }
+
+      function applyCanvasTopSplit(pct) {
+        if (!canvasGridEl) return;
+        const top = clampNumber(pct, 48, 82);
+        // Keep timeline compact as preview grows.
+        const timeline = clampNumber(Math.round((100 - top) * 0.42), 12, 22);
+        canvasGridEl.style.setProperty('--canvas-top', `${top}%`);
+        canvasGridEl.style.setProperty('--canvas-timeline', `${timeline}%`);
       }
 
       function updateBackEnabled() {
@@ -2054,13 +2474,18 @@
       document.getElementById('backBtn').addEventListener('click', () => {
         resetSteps();
         currentJobId = null;
+        persistedSceneSignature = '';
         try { if (jobEventSource) jobEventSource.close(); } catch {}
         jobEventSource = null;
         jobIdEl.textContent = '—';
         jobFileListEl.innerHTML = '';
+        updateOutputPaths();
         codeEl.value = '';
         refreshGutter();
         openFilePath = null;
+        pendingRenameFrom = null;
+        pendingRenameKind = '';
+        setSelectedTreePath('', '');
         updateEditorMode();
         logsEl.textContent = 'Cleared.';
         statusEl.textContent = 'Ready.';
@@ -2189,6 +2614,40 @@
       }
       initSplitter(splitterLeft, 'left');
       initSplitter(splitterRight, 'right');
+
+      function initCanvasSplitter() {
+        if (!canvasSplitterEl || !canvasGridEl) return;
+        applyCanvasTopSplit(getCanvasTopSplit());
+        canvasSplitterEl.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          const startY = e.clientY;
+          const rect = canvasGridEl.getBoundingClientRect();
+          const startTopPct = getCanvasTopSplit();
+          const prevUserSelect = document.body.style.userSelect;
+          const prevCursor = document.body.style.cursor;
+          document.body.style.userSelect = 'none';
+          document.body.style.cursor = 'row-resize';
+
+          function onMove(ev) {
+            const dy = ev.clientY - startY;
+            const deltaPct = (dy / Math.max(1, rect.height)) * 100;
+            const next = clampNumber(startTopPct + deltaPct, 48, 82);
+            applyCanvasTopSplit(next);
+          }
+          function onUp() {
+            const topNow = parseFloat((canvasGridEl.style.getPropertyValue('--canvas-top') || '').replace('%', '')) || startTopPct;
+            saveCanvasTopSplit(topNow);
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+            document.body.style.userSelect = prevUserSelect;
+            document.body.style.cursor = prevCursor;
+          }
+
+          window.addEventListener('mousemove', onMove);
+          window.addEventListener('mouseup', onUp);
+        });
+      }
+      initCanvasSplitter();
       // Keep layout sane across resizes and avoid "panels disappeared" glitches.
       try {
         mqNarrow.addEventListener('change', applyLayoutColumns);
@@ -2259,6 +2718,43 @@
         });
       }
 
+      function updateOutputPaths() {
+        if (!outputPathsEl) return;
+        if (!currentJobId) {
+          outputPathsEl.innerHTML = [
+            'Save path: <code>work/jobs/&lt;job_id&gt;/out.mp4</code>',
+            'Code path: <code>notes/generated/&lt;job_id&gt;/scene.py</code>',
+            'Workspace root: <code>work/user_files/</code>'
+          ].join('<br>');
+          if (templateOutputPathEl) templateOutputPathEl.innerHTML = 'Output: <code>work/jobs/&lt;job_id&gt;/out.mp4</code><br>Code: <code>notes/generated/&lt;job_id&gt;/scene.py</code>';
+          if (settingsOutputVideoPathEl) settingsOutputVideoPathEl.textContent = 'work/jobs/<job_id>/out.mp4';
+          if (settingsOutputCodePathEl) settingsOutputCodePathEl.textContent = 'notes/generated/<job_id>/scene.py';
+          return;
+        }
+        outputPathsEl.innerHTML = [
+          `Save path: <code>work/jobs/${currentJobId}/out.mp4</code>`,
+          `Code path: <code>notes/generated/${currentJobId}/scene.py</code>`,
+          'Workspace root: <code>work/user_files/</code>'
+        ].join('<br>');
+        if (templateOutputPathEl) templateOutputPathEl.innerHTML = `Output: <code>work/jobs/${currentJobId}/out.mp4</code><br>Code: <code>notes/generated/${currentJobId}/scene.py</code>`;
+        if (settingsOutputVideoPathEl) settingsOutputVideoPathEl.textContent = `work/jobs/${currentJobId}/out.mp4`;
+        if (settingsOutputCodePathEl) settingsOutputCodePathEl.textContent = `notes/generated/${currentJobId}/scene.py`;
+      }
+
+      function markTreeSelection() {
+        const rows = workspaceTreeEl ? Array.from(workspaceTreeEl.querySelectorAll('.tree-row')) : [];
+        rows.forEach((row) => {
+          const isSel = row.dataset.path === selectedTreePath && row.dataset.kind === selectedTreeKind;
+          row.classList.toggle('selected', !!isSel);
+        });
+      }
+
+      function setSelectedTreePath(path, kind) {
+        selectedTreePath = path || '';
+        selectedTreeKind = kind || '';
+        markTreeSelection();
+      }
+
       function renderTree(node, container) {
         if (!node) return;
         if (node.type === 'dir') {
@@ -2267,6 +2763,27 @@
           const summary = document.createElement('summary');
           const row = document.createElement('div');
           row.className = 'tree-row';
+          row.dataset.path = node.path || '';
+          row.dataset.kind = 'folder';
+          if ((node.path || '') && selectedTreePath === node.path && selectedTreeKind === 'folder') {
+            row.classList.add('selected');
+          }
+          if (node.path) {
+            row.draggable = true;
+            row.addEventListener('dragstart', (e) => {
+              e.dataTransfer.setData('text/plain', node.path);
+              e.dataTransfer.setData('text/path-kind', 'folder');
+              e.dataTransfer.effectAllowed = 'copy';
+            });
+            row.addEventListener('click', (e) => {
+              setSelectedTreePath(node.path, 'folder');
+            });
+            row.addEventListener('dblclick', (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              startRename(node.path, 'dir');
+            });
+          }
           const name = document.createElement('div');
           name.className = 'tree-row-name';
           name.textContent = node.name || 'folder';
@@ -2276,17 +2793,19 @@
             actions.className = 'tree-row-actions';
             const renameBtn = document.createElement('button');
             renameBtn.className = 'tree-act';
-            renameBtn.textContent = 'R';
+            renameBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4z"/></svg>';
             renameBtn.title = 'Rename';
+            renameBtn.setAttribute('aria-label', 'Rename');
             renameBtn.addEventListener('click', (e) => {
               e.preventDefault();
               e.stopPropagation();
-              startRename(node.path);
+              startRename(node.path, 'dir');
             });
             const delBtn = document.createElement('button');
             delBtn.className = 'tree-act danger';
-            delBtn.textContent = 'X';
+            delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>';
             delBtn.title = 'Delete folder';
+            delBtn.setAttribute('aria-label', 'Delete folder');
             delBtn.addEventListener('click', async (e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -2305,6 +2824,11 @@
           item.className = 'tree-file';
           const row = document.createElement('div');
           row.className = 'tree-row';
+          row.dataset.path = node.path || '';
+          row.dataset.kind = 'file';
+          if ((node.path || '') && selectedTreePath === node.path && selectedTreeKind === 'file') {
+            row.classList.add('selected');
+          }
           const name = document.createElement('div');
           name.className = 'tree-row-name';
           name.textContent = node.name;
@@ -2312,17 +2836,19 @@
           actions.className = 'tree-row-actions';
           const renameBtn = document.createElement('button');
           renameBtn.className = 'tree-act';
-          renameBtn.textContent = 'R';
+          renameBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4z"/></svg>';
           renameBtn.title = 'Rename';
+          renameBtn.setAttribute('aria-label', 'Rename');
           renameBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            startRename(node.path);
+            startRename(node.path, 'file');
           });
           const delBtn = document.createElement('button');
           delBtn.className = 'tree-act danger';
-          delBtn.textContent = 'X';
+          delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>';
           delBtn.title = 'Delete file';
+          delBtn.setAttribute('aria-label', 'Delete file');
           delBtn.addEventListener('click', async (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -2336,16 +2862,29 @@
           item.draggable = true;
           item.addEventListener('dragstart', (e) => {
             e.dataTransfer.setData('text/plain', node.path);
+            e.dataTransfer.setData('text/path-kind', 'file');
             e.dataTransfer.effectAllowed = 'copy';
           });
-          item.addEventListener('click', () => openWorkspaceFile(node.path));
+          item.addEventListener('click', () => {
+            setSelectedTreePath(node.path, 'file');
+            openWorkspaceFile(node.path);
+          });
+          row.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            startRename(node.path, 'file');
+          });
           container.appendChild(item);
         }
       }
 
       async function deleteWorkspacePath(path) {
         if (!path) return;
-        if (!window.confirm(`Delete "${path}"?`)) return;
+        const ok = window.confirm(`Delete "${path}"? This cannot be undone.`);
+        if (!ok) {
+          fileStatusEl.textContent = 'Delete cancelled.';
+          return;
+        }
         fileStatusEl.textContent = `Deleting ${path}...`;
         try {
           const resp = await fetch(`/api/files/file?path=${encodeURIComponent(path)}`, { method: 'DELETE' });
@@ -2360,6 +2899,9 @@
             refreshGutter();
             if (highlightOn) refreshHighlight();
             updateEditorMode();
+          }
+          if (selectedTreePath && (selectedTreePath === path || selectedTreePath.startsWith(`${path}/`))) {
+            setSelectedTreePath('', '');
           }
           fileStatusEl.textContent = `Deleted: ${path}`;
           await loadWorkspaceFiles();
@@ -2483,6 +3025,30 @@
         requestAnimationFrame(tick);
       }
 
+      async function persistGeneratedSceneFile(code, focusEditor = false) {
+        if (!currentJobId || !code) return;
+        const signature = `${currentJobId}:${code.length}:${String(code).slice(0, 128)}`;
+        if (persistedSceneSignature === signature) return;
+        const path = `notes/generated/${currentJobId}/scene.py`;
+        try {
+          const resp = await fetch('/api/files/file', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path, content: code, overwrite: true })
+          });
+          const data = await resp.json();
+          if (data.ok) {
+            persistedSceneSignature = signature;
+            if (focusEditor || !openFilePath) {
+              openFilePath = data.path;
+              updateEditorMode();
+              setSelectedTreePath(data.path, 'file');
+            }
+            await loadWorkspaceFiles();
+          }
+        } catch {}
+      }
+
       async function tryWriteWorkspaceFile(path, content) {
         try {
           const resp = await fetch('/api/files/file', {
@@ -2496,6 +3062,43 @@
         } catch {
           return null;
         }
+      }
+
+      function fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onerror = () => reject(new Error('read failed'));
+          reader.onload = () => {
+            const out = String(reader.result || '');
+            const base64 = out.includes(',') ? out.split(',', 2)[1] : out;
+            resolve(base64 || '');
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+
+      async function uploadImageToCurrentJob(file, role) {
+        if (!currentJobId) {
+          showToast('Create plan first to upload image assets.', 'err');
+          return null;
+        }
+        const base64 = await fileToBase64(file);
+        const resp = await fetch('/api/jobs/upload-asset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            job_id: currentJobId,
+            filename: file.name || 'image.png',
+            content_base64: base64,
+            role: role || 'background'
+          })
+        });
+        const data = await resp.json();
+        if (!data.ok) {
+          showToast(data.error || 'Image upload failed.', 'err');
+          return null;
+        }
+        return data.asset_path || null;
       }
 
       async function attachFilesFromPicker(files) {
@@ -2677,10 +3280,8 @@
 
       async function generateImages() {
         if (!currentJobId) {
-          // Convenience: auto-create a plan first so image generation feels one-click.
-          pendingImagesAfterPlan = true;
-          showToast('Creating plan first…', 'ok');
-          await createPlan();
+          showToast('Create plan first so images can be stored under a job folder.', 'err');
+          statusEl.textContent = 'Create plan first, then click Generate images.';
           return;
         }
         const prompt = (imagePromptEl.value || '').trim();
@@ -2690,7 +3291,7 @@
         }
         if (genImagesBtn) genImagesBtn.disabled = true;
         try {
-          setBusy(true, 'Generating images…');
+          setBusy(true, 'Generating images…', 'Images');
           await new Promise(requestAnimationFrame);
           const resp = await fetch('/api/images/generate', {
             method: 'POST',
@@ -2736,6 +3337,7 @@
 
       async function openWorkspaceFile(path) {
         if (!path) return;
+        setSelectedTreePath(path, 'file');
         let data = null;
         try {
           const resp = await fetch(`/api/files/file?path=${encodeURIComponent(path)}`);
@@ -2779,8 +3381,9 @@
         showToast(`Saved: ${openFilePath}`, 'ok');
       }
 
-      function startRename(fromPath) {
+      function startRename(fromPath, kind = '') {
         pendingRenameFrom = fromPath;
+        pendingRenameKind = kind || '';
         newPathEl.value = fromPath;
         newPathEl.focus();
         const lastSlash = fromPath.lastIndexOf('/');
@@ -2794,6 +3397,11 @@
         applyRenameBtn.classList.remove('hidden');
       }
 
+      function looksLikeFileName(path) {
+        const leaf = String(path || '').split('/').filter(Boolean).pop() || '';
+        return /\.[A-Za-z0-9]{1,8}$/.test(leaf);
+      }
+
       async function renamePending() {
         const toPath = newPathEl.value.trim();
         const fromPath = pendingRenameFrom;
@@ -2801,7 +3409,12 @@
         if (!toPath) {
           fileStatusEl.textContent = 'Rename cancelled: empty path.';
           pendingRenameFrom = null;
+          pendingRenameKind = '';
           applyRenameBtn.classList.add('hidden');
+          return;
+        }
+        if (pendingRenameKind === 'dir' && looksLikeFileName(toPath)) {
+          fileStatusEl.textContent = 'Folder names cannot look like files (example: folder.py).';
           return;
         }
         fileStatusEl.textContent = 'Renaming...';
@@ -2822,6 +3435,7 @@
           return;
         }
         pendingRenameFrom = null;
+        pendingRenameKind = '';
         applyRenameBtn.classList.add('hidden');
         newPathEl.value = '';
         fileStatusEl.textContent = `Renamed: ${fromPath} → ${toPath}`;
@@ -2833,10 +3447,15 @@
       }
 
       async function loadWorkspaceFiles() {
-        const resp = await fetch('/api/files');
-        const data = await resp.json();
-        workspaceTreeEl.innerHTML = '';
-        renderTree(data.tree, workspaceTreeEl);
+        try {
+          const resp = await fetch('/api/files');
+          const data = await resp.json();
+          workspaceTreeEl.innerHTML = '';
+          renderTree(data.tree, workspaceTreeEl);
+          markTreeSelection();
+        } catch (e) {
+          fileStatusEl.textContent = 'Backend unreachable. Start server: source .venv/bin/activate && python -m uvicorn backend.main:app --reload --port 8000';
+        }
       }
 
       async function createFolder() {
@@ -2855,16 +3474,20 @@
               const data = await resp.json();
               if (data.ok) {
                 loadWorkspaceFiles();
-                startRename(data.path);
+                startRename(data.path, 'dir');
                 return;
               }
             } catch (e) {
-              fileStatusEl.textContent = 'Failed to reach backend. Is the server running?';
+              fileStatusEl.textContent = 'Backend unreachable. Start server: source .venv/bin/activate && python -m uvicorn backend.main:app --reload --port 8000';
               return;
             }
             idx += 1;
           }
           fileStatusEl.textContent = 'Failed to create a new folder.';
+          return;
+        }
+        if (looksLikeFileName(path)) {
+          fileStatusEl.textContent = 'Folder names cannot look like files (example: folder.py).';
           return;
         }
         fileStatusEl.textContent = 'Creating folder...';
@@ -2877,7 +3500,7 @@
           });
           data = await resp.json();
         } catch (e) {
-          fileStatusEl.textContent = 'Failed to reach backend. Is the server running?';
+          fileStatusEl.textContent = 'Backend unreachable. Start server: source .venv/bin/activate && python -m uvicorn backend.main:app --reload --port 8000';
           return;
         }
         if (!data.ok) {
@@ -2885,7 +3508,7 @@
           return;
         }
         fileStatusEl.textContent = `Folder created: ${data.path}`;
-        startRename(data.path);
+        startRename(data.path, 'dir');
         loadWorkspaceFiles();
       }
 
@@ -2905,12 +3528,12 @@
               const data = await resp.json();
               if (data.ok) {
                 loadWorkspaceFiles();
-                startRename(data.path);
+                startRename(data.path, 'file');
                 await openWorkspaceFile(data.path);
                 return;
               }
             } catch (e) {
-              fileStatusEl.textContent = 'Failed to reach backend. Is the server running?';
+              fileStatusEl.textContent = 'Backend unreachable. Start server: source .venv/bin/activate && python -m uvicorn backend.main:app --reload --port 8000';
               return;
             }
             idx += 1;
@@ -2928,7 +3551,7 @@
           });
           data = await resp.json();
         } catch (e) {
-          fileStatusEl.textContent = 'Failed to reach backend. Is the server running?';
+          fileStatusEl.textContent = 'Backend unreachable. Start server: source .venv/bin/activate && python -m uvicorn backend.main:app --reload --port 8000';
           return;
         }
         if (!data.ok) {
@@ -2936,7 +3559,7 @@
           return;
         }
         fileStatusEl.textContent = `File created: ${data.path}`;
-        startRename(data.path);
+        startRename(data.path, 'file');
         loadWorkspaceFiles();
         await openWorkspaceFile(data.path);
       }
@@ -2951,16 +3574,173 @@
       chatInputEl.addEventListener('drop', async (e) => {
         e.preventDefault();
         chatInputEl.classList.remove('drop-target');
-        const path = e.dataTransfer.getData('text/plain');
-        if (!path) return;
-        const resp = await fetch(`/api/files/file?path=${encodeURIComponent(path)}`);
-        const data = await resp.json();
-        if (!data.ok) {
-          statusEl.textContent = data.error || 'Failed to attach file.';
+        const dt = e.dataTransfer;
+        const indexedSnippet = (dt.getData('text/source-snippet') || '').trim();
+        if (indexedSnippet) {
+          chatInputEl.value += `\n\n${indexedSnippet}\n`;
+          statusEl.textContent = 'Attached indexed source to prompt.';
           return;
         }
-        chatInputEl.value += `\n\n[File: ${data.path}]\n${data.content}\n`;
+        const indexedFile = (dt.getData('text/source-file') || '').trim();
+        if (indexedFile) {
+          try {
+            const resp = await fetch(`/api/files/file?path=${encodeURIComponent(indexedFile)}`);
+            const data = await resp.json();
+            if (data.ok) {
+              chatInputEl.value += `\n\n[File: ${data.path}]\n${data.content}\n`;
+            } else {
+              chatInputEl.value += `\n\n[File: ${indexedFile}]\n`;
+            }
+          } catch {
+            chatInputEl.value += `\n\n[File: ${indexedFile}]\n`;
+          }
+          statusEl.textContent = 'Attached source file to prompt.';
+          return;
+        }
+        const assetType = dt.getData('text/asset-type');
+        const assetPath = dt.getData('text/asset-path');
+        if (assetPath) {
+          chatInputEl.value += `\n\n[Asset: ${assetType || 'image'}]\nPath: ${assetPath}\n`;
+          statusEl.textContent = 'Attached asset reference to prompt.';
+          return;
+        }
+
+        const droppedFiles = Array.from(dt.files || []);
+        if (droppedFiles.length) {
+          for (const file of droppedFiles) {
+            if (file.type && file.type.startsWith('image/')) {
+              let attached = null;
+              try {
+                attached = await uploadImageToCurrentJob(file, 'background');
+              } catch {}
+              if (attached) {
+                chatInputEl.value += `\n\n[Asset: background]\nPath: ${attached}\n`;
+              } else {
+                chatInputEl.value += `\n\n[Image file dropped]\nName: ${file.name}\nType: ${file.type}\n`;
+              }
+              continue;
+            }
+            try {
+              const text = await file.text();
+              chatInputEl.value += `\n\n[File: ${file.name}]\n${text}\n`;
+            } catch {
+              chatInputEl.value += `\n\n[File dropped]\nName: ${file.name}\n`;
+            }
+          }
+          statusEl.textContent = 'Attached dropped files to prompt.';
+          return;
+        }
+
+        const raw = (dt.getData('text/plain') || '').trim();
+        if (!raw) return;
+
+        const droppedPathKind = dt.getData('text/path-kind');
+        const looksLikePath = !!droppedPathKind || /[\/\\]|\.md$|\.txt$|\.py$|\.json$|\.csv$|\.ya?ml$|\.png$|\.jpe?g$|\.gif$|\.webp$/i.test(raw);
+        if (!looksLikePath || raw.includes('\n')) {
+          chatInputEl.value += `\n\n[Snippet]\n${raw}\n`;
+          statusEl.textContent = 'Attached dropped snippet to prompt.';
+          return;
+        }
+        if (droppedPathKind === 'folder') {
+          chatInputEl.value += `\n\n[Folder: ${raw}]\n`;
+          statusEl.textContent = 'Attached folder reference to prompt.';
+          return;
+        }
+
+        try {
+          const resp = await fetch(`/api/files/file?path=${encodeURIComponent(raw)}`);
+          const data = await resp.json();
+          if (data.ok) {
+            chatInputEl.value += `\n\n[File: ${data.path}]\n${data.content}\n`;
+            statusEl.textContent = `Attached ${data.path}`;
+            return;
+          }
+          const kind = droppedPathKind || 'path';
+          chatInputEl.value += `\n\n[${kind === 'folder' ? 'Folder' : 'Path'}: ${raw}]\n`;
+          statusEl.textContent = 'Attached path reference to prompt.';
+        } catch {
+          chatInputEl.value += `\n\n[Path: ${raw}]\n`;
+          statusEl.textContent = 'Backend unreachable. Path attached as reference only.';
+        }
       });
+
+      async function resolveDroppedContent(dt) {
+        const indexedSnippet = (dt.getData('text/source-snippet') || '').trim();
+        if (indexedSnippet) return indexedSnippet;
+        const indexedFile = (dt.getData('text/source-file') || '').trim();
+        if (indexedFile) {
+          try {
+            const resp = await fetch(`/api/files/file?path=${encodeURIComponent(indexedFile)}`);
+            const data = await resp.json();
+            if (data.ok) return `[File: ${data.path}]\n${data.content}`;
+          } catch {}
+          return `[File: ${indexedFile}]`;
+        }
+        const assetType = dt.getData('text/asset-type');
+        const assetPath = dt.getData('text/asset-path');
+        if (assetPath) {
+          return `[Asset: ${assetType || 'image'}]\nPath: ${assetPath}`;
+        }
+
+        const droppedFiles = Array.from(dt.files || []);
+        if (droppedFiles.length) {
+          const parts = [];
+          for (const file of droppedFiles) {
+            if (file.type && file.type.startsWith('image/')) {
+              let rel = null;
+              try { rel = await uploadImageToCurrentJob(file, 'background'); } catch { rel = null; }
+              if (rel) parts.push(`[Asset: background]\nPath: ${rel}`);
+              else parts.push(`[Image]\nName: ${file.name}`);
+              continue;
+            }
+            try {
+              parts.push(`[File: ${file.name}]\n${await file.text()}`);
+            } catch {
+              parts.push(`[File]\nName: ${file.name}`);
+            }
+          }
+          return parts.join('\n\n');
+        }
+
+        const raw = (dt.getData('text/plain') || '').trim();
+        if (!raw) return '';
+        const droppedPathKind = dt.getData('text/path-kind');
+        const looksLikePath = !!droppedPathKind || /[\/\\]|\.md$|\.txt$|\.py$|\.json$|\.csv$|\.ya?ml$/i.test(raw);
+        if (droppedPathKind === 'folder') return `[Folder: ${raw}]`;
+        if (looksLikePath && droppedPathKind !== 'folder') {
+          try {
+            const resp = await fetch(`/api/files/file?path=${encodeURIComponent(raw)}`);
+            const data = await resp.json();
+            if (data.ok) return `[File: ${data.path}]\n${data.content}`;
+          } catch {}
+          return `[Path: ${raw}]`;
+        }
+        return raw;
+      }
+
+      function enableContextDrop(inputEl, label) {
+        if (!inputEl) return;
+        inputEl.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          inputEl.classList.add('context-drop');
+        });
+        inputEl.addEventListener('dragleave', () => inputEl.classList.remove('context-drop'));
+        inputEl.addEventListener('drop', async (e) => {
+          e.preventDefault();
+          inputEl.classList.remove('context-drop');
+          const text = await resolveDroppedContent(e.dataTransfer);
+          if (!text) return;
+          const cur = String(inputEl.value || '').trim();
+          inputEl.value = cur ? `${cur}\n\n${text}` : text;
+          showToast(`Attached to ${label}.`, 'ok');
+          scheduleAutosave();
+        });
+      }
+
+      enableContextDrop(memoryContentEl, 'memory');
+      enableContextDrop(sourceNotesEl, 'docs');
+      enableContextDrop(skillContentEl, 'skill');
+      enableContextDrop(subagentsTextEl, 'subagents');
 
       async function loadTemplates() {
         const resp = await fetch('/api/templates');
@@ -3132,6 +3912,125 @@
         return Array.from(memoryListEl.querySelectorAll('input[type="checkbox"]')).filter(cb => cb.checked).map(cb => cb.dataset.id);
       }
 
+      function normalizeMentionName(value) {
+        return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      }
+
+      function cleanInline(value) {
+        return String(value || '')
+          .replace(/\\n/g, ' ')
+          .replace(/\n/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+      }
+
+      function compactLabel(value, maxLen = 28) {
+        return cleanInline(value).slice(0, maxLen);
+      }
+
+      function makeHandle(value, fallback = 'item') {
+        const clean = cleanInline(value)
+          .replace(/[:|]/g, ' ')
+          .replace(/[^A-Za-z0-9]+/g, '_')
+          .replace(/^_+|_+$/g, '')
+          .replace(/_+/g, '_');
+        const out = clean.slice(0, 16);
+        return out || fallback;
+      }
+
+      function pickTitle(name, content, fallback) {
+        const fromName = compactLabel(name, 52);
+        if (fromName) return fromName;
+        const firstLine = String(content || '').split(/\r?\n/g)[0];
+        const fromContent = compactLabel(firstLine, 52);
+        if (fromContent) return fromContent;
+        return fallback;
+      }
+
+      function parseSubagentLines() {
+        const raw = (subagentsTextEl?.value || '').split('\n');
+        const items = [];
+        raw.forEach((line) => {
+          const txt = String(line || '').trim();
+          if (!txt) return;
+          const idx = txt.indexOf(':');
+          const n = items.length + 1;
+          if (idx > 0) {
+            const name = compactLabel(txt.slice(0, idx).trim(), 42);
+            const content = compactLabel(txt.slice(idx + 1).trim(), 180);
+            items.push({
+              name,
+              content,
+              nick: makeHandle(name || content, `agent_${n}`),
+            });
+          } else {
+            const name = compactLabel(txt, 42);
+            items.push({ name, content: '', nick: makeHandle(name, `agent_${n}`) });
+          }
+        });
+        return items;
+      }
+
+      function renderMentionBar() {
+        if (!mentionBarEl) return;
+        mentionBarEl.innerHTML = '';
+        const chips = [];
+
+        function insertMentionToken(token) {
+          const cur = chatInputEl.value || '';
+          const sep = cur && !/\s$/.test(cur) ? ' ' : '';
+          chatInputEl.value = `${cur}${sep}${token} `;
+          chatInputEl.focus();
+        }
+
+        (skillsCache || []).forEach((s) => {
+          const nick = s._nick || makeHandle(s.name, 'skill');
+          const token = `@${nick}`;
+          chips.push({ token, label: nick, tip: 'Skill', kind: 'skill' });
+        });
+        parseSubagentLines().forEach((a) => {
+          const nick = a.nick || makeHandle(a.name, 'agent');
+          const token = `@${nick}`;
+          chips.push({ token, label: nick, tip: 'Subagent', kind: 'agent' });
+        });
+
+        if (!chips.length) {
+          mentionBarEl.classList.add('hidden');
+          return;
+        }
+        mentionBarEl.classList.remove('hidden');
+        chips.slice(0, 24).forEach((c) => {
+          const btn = document.createElement('button');
+          btn.className = `mention-chip ${c.kind === 'agent' ? 'agent' : ''}`;
+          btn.title = `${c.tip} reference: click to insert ${c.token}`;
+          btn.innerHTML = `<span class="mention-icon">${c.kind === 'agent' ? 'A' : 'S'}</span><span class="mention-text">@${c.label}</span>`;
+          btn.addEventListener('click', () => insertMentionToken(c.token));
+          mentionBarEl.appendChild(btn);
+        });
+      }
+
+      function renderSubagentCards() {
+        if (!subagentCardsEl) return;
+        subagentCardsEl.innerHTML = '';
+        const items = parseSubagentLines();
+        items.forEach((item) => {
+          const card = document.createElement('div');
+          card.className = 'saved-card';
+          const nick = item.nick || makeHandle(item.name, 'agent');
+          card.innerHTML = `<div class="saved-card-title">A • ${compactLabel(item.name, 42)}</div><div class="saved-card-body">@${nick} ${item.content || 'No details yet.'}</div>`;
+          card.title = `Insert @${nick} into prompt`;
+          card.style.cursor = 'pointer';
+          card.addEventListener('click', () => {
+            const cur = chatInputEl.value || '';
+            const sep = cur && !/\s$/.test(cur) ? ' ' : '';
+            chatInputEl.value = `${cur}${sep}@${nick} `;
+            chatInputEl.focus();
+          });
+          subagentCardsEl.appendChild(card);
+        });
+        renderMentionBar();
+      }
+
       async function loadSkills() {
         const resp = await fetch('/api/skills');
         const data = await resp.json();
@@ -3146,13 +4045,52 @@
       }
 
       function renderSkills(skills) {
+        skillsCache = (skills || []).map((skill, idx) => {
+          const rawName = cleanInline(String(skill.name || '').replace(/\\n/g, ' ').replace(/\n/g, ' '));
+          const rawContent = cleanInline(String(skill.content || '').replace(/\\n/g, ' ').replace(/\n/g, ' '));
+          let display = pickTitle(rawName, rawContent, `Skill ${idx + 1}`);
+          if (rawName.startsWith('@')) {
+            const token = rawName.split(/\s+/g)[0].replace(/^@+/, '');
+            if (token) display = token;
+          }
+          display = display.replace(/^@+/, '').replace(/_+/g, '_').trim();
+          if (display.includes(':')) display = compactLabel(display.split(':')[0], 42);
+          if (!display) display = `Skill ${idx + 1}`;
+          const nick = makeHandle(display, `skill_${idx + 1}`);
+          return {
+            ...skill,
+            name: display,
+            content: rawContent,
+            _display: display,
+            _nick: nick,
+          };
+        });
         skillListEl.innerHTML = '';
-        (skills || []).forEach(skill => {
+        if (savedSkillCardsEl) savedSkillCardsEl.innerHTML = '';
+        (skillsCache || []).forEach(skill => {
+          const displayName = skill._display || 'Skill';
           const row = document.createElement('div');
           row.className = 'tree-file';
-          row.innerHTML = `<label><input type="checkbox" data-id="${skill.id}" /> ${skill.name}</label>`;
+          row.innerHTML = `<label><input type="checkbox" data-id="${skill.id}" data-name="${displayName}" /> ${displayName}</label>`;
           skillListEl.appendChild(row);
+
+          if (savedSkillCardsEl) {
+            const card = document.createElement('div');
+            card.className = 'saved-card';
+            const nick = skill._nick || makeHandle(displayName, 'skill');
+            card.innerHTML = `<div class="saved-card-title">S • ${displayName}</div><div class="saved-card-body">@${nick} ${(skill.content || '').replace(/\\n/g, ' ').slice(0, 140)}</div>`;
+            card.title = `Insert @${nick} into prompt`;
+            card.style.cursor = 'pointer';
+            card.addEventListener('click', () => {
+              const cur = chatInputEl.value || '';
+              const sep = cur && !/\s$/.test(cur) ? ' ' : '';
+              chatInputEl.value = `${cur}${sep}@${nick} `;
+              chatInputEl.focus();
+            });
+            savedSkillCardsEl.appendChild(card);
+          }
         });
+        renderMentionBar();
       }
 
       async function seedDefaultSkills() {
@@ -3207,6 +4145,18 @@
         return Array.from(skillListEl.querySelectorAll('input[type="checkbox"]')).filter(cb => cb.checked).map(cb => cb.dataset.id);
       }
 
+      function selectedSkillIdsWithMentions(promptText) {
+        const out = new Set(selectedSkillIds());
+        const tags = Array.from(String(promptText || '').matchAll(/@([A-Za-z0-9_-]+)/g))
+          .map((m) => normalizeMentionName(m[1]));
+        if (!tags.length) return Array.from(out);
+        (skillsCache || []).forEach((s) => {
+          const byName = normalizeMentionName(s._nick || makeHandle(s.name, 'skill'));
+          if (tags.includes(byName) && s.id) out.add(s.id);
+        });
+        return Array.from(out);
+      }
+
       function renderTimelineRuler(totalSeconds) {
         if (!timelineRulerEl) return;
         timelineRulerEl.innerHTML = '';
@@ -3259,7 +4209,7 @@
           block.className = 'timeline-block';
           block.draggable = true;
           block.dataset.index = idx;
-          block.style.flex = String(scene.seconds);
+          block.style.flex = `0 0 ${Math.max(120, Number(scene.seconds || 1) * 14)}px`;
           block.title = [
             `Scene ${idx + 1} • ${start}s–${end}s`,
             (scene.goal || 'Scene'),
@@ -3270,23 +4220,67 @@
 
           const header = document.createElement('div');
           header.className = 'timeline-block-header';
-          header.textContent = `${idx + 1}. ${start}s–${end}s • ${(scene.goal || 'Scene').slice(0, 36)}`;
+          header.textContent = `Scene ${idx + 1} • ${start}s–${end}s`;
 
-          const assetLine = document.createElement('div');
-          assetLine.className = 'muted';
-          const bg = scene.assets?.background ? 'BG' : '';
-          const fg = scene.assets?.foreground ? 'FG' : '';
-          assetLine.textContent = (bg || fg) ? `Assets: ${[bg, fg].filter(Boolean).join(' + ')}` : 'Assets: (drop BG/FG)';
+          const editRow = document.createElement('div');
+          editRow.className = 'timeline-edit-row';
+          const goalInput = document.createElement('input');
+          goalInput.className = 'timeline-edit-input';
+          goalInput.value = scene.goal || '';
+          goalInput.placeholder = 'Scene goal';
+          goalInput.title = 'Inline edit: scene goal';
+          goalInput.addEventListener('mousedown', (e) => e.stopPropagation());
+          goalInput.addEventListener('keydown', (e) => e.stopPropagation());
+          goalInput.addEventListener('input', () => {
+            timelineState[idx].goal = goalInput.value;
+            scheduleAutosave();
+          });
 
-          const input = document.createElement('input');
-          input.type = 'number';
-          input.min = 1;
-          input.value = scene.seconds;
-          input.title = 'Scene seconds';
-          input.addEventListener('change', () => {
-            const val = Math.max(1, Number(input.value || 1));
-            timelineState[idx].seconds = val;
+          const durInput = document.createElement('input');
+          durInput.className = 'timeline-dur-input';
+          durInput.type = 'number';
+          durInput.min = '1';
+          durInput.step = '1';
+          durInput.value = String(Math.max(1, Number(scene.seconds || 1)));
+          durInput.title = 'Scene duration in seconds';
+          durInput.addEventListener('mousedown', (e) => e.stopPropagation());
+          durInput.addEventListener('keydown', (e) => e.stopPropagation());
+          durInput.addEventListener('change', () => {
+            const next = Math.max(1, Math.round(Number(durInput.value || scene.seconds || 1)));
+            timelineState[idx].seconds = next;
             renderTimeline();
+          });
+          editRow.appendChild(goalInput);
+          editRow.appendChild(durInput);
+
+          const badges = document.createElement('div');
+          badges.className = 'timeline-badges';
+          const durBadge = document.createElement('div');
+          durBadge.className = 'timeline-badge';
+          durBadge.textContent = `${scene.seconds}s`;
+          badges.appendChild(durBadge);
+          if (scene.assets?.background) {
+            const bg = document.createElement('div');
+            bg.className = 'timeline-badge';
+            bg.textContent = 'BG';
+            badges.appendChild(bg);
+          }
+          if (scene.assets?.foreground) {
+            const fg = document.createElement('div');
+            fg.className = 'timeline-badge';
+            fg.textContent = 'FG';
+            badges.appendChild(fg);
+          }
+
+          const noteInput = document.createElement('textarea');
+          noteInput.className = 'timeline-edit-note';
+          noteInput.placeholder = 'Inline scene note (drag source/file/snippet here)';
+          noteInput.value = scene.narration || '';
+          noteInput.addEventListener('mousedown', (e) => e.stopPropagation());
+          noteInput.addEventListener('keydown', (e) => e.stopPropagation());
+          noteInput.addEventListener('input', () => {
+            timelineState[idx].narration = noteInput.value;
+            scheduleAutosave();
           });
 
           const handle = document.createElement('div');
@@ -3306,8 +4300,8 @@
               const delta = dx / Math.max(8, pxPerSec);
               const next = Math.max(1, Math.round(startSec + delta));
               timelineState[idx].seconds = next;
-              input.value = String(next);
-              block.style.flex = String(next);
+              block.style.flex = `0 0 ${Math.max(120, next * 14)}px`;
+              durBadge.textContent = `${next}s`;
             }
             function onUp() {
               window.removeEventListener('mousemove', onMove);
@@ -3319,12 +4313,14 @@
           });
 
           block.appendChild(header);
-          block.appendChild(assetLine);
-          block.appendChild(input);
+          block.appendChild(editRow);
+          block.appendChild(badges);
+          block.appendChild(noteInput);
           block.appendChild(handle);
 
           block.addEventListener('dragstart', (e) => {
             block.classList.add('dragging');
+            e.dataTransfer.setData('text/timeline-index', idx.toString());
             e.dataTransfer.setData('text/plain', idx.toString());
           });
           block.addEventListener('dragend', () => {
@@ -3333,12 +4329,12 @@
           block.addEventListener('dragover', (e) => {
             e.preventDefault();
           });
-          block.addEventListener('drop', (e) => {
+          block.addEventListener('drop', async (e) => {
             e.preventDefault();
+            const to = Number(block.dataset.index);
             const assetType = e.dataTransfer.getData('text/asset-type');
             const assetPath = e.dataTransfer.getData('text/asset-path');
             if (assetType && assetPath) {
-              const to = Number(block.dataset.index);
               const sc = timelineState[to];
               sc.assets = sc.assets || {};
               sc.assets[assetType] = assetPath;
@@ -3346,17 +4342,91 @@
               return;
             }
 
-            const from = Number(e.dataTransfer.getData('text/plain'));
-            const to = Number(block.dataset.index);
-            if (Number.isNaN(from) || Number.isNaN(to) || from === to) return;
-            const moved = timelineState.splice(from, 1)[0];
-            timelineState.splice(to, 0, moved);
+            const droppedFiles = Array.from(e.dataTransfer.files || []);
+            if (droppedFiles.length) {
+              const img = droppedFiles.find((f) => (f.type || '').startsWith('image/'));
+              if (!img) {
+                showToast('Drop an image file to attach to a scene.', 'err');
+                return;
+              }
+              const sc = timelineState[to];
+              const role = imageModeEl.value === 'foreground' ? 'foreground' : 'background';
+              let rel = null;
+              try {
+                rel = await uploadImageToCurrentJob(img, role);
+              } catch {
+                rel = null;
+              }
+              if (!rel) return;
+              sc.assets = sc.assets || {};
+              sc.assets[role] = rel;
+              if (role === 'background') {
+                setThumb(bgThumbEl, { url: `/work/jobs/${currentJobId}/${rel}?t=${Date.now()}`, type: 'background', relPath: rel });
+              } else {
+                setThumb(fgThumbEl, { url: `/work/jobs/${currentJobId}/${rel}?t=${Date.now()}`, type: 'foreground', relPath: rel });
+              }
+              renderTimeline();
+              showToast(`Attached ${img.name} to scene ${to + 1}.`, 'ok');
+              return;
+            }
+            const timelineFrom = Number(e.dataTransfer.getData('text/timeline-index'));
+            if (Number.isFinite(timelineFrom) && !Number.isNaN(timelineFrom)) {
+              if (timelineFrom === to) return;
+              const moved = timelineState.splice(timelineFrom, 1)[0];
+              timelineState.splice(to, 0, moved);
+              renderTimeline();
+              return;
+            }
+
+            const sourceTimeline = (e.dataTransfer.getData('text/source-timeline') || '').trim();
+            const sourceSnippet = (e.dataTransfer.getData('text/source-snippet') || '').trim();
+            const raw = sourceTimeline || sourceSnippet || (e.dataTransfer.getData('text/plain') || '').trim();
+            const kind = e.dataTransfer.getData('text/path-kind');
+            if (!raw) return;
+            const sc = timelineState[to];
+            if (!sc) return;
+            let snippet = '';
+            if (kind === 'folder') {
+              snippet = `[Folder ref: ${raw}]`;
+            } else if (kind === 'file') {
+              try {
+                const resp = await fetch(`/api/files/file?path=${encodeURIComponent(raw)}`);
+                const data = await resp.json();
+                snippet = data.ok ? `[File ref: ${raw}]\n${String(data.content || '').slice(0, 600)}` : `[File ref: ${raw}]`;
+              } catch {
+                snippet = `[File ref: ${raw}]`;
+              }
+            } else {
+              snippet = raw.slice(0, 600);
+            }
+            sc.narration = [sc.narration || '', snippet].filter(Boolean).join('\n');
             renderTimeline();
+            showToast(`Added note to scene ${to + 1}.`, 'ok');
           });
 
           timelineTrackEl.appendChild(block);
         });
+        highlightTimelineAt(videoEl.currentTime || 0);
         scheduleAutosave();
+      }
+
+      function activeSceneIndexAt(second) {
+        const t = Number(second || 0);
+        let cursor = 0;
+        for (let i = 0; i < timelineState.length; i++) {
+          const dur = Math.max(1, Number(timelineState[i]?.seconds || 1));
+          if (t >= cursor && t < cursor + dur) return i;
+          cursor += dur;
+        }
+        return -1;
+      }
+
+      function highlightTimelineAt(second) {
+        const activeIdx = activeSceneIndexAt(second);
+        const blocks = Array.from(timelineTrackEl.querySelectorAll('.timeline-block'));
+        blocks.forEach((b, idx) => {
+          b.classList.toggle('active', idx === activeIdx);
+        });
       }
 
       function syncPlanFromTimeline() {
@@ -3388,7 +4458,23 @@
 
         const sources = getSources();
         if (sources.length) {
-          const block = sources.map((s, i) => `Source ${i + 1}: ${s.url || '(no url)'}\n${s.notes || ''}`.trim()).join('\n\n');
+          const block = sources.map((raw, i) => {
+            const s = normalizeSourceRecord(raw);
+            const lines = [];
+            lines.push(`Source ${i + 1}: ${s.title || s.url || 'source'}`);
+            if (s.kind === 'youtube' && s.video_id) lines.push(`Type: youtube (${s.video_id})`);
+            else lines.push(`Type: ${s.kind || 'web'}`);
+            if (s.url) lines.push(`URL: ${s.url}`);
+            if (s.summary) lines.push(`Summary: ${s.summary}`);
+            if (Array.isArray(s.key_points) && s.key_points.length) {
+              lines.push('Key points:');
+              s.key_points.slice(0, 8).forEach((p) => lines.push(`- ${p}`));
+            }
+            if (s.prompt_hint) lines.push(`Prompt hint: ${s.prompt_hint}`);
+            if (s.file_path) lines.push(`Workspace summary file: ${s.file_path}`);
+            if (!s.summary && s.notes) lines.push(`Notes: ${s.notes.slice(0, 800)}`);
+            return lines.join('\n');
+          }).join('\n\n');
           pieces.push(`References:\n${block}`);
         }
         return pieces.join('\n\n') || null;
@@ -3441,7 +4527,7 @@
         if (await runSlashCommand(idea)) return;
 
         addChat('user', 'You', idea);
-        setBusy(true, 'Planning…');
+        setBusy(true, 'Planning…', 'Planning');
         await new Promise(requestAnimationFrame);
 
         let data = null;
@@ -3467,7 +4553,7 @@
               include_images: includeImagesEl.value === 'true',
               image_prompt: imagePromptEl.value || null,
               memory_ids: selectedMemoryIds(),
-              skill_ids: selectedSkillIds(),
+              skill_ids: selectedSkillIdsWithMentions(idea),
               model: chatModelEl.value || null
             })
           });
@@ -3487,19 +4573,15 @@
           return;
         }
         currentJobId = data.job_id;
+        persistedSceneSignature = '';
         didAnimateCode = false;
         currentPlanText = data.plan_text;
         jobIdEl.textContent = currentJobId;
+        updateOutputPaths();
         updateJobFiles(data.job_files);
         if (genImagesBtn) genImagesBtn.disabled = false;
         updateBackEnabled();
         scheduleAutosave();
-
-        if (pendingImagesAfterPlan) {
-          pendingImagesAfterPlan = false;
-          // Fire-and-forget: if generation fails, UI will show the error toast/logs.
-          try { await generateImages(); } catch {}
-        }
 
         const planBox = document.createElement('textarea');
         planBox.style.width = '100%';
@@ -3543,10 +4625,100 @@
       async function approvePlan(planText) {
         if (!currentJobId) return;
         didAnimateCode = false;
-        setBusy(true, 'Generating video…');
+        let lastPushedCode = '';
+        let shownCodeToast = false;
+        let finished = false;
+
+        function pushCode(code, opts) {
+          const text = String(code || '');
+          if (!text.trim()) return;
+          if (text === lastPushedCode) return;
+          lastPushedCode = text;
+          didAnimateCode = true;
+          setActiveTab('code');
+          animateCodeIntoEditor(text, opts);
+          persistGeneratedSceneFile(text, true);
+          statusEl.textContent = `Coding… saved to notes/generated/${currentJobId}/scene.py`;
+          if (!shownCodeToast) {
+            shownCodeToast = true;
+            showToast('Code generated.', 'ok');
+          }
+        }
+
+        async function applyFinalState(st, errText) {
+          if (!st || !st.ok) {
+            showToast(st?.error || 'Failed to load job results.', 'err');
+            setStep('render', 'error');
+            return;
+          }
+          if (st.status === 'failed') {
+            const hasCode = !!(st.code && String(st.code).trim());
+            if (hasCode && st.code) pushCode(st.code, { immediate: true });
+            if (hasCode) setStep('code', 'done');
+            else setStep('code', 'error');
+            setStep('render', 'error');
+            const tail = (st.logs_tail || errText || 'Render failed.');
+            if (/no module named manim/i.test(tail) || /manim/i.test(tail) && /not found|no such file|missing/i.test(tail)) {
+              openSettingsTab('render');
+              try { await runHealth(); } catch {}
+            }
+            const retryBtn = document.createElement('button');
+            retryBtn.textContent = 'Retry Render';
+            retryBtn.className = 'secondary';
+            retryBtn.addEventListener('click', () => approvePlan(lastPlanBox ? lastPlanBox.value : planText));
+            const wrap = document.createElement('div');
+            wrap.appendChild(retryBtn);
+            addChat('agent', 'Render failed', `<pre style="white-space:pre-wrap; margin:0;">${(st.logs_tail || errText || 'Render failed.').slice(0, 6000)}</pre><div class="muted" style="margin-top:6px;">Tip: Settings → Health to verify Manim/ffmpeg.</div>`, wrap);
+            showToast('Render failed.', 'err');
+            return;
+          }
+
+          setStep('code', 'done');
+          setStep('render', 'done');
+          if (st.video_path) {
+            const src = '/' + st.video_path + '?t=' + Date.now();
+            lastVideoUrl = src;
+            videoEl.src = src;
+            videoEl.load();
+            setVideoAvailable(true);
+          }
+          lastCaptionsUrl = '';
+          if (st.captions_path) {
+            lastCaptionsUrl = '/' + st.captions_path + '?t=' + Date.now();
+            setVideoAvailable(true);
+          }
+          if (st.code) {
+            pushCode(st.code, { immediate: true });
+            updateEditorMode();
+          }
+          if (st.plan && st.plan.scenes) {
+            timelineMeta.title = st.plan.title || 'Scene Plan';
+            timelineState = st.plan.scenes.map(sc => ({
+              seconds: sc.seconds || 3,
+              goal: sc.goal,
+              elements: sc.elements,
+              actions: sc.actions,
+              narration: sc.narration,
+              assets: sc.assets || {}
+            }));
+            renderTimeline();
+          }
+          if (st.job_files) updateJobFiles(st.job_files);
+          if (st.logs_tail) logsEl.textContent = st.logs_tail;
+          addChat('agent', 'Render complete', st.video_path ? `<a href="/${st.video_path}" target="_blank">Open video</a>` : 'Done.');
+          showToast('Render complete.', 'ok');
+          updateBackEnabled();
+        }
+
+        codeEl.value = '# Generating Manim scene...\n';
+        refreshGutter();
+        if (highlightOn) refreshHighlight();
+
+        setBusy(true, 'Generating video…', 'Rendering');
         setStep('approve', 'done');
         setStep('code', 'active');
         setStep('render', 'active');
+        setActiveTab('code');
         await new Promise(requestAnimationFrame);
 
         try {
@@ -3585,8 +4757,37 @@
         // Stream logs + state live via SSE until the job completes.
         try { if (jobEventSource) jobEventSource.close(); } catch {}
         logsEl.textContent = '';
+        let pollTimer = null;
+        const stopPoll = () => {
+          if (pollTimer) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+          }
+        };
         const es = new EventSource(`/api/jobs/${encodeURIComponent(currentJobId)}/events`);
         jobEventSource = es;
+        pollTimer = setInterval(async () => {
+          if (!currentJobId || finished) return;
+          try {
+            const stResp = await fetch(`/api/jobs/${encodeURIComponent(currentJobId)}`);
+            const st = await stResp.json();
+            if (!st.ok) return;
+            if (st.code) pushCode(st.code);
+            if (st.job_files) updateJobFiles(st.job_files);
+            if (st.status === 'done' || st.status === 'failed') {
+              finished = true;
+              stopPoll();
+              try { es.close(); } catch {}
+              jobEventSource = null;
+              setBusy(false);
+              await applyFinalState(st, st.error || '');
+            }
+          } catch {}
+        }, 450);
+        es.onerror = () => {
+          // Keep polling fallback alive even if SSE drops.
+          if (!finished) statusEl.textContent = 'Live stream dropped, using polling fallback…';
+        };
         es.addEventListener('log', (e) => {
           try {
             const data = JSON.parse(e.data);
@@ -3599,12 +4800,7 @@
         es.addEventListener('code', (e) => {
           try {
             const data = JSON.parse(e.data);
-            if (data.code && !openFilePath) {
-              didAnimateCode = true;
-              animateCodeIntoEditor(data.code);
-              // Optional: bring user attention to Code tab without forcing a tab switch.
-              showToast('Code generated.', 'ok');
-            }
+            if (data.code) pushCode(data.code);
           } catch {}
         });
         es.addEventListener('state', async (e) => {
@@ -3622,87 +4818,33 @@
             setStep('code', 'done');
             setStep('render', 'active');
             if (!didAnimateCode) {
-              didAnimateCode = true;
               try {
                 const stResp = await fetch(`/api/jobs/${encodeURIComponent(currentJobId)}`);
                 const st = await stResp.json();
-                if (st.ok && st.code && !openFilePath) {
-                  // "IDE feel": show code appearing as soon as it exists.
-                  animateCodeIntoEditor(st.code);
-                }
+                if (st.ok && st.code) pushCode(st.code);
+                if (st.ok && st.job_files) updateJobFiles(st.job_files);
               } catch {}
             }
           }
           if (status === 'repairing') { setStep('render', 'active'); }
 
           if (status === 'done' || status === 'failed') {
+            if (finished) return;
+            finished = true;
+            stopPoll();
             try { es.close(); } catch {}
             jobEventSource = null;
             setBusy(false);
-            const stResp = await fetch(`/api/jobs/${encodeURIComponent(currentJobId)}`);
-            const st = await stResp.json();
-            if (!st.ok) {
-              showToast(st.error || 'Failed to load job results.', 'err');
-              return;
-            }
-            if (st.status === 'failed') {
-              // If we at least generated code, don't mark the code step as failed.
-              const hasCode = !!(st.code && String(st.code).trim());
-              if (hasCode) setStep('code', 'done');
-              else setStep('code', 'error');
+            let st = null;
+            try {
+              const stResp = await fetch(`/api/jobs/${encodeURIComponent(currentJobId)}`);
+              st = await stResp.json();
+            } catch {
+              showToast('Failed to load final job state.', 'err');
               setStep('render', 'error');
-              const tail = (st.logs_tail || err || 'Render failed.');
-              if (/no module named manim/i.test(tail) || /manim/i.test(tail) && /not found|no such file|missing/i.test(tail)) {
-                openSettingsTab('render');
-                try { await runHealth(); } catch {}
-              }
-              const retryBtn = document.createElement('button');
-              retryBtn.textContent = 'Retry Render';
-              retryBtn.className = 'secondary';
-              retryBtn.addEventListener('click', () => approvePlan(lastPlanBox ? lastPlanBox.value : planText));
-              const wrap = document.createElement('div');
-              wrap.appendChild(retryBtn);
-              addChat('agent', 'Render failed', `<pre style="white-space:pre-wrap; margin:0;">${(st.logs_tail || err || 'Render failed.').slice(0, 6000)}</pre><div class="muted" style="margin-top:6px;">Tip: Settings → Health to verify Manim/ffmpeg.</div>`, wrap);
-              showToast('Render failed.', 'err');
               return;
             }
-
-            setStep('code', 'done');
-            setStep('render', 'done');
-            if (st.video_path) {
-              const src = '/' + st.video_path + '?t=' + Date.now();
-              lastVideoUrl = src;
-              videoEl.src = src;
-              videoEl.load();
-              setVideoAvailable(true);
-            }
-            lastCaptionsUrl = '';
-            if (st.captions_path) {
-              lastCaptionsUrl = '/' + st.captions_path + '?t=' + Date.now();
-              setVideoAvailable(true);
-            }
-            if (st.code) {
-              if (!openFilePath) animateCodeIntoEditor(st.code, { immediate: true });
-              openFilePath = null;
-              updateEditorMode();
-            }
-            if (st.plan && st.plan.scenes) {
-              timelineMeta.title = st.plan.title || 'Scene Plan';
-              timelineState = st.plan.scenes.map(sc => ({
-                seconds: sc.seconds || 3,
-                goal: sc.goal,
-                elements: sc.elements,
-                actions: sc.actions,
-                narration: sc.narration,
-                assets: sc.assets || {}
-              }));
-              renderTimeline();
-            }
-            if (st.job_files) updateJobFiles(st.job_files);
-            if (st.logs_tail) logsEl.textContent = st.logs_tail;
-            addChat('agent', 'Render complete', st.video_path ? `<a href="/${st.video_path}" target="_blank">Open video</a>` : 'Done.');
-            showToast('Render complete.', 'ok');
-            updateBackEnabled();
+            await applyFinalState(st, err);
           }
         });
       }
@@ -3730,7 +4872,6 @@
         videoEl.src = src;
         videoEl.load();
         setVideoAvailable(true);
-        openFilePath = null;
         updateEditorMode();
         updateJobFiles(data.job_files);
         logsEl.textContent = data.logs || 'Render complete.';
@@ -3804,6 +4945,10 @@
       safeOn(addMemoryBtn, 'click', addMemory);
       safeOn(saveSkillBtn, 'click', saveSkill);
       safeOn(generateSkillBtn, 'click', generateSkill);
+      safeOn(subagentsTextEl, 'input', () => {
+        renderSubagentCards();
+        scheduleAutosave();
+      });
       safeOn(aspectEl, 'change', () => setPreviewAspect(aspectEl.value));
       safeOn(applyRenameBtn, 'click', renamePending);
       safeOn(genImagesBtn, 'click', generateImages);
@@ -3817,6 +4962,14 @@
       });
 
       safeOn(saveFileBtn, 'click', saveWorkspaceFile);
+      safeOn(undoCodeBtn, 'click', () => {
+        codeEl.focus();
+        try { document.execCommand('undo'); } catch {}
+      });
+      safeOn(redoCodeBtn, 'click', () => {
+        codeEl.focus();
+        try { document.execCommand('redo'); } catch {}
+      });
       window.addEventListener('keydown', (e) => {
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
           if (openFilePath) {
@@ -3826,15 +4979,91 @@
         }
       });
 
+      safeOn(indexSourceBtn, 'click', async () => {
+        const url = sourceUrlEl.value.trim();
+        const notes = sourceNotesEl.value.trim();
+        const sourceType = (sourceTypeEl?.value || 'auto').trim();
+        if (!url) {
+          sourceStatusEl.textContent = 'Enter a source URL first.';
+          showToast('Enter a source URL first.', 'err');
+          return;
+        }
+        sourceStatusEl.textContent = 'Indexing source with Gemini...';
+        indexSourceBtn.disabled = true;
+        try {
+          const resp = await fetch('/api/docs/index', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              url,
+              notes,
+              source_type: sourceType,
+              model: chatModelEl?.value || null,
+            }),
+          });
+          const data = await resp.json();
+          if (!data.ok || !data.indexed) {
+            sourceStatusEl.textContent = data.error || 'Indexing failed.';
+            showToast(data.error || 'Indexing failed.', 'err');
+            return;
+          }
+          const indexed = normalizeSourceRecord({
+            ...data.indexed,
+            notes,
+            source_type: sourceType,
+            saved_at: new Date().toISOString(),
+          });
+          const savedPath = await persistSourceSummaryFile(data.indexed);
+          if (savedPath) indexed.file_path = savedPath;
+          upsertSource(indexed);
+          renderSources();
+          if (savedPath) {
+            sourceStatusEl.textContent = `Indexed ${indexed.kind} source. Summary saved: ${savedPath}`;
+          } else {
+            sourceStatusEl.textContent = `Indexed ${indexed.kind} source.`;
+          }
+          if (data.warning) {
+            showToast(data.warning, 'err');
+          } else {
+            showToast('Source indexed.', 'ok');
+          }
+          sourceUrlEl.value = '';
+          sourceNotesEl.value = '';
+          scheduleAutosave();
+        } catch {
+          sourceStatusEl.textContent = 'Failed to reach backend. Is the server running?';
+          showToast('Failed to reach backend.', 'err');
+        } finally {
+          indexSourceBtn.disabled = false;
+        }
+      });
+
       safeOn(saveSourceBtn, 'click', () => {
         const url = sourceUrlEl.value.trim();
         const notes = sourceNotesEl.value.trim();
-        const sources = getSources();
-        sources.unshift({ url, notes, saved_at: new Date().toISOString() });
-        setSources(sources.slice(0, 10));
+        if (!url && !notes) {
+          sourceStatusEl.textContent = 'Enter a URL or notes before saving.';
+          return;
+        }
+        const manual = normalizeSourceRecord({
+          id: `src-manual-${Date.now()}`,
+          url,
+          notes,
+          source_type: sourceTypeEl?.value || 'auto',
+          kind: sourceTypeEl?.value === 'youtube' ? 'youtube' : 'web',
+          title: url ? `Manual source: ${compactLabel(url, 48)}` : 'Manual notes source',
+          summary: cleanInline(notes).slice(0, 320),
+          key_points: [],
+          prompt_hint: '',
+          saved_at: new Date().toISOString(),
+        });
+        upsertSource(manual);
         renderSources();
         sourceUrlEl.value = '';
         sourceNotesEl.value = '';
+        sourceStatusEl.textContent = 'Saved source without indexing.';
+        showToast('Saved source.', 'ok');
+        scheduleAutosave();
       });
 
       safeOn(openInstallGuideBtn, 'click', () => {
@@ -3910,6 +5139,8 @@
 
         if (termCmdEl && !termCmdEl.value.trim()) termCmdEl.value = 'help';
         setPreviewAspect(aspectEl.value);
+        renderSubagentCards();
+        renderMentionBar();
       }
 
       // Boot
@@ -3925,8 +5156,11 @@
       applyLayoutColumns();
       const didRestore = restoreProject();
       if (!didRestore) seedDemoDefaults();
+      renderSubagentCards();
+      renderMentionBar();
       setContextTab('memory');
       setVideoAvailable(false);
+      updateOutputPaths();
       updateTopbarToggles();
       updateStepProgress();
     </script>

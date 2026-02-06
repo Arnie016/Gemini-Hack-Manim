@@ -1,210 +1,172 @@
-# Gemini → Manim Animator (Hackathon MVP)
+# NorthStar
 
-Generate a short Manim animation from a text prompt. Gemini is central: it plans scenes, generates Manim code, and optionally repairs render failures.
+NorthStar is an AI-native visual storytelling studio for science explainers.
 
-## Quick Start
+Turn a prompt into a rendered Manim video through an agentic workflow:
+`Plan -> Approve -> Code -> Render`.
 
-1. Install Python deps:
+Project start date: **February 3, 2026**.
+
+## What This App Does
+
+- Generates scene plans with Gemini in structured JSON.
+- Converts approved plans into Manim Python (`GeneratedScene`) code.
+- Renders MP4 videos with Manim locally.
+- Supports one-pass repair if render fails.
+- Generates optional background/foreground images (Nano Banana model path).
+- Lets users drag and drop assets, files, snippets, and indexed source context into prompts or timeline scenes.
+- Provides editable timeline scenes and editable code pane (with save + re-render).
+
+## Why Gemini Is Central
+
+Gemini is not just used for text generation. It drives:
+
+1. Scene reasoning and pacing in structured plan output.
+2. Code synthesis from approved plan + constraints.
+3. Repair loop using runtime logs.
+4. Skill generation and source indexing summaries (including YouTube/web links).
+
+## Major Upgrades Implemented
+
+### 1) Agentic IDE-Style Workflow
+- Three-panel interface: Explorer, Canvas, Chat.
+- Plan/Approve/Code/Render stages with progress states.
+- Real-time render state polling + event streaming.
+
+### 2) Stronger Workspace System
+- File/folder create, rename, delete.
+- Double-click rename support.
+- Tree selection highlighting.
+- Generated scene code is persisted per job.
+
+### 3) Timeline + Scene Authoring
+- Scene blocks with durations and drag-reorder.
+- Inline editing for scene goal, notes, and seconds.
+- Drag/drop assets and context directly into scenes.
+
+### 4) Context, Skills, and Sources
+- Memory blocks for reusable facts.
+- Skills library + @mention chips.
+- Docs indexer (`/api/docs/index`) for web/YouTube links.
+- Indexed summaries can be dropped into prompt/timeline.
+
+### 5) Rendering and Reliability
+- Health checks for Manim/ffmpeg/Python path.
+- Better prompt guards for common Manim mistakes.
+- Repair route for failed renders.
+- Project autosave and layout persistence.
+
+## Architecture
+
+- `backend/main.py`: FastAPI API routes and orchestration.
+- `backend/gemini_http.py`: raw Gemini REST calls (`generateContent`).
+- `backend/prompts.py`: plan/code/repair prompt contracts.
+- `backend/file_store.py`: workspace file system operations.
+- `backend/renderer.py`: Manim render invocation.
+- `web/index.html`: full IDE-like frontend.
+- `work/jobs/<job_id>/`: per-job outputs.
+
+## Output Paths
+
+Each run writes artifacts under:
+
+`work/jobs/<job_id>/`
+
+Common files:
+- `plan.json`
+- `scene.py`
+- `out.mp4`
+- `logs.txt`
+- `state.json`
+- `events.log`
+- `assets/` (if images are generated/uploaded)
+
+User workspace files are under:
+- `work/user_files/...`
+
+Generated scene code snapshots are also saved under:
+- `notes/generated/<job_id>/scene.py`
+
+## Local Setup (macOS)
 
 ```bash
-pip install -r requirements.txt
+cd "/Users/hema/Desktop/Gemini-Hack-Manim"
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -U pip
+python -m pip install -r requirements.txt
+python -m pip install manim
+brew install ffmpeg
 ```
 
-2. Set env vars:
+Set API key:
 
 ```bash
-export GEMINI_API_KEY="..."
-export GEMINI_MODEL="gemini-3-flash-preview"  # optional
-# export GEMINI_IMAGE_MODEL="gemini-2.5-flash-image"  # optional
-# export GEMINI_IMAGE_ASPECT="9:16"                   # optional
-# export MANIM_PY="/path/to/python"            # optional
+export GEMINI_API_KEY="YOUR_KEY"
 ```
 
-You can also save these settings from the UI (stored locally in `work/config.json`).
-
-3. Run the server:
+Run app:
 
 ```bash
-uvicorn backend.main:app --reload --port 8000
+python -m uvicorn backend.main:app --reload --port 8000
 ```
 
-4. Open:
+Open:
+- http://127.0.0.1:8000
 
-```
-http://localhost:8000
-```
+## Quick Health Checks
 
-The UI includes a three-panel layout (files, canvas, chat), setup, templates, advanced controls, and an editor-style workflow.
-
-## API
-
-`POST /api/animate`
-
-Request:
-```json
-{
-  "idea": "Explain gradient descent visually in 20 seconds",
-  "image_prompt": "Scientist walking in a park at sunrise",
-  "image_mode": "background",
-  "include_images": true,
-  "audience": "general",
-  "tone": "epic",
-  "style": "cinematic",
-  "pace": "medium",
-  "color_palette": "cool",
-  "include_equations": true,
-  "include_graphs": true,
-  "include_narration": true,
-  "target_seconds": 60,
-  "max_scenes": 8,
-  "max_objects": 6,
-  "aspect_ratio": "9:16",
-  "quality": "pql",
-  "director_brief": "Focus on intuition, show a visual metaphor, end with a recap."
-}
+```bash
+source .venv/bin/activate
+python -m manim --version
+ffmpeg -version
 ```
 
-Response (success):
-```json
-{
-  "ok": true,
-  "job_id": "20240203-abcdef",
-  "video_path": "work/jobs/20240203-abcdef/out.mp4",
-  "plan": { ... }
-}
-```
+## API Surface (Core)
 
-Response (failure):
-```json
-{
-  "ok": false,
-  "job_id": "20240203-abcdef",
-  "error": "Render failed",
-  "logs": "..."
-}
-```
+- `GET /api/templates`
+- `POST /api/plan`
+- `POST /api/approve`
+- `GET /api/jobs/{job_id}`
+- `GET /api/jobs/{job_id}/events`
+- `POST /api/render-code`
+- `POST /api/images/generate`
+- `POST /api/jobs/upload-asset`
+- `POST /api/docs/index`
+- `GET/POST/DELETE /api/memories`
+- `GET/POST/DELETE /api/skills`
+- `POST /api/skills/generate`
+- `GET/POST /api/settings`
+- `GET /api/health`
+- `GET/POST/PUT/DELETE /api/files...`
 
-## Output Files
+## Demo Flow (3 Minutes)
 
-Each request writes to:
-```
-work/jobs/<job_id>/
-  scene.py
-  plan.json
-  out.mp4
-  logs.txt
-  assets/
-    background.png
-    foreground.png
-```
+1. Enter prompt in chat.
+2. Click **Create plan**.
+3. Optionally click **Generate images** and drag into timeline scenes.
+4. Edit plan/timeline/code if needed.
+5. Click **Approve & Render**.
+6. Show output MP4 and downloadable artifacts.
 
-## Local Manim Dependencies
+## Hackathon Positioning
 
-Manim Community Edition must be installed locally, along with its system deps. On macOS this typically includes:
-- Cairo
-- ffmpeg
-- (optional) LaTeX if you use MathTex
+This project is aimed at:
+- Educational storytelling at social-video speed.
+- Human-in-the-loop creative control.
+- Transparent AI pipeline (plan + code + render artifacts).
 
-If Manim is installed in a different Python, set `MANIM_PY` to that interpreter.
+## Product Name
+
+This project is now named **NorthStar**.
+
+## Credits
+
+- **3Blue1Brown (Grant Sanderson)**: original creator of Manim and the foundational visual style that inspired this work.
+- **Manim Community**: ongoing open-source development and maintenance of Manim Community Edition used by this app.
 
 ## Notes
 
-- The plan uses JSON output mode from Gemini to keep structure tight.
-- One repair attempt is made if rendering fails.
-- Total duration is not capped; use target_seconds if you want a specific length.
-- Image generation is optional and uses the Gemini image model when enabled.
-
-## Advanced Creative Controls
-
-You can customize the output by passing these fields in the request:
-- `audience`: general | high school | undergrad | expert
-- `tone`: epic | calm | playful | serious
-- `style`: cinematic | clean | chalkboard | neon
-- `pace`: slow | medium | fast
-- `color_palette`: cool | warm | neon | monochrome
-- `include_equations`: true/false
-- `include_graphs`: true/false
-- `include_narration`: true/false
-- `target_seconds`: number (optional; no hard cap)
-- `max_scenes`: number
-- `max_objects`: number
-- `aspect_ratio`: 9:16 | 16:9 | 1:1
-- `quality`: pql | pqm | pqh
-- `director_brief`: extra creative guidance appended to the director brief
-- `memory_ids`: array of memory ids to include as context
-- `skill_ids`: array of skill ids to include as instructions
-- `image_model`: override the image model for this request
-
-## Template Library
-
-Fetch curated templates:
-```
-GET /api/templates
-```
-The UI loads these templates and auto-fills the controls.
-
-## Plan → Approve Workflow (Agentic)
-
-Create a plan first:
-```
-POST /api/plan
-{ "idea": "Explain the photoelectric effect", "model": "gemini-3-flash-preview" }
-```
-
-Approve (or edit) the plan to render:
-```
-POST /api/approve
-{
-  "job_id": "...",
-  "plan_text": "{...}",
-  "include_images": true,
-  "image_prompt": "Scientist in a park",
-  "image_mode": "background"
-}
-```
-
-## Render Edited Code
-
-You can edit the generated code and re-render:
-
-```
-POST /api/render-code
-{ "code": "...", "quality": "pqm" }
-```
-## Context Memories
-
-Create and list memories:
-```
-GET /api/memories
-POST /api/memories { "title": "...", "content": "..." }
-DELETE /api/memories/{id}
-```
-
-## Skill Library
-
-Create and list skills (saved as Markdown under `work/skills/`):
-```
-GET /api/skills
-POST /api/skills { "name": "...", "content": "..." }
-DELETE /api/skills/{id}
-```
-
-Generate a skill via Gemini:
-```
-POST /api/skills/generate { "idea": "...", "name": "..." }
-```
-
-## Health Checks
-
-```
-GET /api/health
-```
-Returns Manim/ffmpeg status and version output.
-
-## UI Features
-
-- Setup panel (API key, image model, Manim python path)
-- Template library with presets
-- Editor mode (timeline + inspector)
-- Editable code panel with re-render
-- Context memories and skills
+- This app expects a running Python backend for file operations, rendering, and indexing.
+- If UI actions show “Failed to reach backend”, ensure Uvicorn is running at the same host/port you opened.
+- Browser extension console errors are usually external and not from this app.
