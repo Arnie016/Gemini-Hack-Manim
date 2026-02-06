@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import subprocess
 import time
+import shutil
 from pathlib import Path
 from typing import Optional
 
@@ -40,8 +41,10 @@ def render_with_manim_stream(
         str(scene_file),
         "GeneratedScene",
         quality_flag,
+        "--media_dir",
+        str(out_mp4.parent),
         "-o",
-        str(out_mp4),
+        out_mp4.name,
     ]
 
     start = time.time()
@@ -79,5 +82,17 @@ def render_with_manim_stream(
             except Exception:
                 pass
 
-    return proc.returncode == 0 and out_mp4.exists()
-
+    if proc.returncode != 0:
+        return False
+    if out_mp4.exists():
+        return True
+    # Manim may place the final movie under media_dir/videos/... even when -o is provided.
+    candidates = sorted(
+        out_mp4.parent.glob(f"videos/**/{out_mp4.name}"),
+        key=lambda p: p.stat().st_mtime if p.exists() else 0.0,
+        reverse=True,
+    )
+    if candidates:
+        out_mp4.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(candidates[0], out_mp4)
+    return out_mp4.exists()

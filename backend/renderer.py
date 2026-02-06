@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import shutil
 from pathlib import Path
 from typing import Tuple
 
@@ -35,8 +36,10 @@ def render_with_manim(
         str(scene_file),
         "GeneratedScene",
         quality_flag,
+        "--media_dir",
+        str(out_mp4.parent),
         "-o",
-        str(out_mp4),
+        out_mp4.name,
     ]
 
     try:
@@ -54,5 +57,14 @@ def render_with_manim(
         return False, logs + "\nRender timed out"
 
     logs = (proc.stdout or "") + "\n" + (proc.stderr or "")
+    if proc.returncode == 0 and not out_mp4.exists():
+        candidates = sorted(
+            out_mp4.parent.glob(f"videos/**/{out_mp4.name}"),
+            key=lambda p: p.stat().st_mtime if p.exists() else 0.0,
+            reverse=True,
+        )
+        if candidates:
+            out_mp4.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(candidates[0], out_mp4)
     ok = proc.returncode == 0 and out_mp4.exists()
     return ok, logs
