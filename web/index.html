@@ -2338,7 +2338,7 @@
             showToast(`Skipped ${f.name}: file too large for inline attach.`, 'err');
             continue;
           }
-          const isText = /^text\\//.test(f.type) || /\\.(md|txt|py|json|yaml|yml|csv)$/i.test(f.name);
+          const isText = /^text\//.test(f.type) || /\.(md|txt|py|json|yaml|yml|csv)$/i.test(f.name);
           if (!isText) {
             showToast(`Skipped ${f.name}: only text files are supported right now.`, 'err');
             continue;
@@ -2351,7 +2351,7 @@
           if (!saved) {
             // If name collides, try suffixes.
             for (let i = 2; i < 20 && !saved; i++) {
-              const cand = `notes/uploads/${f.name.replace(/(\\.[^.]*)?$/, `-${i}$1`)}`;
+              const cand = `notes/uploads/${f.name.replace(/(\.[^.]*)?$/, `-${i}$1`)}`;
               saved = await tryWriteWorkspaceFile(cand, text);
             }
           }
