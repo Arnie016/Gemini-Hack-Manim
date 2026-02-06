@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Gemini Manim Animator</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230b1220'/%3E%3Cpath d='M14 42V22h6v20h-6zm10 0V22h6v8l10-8h8L36 31l13 11h-8l-11-9v9h-6z' fill='%236aa9ff'/%3E%3C/svg%3E" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css">
     <style>
       @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
@@ -233,10 +234,46 @@
       .tree details { padding-left: 12px; }
       .tree .tree-file {
         color: #cbd5f5;
-        padding-left: 12px;
+        padding-left: 0;
         cursor: grab;
       }
       .tree .tree-file:hover { color: var(--accent); }
+      .tree-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 8px;
+        padding-left: 12px;
+      }
+      .tree-row-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .tree-row-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .tree-act {
+        width: auto;
+        min-width: 24px;
+        padding: 2px 6px;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.12);
+        background: rgba(15, 20, 29, 0.9);
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1;
+      }
+      .tree-act:hover {
+        color: var(--text);
+        border-color: rgba(106,169,255,0.55);
+      }
+      .tree-act.danger:hover {
+        border-color: rgba(239,68,68,0.55);
+        color: #fca5a5;
+      }
 
       .section-title {
         margin-top: 12px;
@@ -284,7 +321,7 @@
         display: grid;
         grid-template-columns: 1fr;
         /* Make the video the "center of gravity": ~3/4 of the pane. */
-        grid-template-rows: minmax(0, 6fr) minmax(0, 1.6fr) minmax(0, 2.4fr);
+        grid-template-rows: minmax(0, 6.5fr) minmax(0, 2.1fr) minmax(0, 2.2fr);
         gap: 12px;
         height: 100%;
         min-height: 0;
@@ -298,6 +335,7 @@
       }
       .card.scroll { overflow: auto; }
       .timeline-card { grid-column: 1 / -1; }
+      .timeline-card { overflow: auto; }
       .preview-card { display: flex; flex-direction: column; min-height: 0; }
       .controls-card { grid-column: 1 / -1; grid-row: 3; }
       .preview-card { grid-column: 1 / -1; grid-row: 1; }
@@ -495,6 +533,7 @@
         gap: 8px;
         align-items: center;
         margin-top: 8px;
+        flex-wrap: wrap;
       }
       .timeline-controls .ctl {
         width: auto;
@@ -706,6 +745,20 @@
       }
 
       .agent-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+      .agent-progress {
+        margin-top: 6px;
+        height: 5px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.10);
+        background: rgba(11, 13, 18, 0.6);
+        overflow: hidden;
+      }
+      .agent-progress-fill {
+        height: 100%;
+        width: 0%;
+        transition: width 220ms ease;
+        background: linear-gradient(90deg, #6aa9ff, #22c55e);
+      }
       .agent-step {
         background: #0b1220;
         border: 1px solid var(--border);
@@ -1399,6 +1452,7 @@
             <div class="agent-step" data-step="code">Code</div>
             <div class="agent-step" data-step="render">Render</div>
           </div>
+          <div class="agent-progress" aria-hidden="true"><div id="agentProgressFill" class="agent-progress-fill"></div></div>
 
           <div class="chat-messages" id="chatMessages"></div>
 
@@ -1610,6 +1664,8 @@
       function setBusy(on, message) {
         isBusy = !!on;
         if (busyOverlayEl) busyOverlayEl.classList.toggle('hidden', !isBusy);
+        if (previewEmptyEl && isBusy) previewEmptyEl.classList.add('hidden');
+        if (previewEmptyEl && !isBusy && !videoEl?.src) previewEmptyEl.classList.remove('hidden');
         if (statusEl) statusEl.classList.toggle('status-pulse', isBusy);
         if (typeof message === 'string' && statusEl) statusEl.textContent = message;
         if (typeof message === 'string' && busySubEl) busySubEl.textContent = message || 'Working…';
@@ -1638,6 +1694,7 @@
       const voiceBtnEl = document.getElementById('voiceBtn');
       const statusEl = document.getElementById('status');
       const agentStepsEl = document.getElementById('agentSteps');
+      const agentProgressFillEl = document.getElementById('agentProgressFill');
 
       const leftPanel = document.getElementById('leftPanel');
       const rightPanel = document.getElementById('rightPanel');
@@ -1922,7 +1979,7 @@
         const leftNum = Number(stored.left);
         const rightNum = Number(stored.right);
         return {
-          left: Number.isFinite(leftNum) ? clampNumber(leftNum, 260, 600) : 320,
+          left: Number.isFinite(leftNum) ? clampNumber(leftNum, 260, 600) : 340,
           right: Number.isFinite(rightNum) ? clampNumber(rightNum, 320, 680) : 420,
         };
       }
@@ -1995,6 +2052,7 @@
       });
 
       document.getElementById('backBtn').addEventListener('click', () => {
+        resetSteps();
         currentJobId = null;
         try { if (jobEventSource) jobEventSource.close(); } catch {}
         jobEventSource = null;
@@ -2014,6 +2072,8 @@
         setVideoAvailable(false);
         timelineTrackEl.innerHTML = '';
         timelineState = [];
+        if (timelineRulerEl) timelineRulerEl.innerHTML = '';
+        if (timelineLabelEl) timelineLabelEl.textContent = 'Timeline';
         updateBackEnabled();
       });
 
@@ -2149,9 +2209,31 @@
         if (!el) return;
         el.classList.remove('active','done','error');
         if (state) el.classList.add(state);
+        updateStepProgress();
       }
       function resetSteps() {
         ['plan','approve','code','render'].forEach(s => setStep(s, ''));
+        updateStepProgress();
+      }
+
+      function updateStepProgress() {
+        if (!agentProgressFillEl || !agentStepsEl) return;
+        const stepEls = ['plan', 'approve', 'code', 'render'].map((s) => agentStepsEl.querySelector(`[data-step="${s}"]`));
+        let pct = 0;
+        if (stepEls[0]?.classList.contains('done')) pct = 25;
+        else if (stepEls[0]?.classList.contains('active')) pct = 12;
+        if (stepEls[1]?.classList.contains('done')) pct = 50;
+        else if (stepEls[1]?.classList.contains('active')) pct = Math.max(pct, 38);
+        if (stepEls[2]?.classList.contains('done')) pct = 75;
+        else if (stepEls[2]?.classList.contains('active')) pct = Math.max(pct, 62);
+        if (stepEls[3]?.classList.contains('done')) pct = 100;
+        else if (stepEls[3]?.classList.contains('active')) pct = Math.max(pct, 88);
+
+        const hasError = stepEls.some((el) => el?.classList.contains('error'));
+        agentProgressFillEl.style.background = hasError
+          ? 'linear-gradient(90deg, #ef4444, #f59e0b)'
+          : 'linear-gradient(90deg, #6aa9ff, #22c55e)';
+        agentProgressFillEl.style.width = `${pct}%`;
       }
 
       function addChat(role, title, content, extraNode) {
@@ -2183,14 +2265,74 @@
           const details = document.createElement('details');
           details.open = true;
           const summary = document.createElement('summary');
-          summary.textContent = node.name || 'folder';
+          const row = document.createElement('div');
+          row.className = 'tree-row';
+          const name = document.createElement('div');
+          name.className = 'tree-row-name';
+          name.textContent = node.name || 'folder';
+          row.appendChild(name);
+          if (node.path) {
+            const actions = document.createElement('div');
+            actions.className = 'tree-row-actions';
+            const renameBtn = document.createElement('button');
+            renameBtn.className = 'tree-act';
+            renameBtn.textContent = 'R';
+            renameBtn.title = 'Rename';
+            renameBtn.addEventListener('click', (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              startRename(node.path);
+            });
+            const delBtn = document.createElement('button');
+            delBtn.className = 'tree-act danger';
+            delBtn.textContent = 'X';
+            delBtn.title = 'Delete folder';
+            delBtn.addEventListener('click', async (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              await deleteWorkspacePath(node.path);
+            });
+            actions.appendChild(renameBtn);
+            actions.appendChild(delBtn);
+            row.appendChild(actions);
+          }
+          summary.appendChild(row);
           details.appendChild(summary);
           (node.children || []).forEach(child => renderTree(child, details));
           container.appendChild(details);
         } else {
           const item = document.createElement('div');
           item.className = 'tree-file';
-          item.textContent = node.name;
+          const row = document.createElement('div');
+          row.className = 'tree-row';
+          const name = document.createElement('div');
+          name.className = 'tree-row-name';
+          name.textContent = node.name;
+          const actions = document.createElement('div');
+          actions.className = 'tree-row-actions';
+          const renameBtn = document.createElement('button');
+          renameBtn.className = 'tree-act';
+          renameBtn.textContent = 'R';
+          renameBtn.title = 'Rename';
+          renameBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            startRename(node.path);
+          });
+          const delBtn = document.createElement('button');
+          delBtn.className = 'tree-act danger';
+          delBtn.textContent = 'X';
+          delBtn.title = 'Delete file';
+          delBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            await deleteWorkspacePath(node.path);
+          });
+          actions.appendChild(renameBtn);
+          actions.appendChild(delBtn);
+          row.appendChild(name);
+          row.appendChild(actions);
+          item.appendChild(row);
           item.draggable = true;
           item.addEventListener('dragstart', (e) => {
             e.dataTransfer.setData('text/plain', node.path);
@@ -2198,6 +2340,32 @@
           });
           item.addEventListener('click', () => openWorkspaceFile(node.path));
           container.appendChild(item);
+        }
+      }
+
+      async function deleteWorkspacePath(path) {
+        if (!path) return;
+        if (!window.confirm(`Delete "${path}"?`)) return;
+        fileStatusEl.textContent = `Deleting ${path}...`;
+        try {
+          const resp = await fetch(`/api/files/file?path=${encodeURIComponent(path)}`, { method: 'DELETE' });
+          const data = await resp.json();
+          if (!data.ok) {
+            fileStatusEl.textContent = data.error || 'Delete failed.';
+            return;
+          }
+          if (openFilePath && (openFilePath === path || openFilePath.startsWith(`${path}/`))) {
+            openFilePath = null;
+            codeEl.value = '';
+            refreshGutter();
+            if (highlightOn) refreshHighlight();
+            updateEditorMode();
+          }
+          fileStatusEl.textContent = `Deleted: ${path}`;
+          await loadWorkspaceFiles();
+          showToast('Deleted.', 'ok');
+        } catch {
+          fileStatusEl.textContent = 'Failed to reach backend.';
         }
       }
 
@@ -2967,13 +3135,50 @@
       async function loadSkills() {
         const resp = await fetch('/api/skills');
         const data = await resp.json();
+        const skills = data.skills || [];
+        if (!skills.length) {
+          await seedDefaultSkills();
+          const resp2 = await fetch('/api/skills');
+          const data2 = await resp2.json();
+          return renderSkills(data2.skills || []);
+        }
+        renderSkills(skills);
+      }
+
+      function renderSkills(skills) {
         skillListEl.innerHTML = '';
-        (data.skills || []).forEach(skill => {
+        (skills || []).forEach(skill => {
           const row = document.createElement('div');
           row.className = 'tree-file';
           row.innerHTML = `<label><input type="checkbox" data-id="${skill.id}" /> ${skill.name}</label>`;
           skillListEl.appendChild(row);
         });
+      }
+
+      async function seedDefaultSkills() {
+        const defaults = [
+          {
+            name: 'Physics Explainer',
+            content: 'Always define symbols on screen before equations. Keep one concept per scene and use short labels.'
+          },
+          {
+            name: 'Clarity QA',
+            content: 'Check overlaps, safe margins for 9:16, and that every scene has a single visual takeaway.'
+          },
+          {
+            name: 'Story Beat',
+            content: 'Use sequence: hook -> setup -> mechanism -> equation -> takeaway.'
+          }
+        ];
+        for (const item of defaults) {
+          try {
+            await fetch('/api/skills', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(item)
+            });
+          } catch {}
+        }
       }
 
       async function saveSkill() {
@@ -3632,6 +3837,28 @@
         sourceNotesEl.value = '';
       });
 
+      safeOn(openInstallGuideBtn, 'click', () => {
+        openSettingsTab('render');
+        if (!healthEl) return;
+        healthEl.textContent = [
+          'Install Guide (macOS)',
+          '1) cd /Users/hema/Desktop/Gemini-Hack-Manim',
+          '2) python3 -m venv .venv',
+          '3) source .venv/bin/activate',
+          '4) python -m pip install -U pip',
+          '5) python -m pip install -r requirements.txt',
+          '6) python -m pip install manim',
+          '7) brew install ffmpeg',
+          '8) python -m manim --version',
+          '9) python -m uvicorn backend.main:app --reload --port 8000',
+          '',
+          'Install Guide (Linux)',
+          'A) sudo apt-get update',
+          'B) sudo apt-get install -y ffmpeg libcairo2-dev pango1.0-tools',
+          'C) run steps 1, 3, 4, 5, 6, 8, 9 above',
+        ].join('\n');
+      });
+
       function seedDemoDefaults() {
         // Keep this lightweight: only fill if the user hasn't typed anything.
         if (!chatInputEl.value.trim()) {
@@ -3701,6 +3928,7 @@
       setContextTab('memory');
       setVideoAvailable(false);
       updateTopbarToggles();
+      updateStepProgress();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
   </body>
