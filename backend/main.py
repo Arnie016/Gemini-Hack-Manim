@@ -227,12 +227,43 @@ def _render_settings_ratio(ratio: str) -> str:
 
 
 def _job_files(paths) -> list[str]:
-    return [
-        str(paths.plan_path.relative_to(ROOT)),
-        str(paths.scene_path.relative_to(ROOT)),
-        str(paths.out_mp4.relative_to(ROOT)),
-        str(paths.logs_path.relative_to(ROOT)),
+    """Return a best-effort list of job artifact paths (relative to repo root).
+
+    Only includes files that exist to avoid confusing the Explorer UI with
+    non-existent placeholders.
+    """
+    candidates: list[Path] = [
+        paths.plan_path,
+        paths.scene_path,
+        paths.out_mp4,
+        paths.logs_path,
+        paths.job_dir / "state.json",
+        paths.job_dir / "events.log",
+        paths.job_dir / "captions.srt",
+        paths.job_dir / "export.zip",
     ]
+    assets_dir = paths.job_dir / "assets"
+    if assets_dir.exists():
+        for p in sorted(assets_dir.glob("*")):
+            if p.is_file():
+                candidates.append(p)
+
+    out: list[str] = []
+    for p in candidates:
+        try:
+            if p.exists() and p.is_file():
+                out.append(str(p.relative_to(ROOT)))
+        except Exception:
+            continue
+    # De-dupe while preserving order.
+    seen: set[str] = set()
+    uniq: list[str] = []
+    for x in out:
+        if x in seen:
+            continue
+        seen.add(x)
+        uniq.append(x)
+    return uniq
 
 
 def _parse_json(text: str) -> Dict[str, Any]:
