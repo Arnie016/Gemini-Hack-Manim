@@ -2072,7 +2072,7 @@
         }
       });
 
-      settingsShowKeyBtn.addEventListener('click', () => {
+      safeOn(settingsShowKeyBtn, 'click', () => {
         const isHidden = settingsApiKeyEl.type === 'password';
         settingsApiKeyEl.type = isHidden ? 'text' : 'password';
       });
@@ -2219,6 +2219,9 @@
       ctxTabs.forEach(b => b.addEventListener('click', () => setContextTab(b.dataset.ctx)));
 
       if (saveProjectBtn) saveProjectBtn.addEventListener('click', () => saveProject(false));
+      function safeOn(el, eventName, handler) {
+        if (el) el.addEventListener(eventName, handler);
+      }
 
       function bindAutosave(el, ev = 'input') {
         if (!el) return;
@@ -2464,7 +2467,7 @@
         }).join('\\n');
       }
 
-      toggleHighlightBtn.addEventListener('click', () => {
+      safeOn(toggleHighlightBtn, 'click', () => {
         highlightOn = !highlightOn;
         codePrettyWrapEl.classList.toggle('hidden', !highlightOn);
         if (codeEditorEl) codeEditorEl.classList.toggle('hidden', highlightOn);
@@ -3563,52 +3566,52 @@
           termRunEl.disabled = false;
         }
       }
-      termRunEl.addEventListener('click', runTerminalCommand);
-      termCmdEl.addEventListener('keydown', (e) => {
+      safeOn(termRunEl, 'click', runTerminalCommand);
+      safeOn(termCmdEl, 'keydown', (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
           runTerminalCommand();
         }
       });
 
-      timelineScrubEl.addEventListener('input', () => {
+      safeOn(timelineScrubEl, 'input', () => {
         if (!videoEl.duration) return;
         const pct = Number(timelineScrubEl.value) / 100;
         videoEl.currentTime = pct * videoEl.duration;
         updateTransportUI();
       });
-      videoEl.addEventListener('timeupdate', () => {
+      safeOn(videoEl, 'timeupdate', () => {
         if (!videoEl.duration) return;
         timelineScrubEl.value = Math.floor((videoEl.currentTime / videoEl.duration) * 100);
         updateTransportUI();
       });
 
-      applyTimelineBtn.addEventListener('click', syncPlanFromTimeline);
-      resetTimelineBtn.addEventListener('click', () => {
+      safeOn(applyTimelineBtn, 'click', syncPlanFromTimeline);
+      safeOn(resetTimelineBtn, 'click', () => {
         timelineState = [];
         renderTimeline();
       });
 
-      planBtn.addEventListener('click', createPlan);
-      saveSettingsBtn.addEventListener('click', saveSettings);
-      runHealthBtn.addEventListener('click', runHealth);
-      resetLayoutBtn.addEventListener('click', resetLayout);
-      addMemoryBtn.addEventListener('click', addMemory);
-      saveSkillBtn.addEventListener('click', saveSkill);
-      generateSkillBtn.addEventListener('click', generateSkill);
-      aspectEl.addEventListener('change', () => setPreviewAspect(aspectEl.value));
-      applyRenameBtn.addEventListener('click', renamePending);
-      genImagesBtn.addEventListener('click', generateImages);
-      createFolderBtn.addEventListener('click', createFolder);
-      createFileBtn.addEventListener('click', createFile);
-      newPathEl.addEventListener('keydown', (e) => {
+      safeOn(planBtn, 'click', createPlan);
+      safeOn(saveSettingsBtn, 'click', saveSettings);
+      safeOn(runHealthBtn, 'click', runHealth);
+      safeOn(resetLayoutBtn, 'click', resetLayout);
+      safeOn(addMemoryBtn, 'click', addMemory);
+      safeOn(saveSkillBtn, 'click', saveSkill);
+      safeOn(generateSkillBtn, 'click', generateSkill);
+      safeOn(aspectEl, 'change', () => setPreviewAspect(aspectEl.value));
+      safeOn(applyRenameBtn, 'click', renamePending);
+      safeOn(genImagesBtn, 'click', generateImages);
+      safeOn(createFolderBtn, 'click', createFolder);
+      safeOn(createFileBtn, 'click', createFile);
+      safeOn(newPathEl, 'keydown', (e) => {
         if (e.key === 'Enter' && pendingRenameFrom) {
           e.preventDefault();
           renamePending();
         }
       });
 
-      saveFileBtn.addEventListener('click', saveWorkspaceFile);
+      safeOn(saveFileBtn, 'click', saveWorkspaceFile);
       window.addEventListener('keydown', (e) => {
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
           if (openFilePath) {
@@ -3618,7 +3621,7 @@
         }
       });
 
-      saveSourceBtn.addEventListener('click', () => {
+      safeOn(saveSourceBtn, 'click', () => {
         const url = sourceUrlEl.value.trim();
         const notes = sourceNotesEl.value.trim();
         const sources = getSources();
