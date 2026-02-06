@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -156,6 +157,38 @@ class JobManager:
                 type_="state",
                 payload={"status": state.status, "step": state.step, "message": state.message},
             )
+
+            # If Manim isn't installed for the selected python, fail fast (but keep the generated code).
+            # This avoids long "frozen" renders + pointless repair attempts.
+            try:
+                py = manim_py or "python3"
+                proc = subprocess.run(
+                    [py, "-m", "manim", "--version"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                if proc.returncode != 0:
+                    with logs_path.open("a", encoding="utf-8") as f:
+                        f.write("\n\n=== preflight ===\n")
+                        f.write("Manim not available for this Python.\n")
+                        f.write((proc.stdout or "") + (proc.stderr or "") + "\n")
+                    state.status = "failed"
+                    state.step = "render"
+                    state.error = "Manim missing (install manim or choose a different Python in Settings → Rendering)"
+                    state.message = "Failed."
+                    state.updated_at = time.time()
+                    write_state(job_dir, state)
+                    append_event(
+                        job_dir,
+                        type_="state",
+                        payload={"status": state.status, "step": state.step, "error": state.error},
+                    )
+                    return
+            except Exception as exc:
+                with logs_path.open("a", encoding="utf-8") as f:
+                    f.write("\n\n=== preflight ===\n")
+                    f.write(f"Preflight check failed: {exc}\n")
 
             ok = render_with_manim_stream(
                 scene_file=scene_path,

@@ -3064,29 +3064,10 @@
       async function approvePlan(planText) {
         if (!currentJobId) return;
         didAnimateCode = false;
-        setBusy(true, 'Checking render environment…');
+        setBusy(true, 'Generating video…');
         setStep('approve', 'done');
         setStep('code', 'active');
         setStep('render', 'active');
-        await new Promise(requestAnimationFrame);
-
-        // Fast-fail if Manim is missing, so the app doesn't "freeze" waiting for a doomed render.
-        try {
-          const h = await fetch('/api/health');
-          const hd = await h.json();
-          if (hd && hd.manim_ok === false) {
-            setBusy(false);
-            setStep('code', 'error');
-            setStep('render', 'error');
-            openSettingsTab('render');
-            try { await runHealth(); } catch {}
-            logsEl.textContent = 'Manim is missing in this app environment. Open Settings → Rendering → Health for install steps.';
-            showToast('Manim missing. Install it (Settings → Rendering → Health).', 'err');
-            return;
-          }
-        } catch {}
-
-        setBusy(true, 'Generating video…');
         await new Promise(requestAnimationFrame);
 
         try {
@@ -3186,7 +3167,10 @@
               return;
             }
             if (st.status === 'failed') {
-              setStep('code', 'error');
+              // If we at least generated code, don't mark the code step as failed.
+              const hasCode = !!(st.code && String(st.code).trim());
+              if (hasCode) setStep('code', 'done');
+              else setStep('code', 'error');
               setStep('render', 'error');
               const tail = (st.logs_tail || err || 'Render failed.');
               if (/no module named manim/i.test(tail) || /manim/i.test(tail) && /not found|no such file|missing/i.test(tail)) {
