@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import base64
 import json
+import re
+import secrets
+import time
 from pathlib import Path
 from typing import Any, Dict, Optional
+from urllib.parse import parse_qs, urlparse
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
@@ -154,6 +159,113 @@ class ImageGenReq(BaseModel):
     image_prompt: str
     image_mode: str = "background"
     image_model: Optional[str] = None
+
+
+class UploadJobAssetReq(BaseModel):
+    job_id: str
+    filename: str
+    content_base64: str
+    role: str = "background"
+
+
+class SourceIndexReq(BaseModel):
+    url: str
+    notes: Optional[str] = None
+    source_type: str = "auto"  # auto | youtube | web
+    model: Optional[str] = None
+
+
+def _extract_youtube_id(url: str) -> Optional[str]:
+    try:
+        u = urlparse(url)
+    except Exception:
+        return None
+    host = (u.netloc or "").lower()
+    path = u.path or ""
+
+    if "youtu.be" in host:
+        seg = path.strip("/").split("/")
+        return seg[0] if seg and seg[0] else None
+
+    if "youtube.com" in host:
+        if path.startswith("/watch"):
+            return parse_qs(u.query).get("v", [None])[0]
+        if path.startswith("/shorts/") or path.startswith("/embed/"):
+            seg = path.strip("/").split("/")
+            return seg[1] if len(seg) > 1 else None
+    return None
+
+
+def _normalize_source_kind(url: str, source_type: str) -> tuple[str, Optional[str]]:
+    st = (source_type or "auto").strip().lower()
+    yt = _extract_youtube_id(url)
+    if st == "youtube":
+        return "youtube", yt
+    if st == "web":
+        return "web", None
+    # auto
+    if yt:
+        return "youtube", yt
+    return "web", None
+
+
+def _slug_from_url(url: str, fallback: str = "source") -> str:
+    try:
+        u = urlparse(url)
+        tail = (u.path or "").strip("/").split("/")[-1]
+        raw = tail or (u.netloc or "") or fallback
+    except Exception:
+        raw = fallback
+    slug = re.sub(r"[^a-z0-9]+", "-", raw.lower()).strip("-")
+    return (slug or fallback)[:48]
+
+
+def _index_source_with_gemini(
+    *,
+    url: str,
+    notes: str,
+    kind: str,
+    video_id: Optional[str],
+    api_key: Optional[str],
+    model: Optional[str],
+) -> Dict[str, Any]:
+    system = (
+        "You index external learning sources for animation planning. "
+        "Return STRICT JSON only, no markdown. "
+        "Be explicit about assumptions when content is sparse."
+    )
+    schema = {
+        "type": "OBJECT",
+        "properties": {
+            "title": {"type": "STRING"},
+            "summary": {"type": "STRING"},
+            "key_points": {"type": "ARRAY", "items": {"type": "STRING"}},
+            "prompt_hint": {"type": "STRING"},
+        },
+        "required": ["title", "summary", "key_points", "prompt_hint"],
+    }
+    context = (
+        f"Source kind: {kind}\n"
+        f"URL: {url}\n"
+        f"YouTube video id: {video_id or 'n/a'}\n"
+        f"User notes/transcript:\n{notes.strip() or '(none provided)'}\n\n"
+        "Create:\n"
+        "1) A short trustworthy title.\n"
+        "2) A 3-6 sentence summary for visual storytelling.\n"
+        "3) 4-8 key points in order.\n"
+        "4) A prompt_hint (2-3 lines) that improves animation planning prompts."
+    )
+    text = generate_content(
+        context,
+        system_text=system,
+        generation_config={
+            "response_mime_type": "application/json",
+            "response_schema": schema,
+        },
+        api_key=api_key,
+        model=model,
+    )
+    return _parse_json(text)
 
 
 def _build_director_brief(req: AnimateReq) -> str:
@@ -551,6 +663,155 @@ def generate_images(req: ImageGenReq):
     if warning:
         resp["warning"] = warning
     return resp
+
+
+@app.post("/api/docs/index")
+def docs_index(req: SourceIndexReq):
+    url = (req.url or "").strip()
+    if not url or not (url.startswith("http://") or url.startswith("https://")):
+        return JSONResponse(
+            {"ok": False, "error": "Please provide a valid http(s) URL."},
+            status_code=400,
+        )
+
+    notes = (req.notes or "").strip()
+    kind, video_id = _normalize_source_kind(url, req.source_type)
+    settings = load_settings()
+    api_key = settings.get("api_key")
+    text_model = req.model or settings.get("text_model")
+
+    title = ""
+    summary = ""
+    key_points: list[str] = []
+    prompt_hint = ""
+    warning: Optional[str] = None
+    try:
+        indexed = _index_source_with_gemini(
+            url=url,
+            notes=notes,
+            kind=kind,
+            video_id=video_id,
+            api_key=api_key,
+            model=text_model,
+        )
+        title = str(indexed.get("title", "")).strip()
+        summary = str(indexed.get("summary", "")).strip()
+        key_points = [str(x).strip() for x in indexed.get("key_points", []) if str(x).strip()]
+        prompt_hint = str(indexed.get("prompt_hint", "")).strip()
+    except Exception as exc:
+        # Safe fallback keeps the UX moving even if model call fails.
+        warning = f"Indexing fallback used: {exc}"
+        if kind == "youtube":
+            title = f"YouTube source ({video_id or 'video'})"
+        else:
+            title = f"Web source: {_slug_from_url(url, 'article')}"
+        summary = notes[:500] if notes else (
+            "Source indexed without transcript. Add notes/transcript for stronger summaries."
+        )
+        key_points = [summary] if summary else []
+        prompt_hint = "Focus on one concept per scene and verify assumptions from the source."
+
+    if not title:
+        title = f"{kind.title()} source"
+    if not summary:
+        summary = "No summary available. Add transcript/notes and re-index."
+    if not key_points:
+        key_points = [summary]
+
+    source_id = f"src-{int(time.time())}-{secrets.token_hex(2)}"
+    slug = _slug_from_url(url, "source")
+    file_suggested_path = f"notes/sources/{slug}-{source_id[-4:]}.md"
+    md_lines = [
+        f"# {title}",
+        "",
+        f"- Source kind: {kind}",
+        f"- URL: {url}",
+    ]
+    if video_id:
+        md_lines.append(f"- YouTube ID: {video_id}")
+    md_lines.extend(
+        [
+            "",
+            "## Summary",
+            summary,
+            "",
+            "## Key Points",
+        ]
+    )
+    md_lines.extend([f"- {p}" for p in key_points])
+    md_lines.extend(
+        [
+            "",
+            "## Prompt Hint",
+            prompt_hint or "Use this source to tighten storyboard sequencing.",
+        ]
+    )
+    if notes:
+        md_lines.extend(["", "## Notes / Transcript (user-provided)", notes[:4000]])
+    markdown = "\n".join(md_lines).strip() + "\n"
+
+    resp: Dict[str, Any] = {
+        "ok": True,
+        "indexed": {
+            "id": source_id,
+            "kind": kind,
+            "url": url,
+            "video_id": video_id,
+            "title": title,
+            "summary": summary,
+            "key_points": key_points[:12],
+            "prompt_hint": prompt_hint,
+            "file_suggested_path": file_suggested_path,
+            "markdown": markdown,
+        },
+    }
+    if warning:
+        resp["warning"] = warning
+    return resp
+
+
+@app.post("/api/jobs/upload-asset")
+def upload_job_asset(req: UploadJobAssetReq):
+    paths = job_paths(JOBS, req.job_id)
+    if not paths.job_dir.exists():
+        return JSONResponse(
+            {"ok": False, "job_id": req.job_id, "error": "Unknown job_id"},
+            status_code=404,
+        )
+
+    role = (req.role or "background").strip().lower()
+    if role not in {"background", "foreground"}:
+        return JSONResponse(
+            {"ok": False, "error": "role must be background or foreground"},
+            status_code=400,
+        )
+
+    raw = (req.content_base64 or "").strip()
+    if not raw:
+        return JSONResponse({"ok": False, "error": "content_base64 is required"}, status_code=400)
+    if "," in raw and raw.split(",", 1)[0].lower().startswith("data:"):
+        raw = raw.split(",", 1)[1]
+
+    try:
+        blob = base64.b64decode(raw, validate=True)
+    except Exception:
+        return JSONResponse({"ok": False, "error": "Invalid base64 image content"}, status_code=400)
+
+    if not blob:
+        return JSONResponse({"ok": False, "error": "Decoded file is empty"}, status_code=400)
+    if len(blob) > 10 * 1024 * 1024:
+        return JSONResponse({"ok": False, "error": "File is too large (max 10MB)"}, status_code=413)
+
+    suffix = Path(req.filename or "").suffix.lower()
+    if suffix not in {".png", ".jpg", ".jpeg", ".webp"}:
+        suffix = ".png"
+    assets_dir = paths.job_dir / "assets"
+    assets_dir.mkdir(parents=True, exist_ok=True)
+    name = f"{role}-{int(time.time() * 1000)}{suffix}"
+    out = assets_dir / name
+    out.write_bytes(blob)
+    rel = f"assets/{name}"
+    return {"ok": True, "job_id": req.job_id, "asset_path": rel, "role": role}
 
 
 @app.get("/api/memories")

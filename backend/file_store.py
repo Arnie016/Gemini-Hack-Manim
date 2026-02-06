@@ -51,6 +51,9 @@ def list_tree() -> Dict[str, Any]:
 def create_folder(rel_path: str) -> str:
     _ensure_root()
     path = _safe_path(rel_path)
+    # Keep folder semantics explicit in the UI/API: avoid names that look like files.
+    if path.suffix:
+        raise ValueError("Folder names cannot include a file extension (example: file.py)")
     path.mkdir(parents=True, exist_ok=True)
     return str(path.relative_to(USER_ROOT))
 
@@ -97,6 +100,8 @@ def rename_path(from_rel: str, to_rel: str, *, overwrite: bool = False) -> Dict[
     dst = _safe_path(to_rel)
     if not src.exists():
         raise FileNotFoundError("Source not found")
+    if src.is_dir() and dst.suffix:
+        raise ValueError("Folder names cannot include a file extension (example: file.py)")
     if dst.exists() and not overwrite:
         raise FileExistsError("Destination already exists")
     dst.parent.mkdir(parents=True, exist_ok=True)

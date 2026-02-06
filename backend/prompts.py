@@ -53,6 +53,8 @@ Rules:
 - You may use simple animations: FadeIn, FadeOut, Create, Write, Transform, LaggedStart.
 - ImageMobject is allowed when assets are provided.
 - Prefer Text over LaTeX (avoid MathTex unless necessary).
+- Do NOT do FadeOut(VGroup(*self.mobjects)) because self.mobjects may include non-VMobject items like ValueTracker.
+- If clearing the scene, fade out only visible VMobjects (for example: FadeOut(*[m for m in self.mobjects if isinstance(m, Mobject)]) ) or keep explicit groups.
 """
 
 
@@ -81,4 +83,5 @@ Rules:
 - Define exactly: class GeneratedScene(Scene):
 - No network calls, no reading external files.
 - Prefer Text over LaTeX (avoid MathTex unless necessary).
+- Avoid VGroup on non-VMobject inputs; ValueTracker must not be packed into VGroup.
 """
