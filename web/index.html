@@ -1488,6 +1488,32 @@
         border-radius: 8px;
         background: rgba(11,13,18,0.6);
       }
+      .welcome-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 10px;
+      }
+      .welcome-card {
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 12px;
+        background: rgba(9, 13, 20, 0.72);
+        padding: 10px;
+      }
+      .welcome-kicker {
+        font-size: 11px;
+        letter-spacing: 0.9px;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 6px;
+      }
+      .welcome-actions {
+        margin-top: 12px;
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+      }
 
       @media (max-width: 1200px) {
         .layout { grid-template-columns: 1fr; grid-template-rows: auto; height: auto; }
@@ -1497,6 +1523,7 @@
         .canvas-grid { grid-template-columns: 1fr; }
         .context-grid { grid-template-columns: 1fr; }
         .settings-shell { grid-template-columns: 1fr; }
+        .welcome-grid { grid-template-columns: 1fr; }
       }
     </style>
   </head>
@@ -2217,6 +2244,42 @@
       </div>
     </div>
 
+    <div id="welcomeModal" class="modal" aria-hidden="true">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-title">Welcome to NorthStar</div>
+          <button id="closeWelcome" class="icon-btn" style="width:auto;" title="Close" aria-label="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="muted">No login. No paywall. Judges can use this immediately.</div>
+          <div class="welcome-grid">
+            <div class="welcome-card">
+              <div class="welcome-kicker">Step 1</div>
+              <div><strong>Create Plan</strong></div>
+              <div class="muted">Describe the topic. Gemini builds the scene plan.</div>
+            </div>
+            <div class="welcome-card">
+              <div class="welcome-kicker">Step 2</div>
+              <div><strong>Generate Images</strong></div>
+              <div class="muted">Create BG/FG assets and drag them into timeline scenes.</div>
+            </div>
+            <div class="welcome-card">
+              <div class="welcome-kicker">Step 3</div>
+              <div><strong>Approve & Render</strong></div>
+              <div class="muted">Gemini writes Manim code and renders MP4 end-to-end.</div>
+            </div>
+          </div>
+          <div class="welcome-actions">
+            <button id="welcomeTourBtn" class="ghost">View quick guide</button>
+            <button id="welcomeDemoBtn" class="secondary">Load demo prompt</button>
+            <button id="welcomeStartBtn">Start</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script>
       const jobFileListEl = document.getElementById('jobFileList');
       const jobIdEl = document.getElementById('jobId');
@@ -2458,6 +2521,11 @@
       const openInfoBtn = document.getElementById('openInfo');
       const infoModal = document.getElementById('infoModal');
       const closeInfoBtn = document.getElementById('closeInfo');
+      const welcomeModal = document.getElementById('welcomeModal');
+      const closeWelcomeBtn = document.getElementById('closeWelcome');
+      const welcomeTourBtn = document.getElementById('welcomeTourBtn');
+      const welcomeDemoBtn = document.getElementById('welcomeDemoBtn');
+      const welcomeStartBtn = document.getElementById('welcomeStartBtn');
       const settingsApiKeyEl = document.getElementById('settingsApiKey');
       const settingsShowKeyBtn = document.getElementById('settingsShowKey');
       const settingsShowAllKeysBtn = document.getElementById('settingsShowAllKeys');
@@ -2849,6 +2917,7 @@
       };
 
       const AUTOSAVE_KEY = 'gmma_autosave_v1';
+      const WELCOME_SEEN_KEY = 'northstar.welcome_seen.v1';
       let autosaveTimer = null;
       let pendingRestore = null;
 
@@ -3466,16 +3535,58 @@
         infoModal.classList.remove('open');
         infoModal.setAttribute('aria-hidden', 'true');
       }
+      function openWelcome() {
+        if (!welcomeModal) return;
+        welcomeModal.classList.add('open');
+        welcomeModal.setAttribute('aria-hidden', 'false');
+      }
+      function closeWelcome({ markSeen = true } = {}) {
+        if (!welcomeModal) return;
+        welcomeModal.classList.remove('open');
+        welcomeModal.setAttribute('aria-hidden', 'true');
+        if (markSeen) {
+          try { localStorage.setItem(WELCOME_SEEN_KEY, '1'); } catch {}
+        }
+      }
+      function maybeOpenWelcome() {
+        let seen = false;
+        try { seen = localStorage.getItem(WELCOME_SEEN_KEY) === '1'; } catch { seen = false; }
+        if (!seen) openWelcome();
+      }
       if (openInfoBtn) openInfoBtn.addEventListener('click', openInfo);
       if (closeInfoBtn) closeInfoBtn.addEventListener('click', closeInfo);
+      if (closeWelcomeBtn) closeWelcomeBtn.addEventListener('click', () => closeWelcome());
+      if (welcomeTourBtn) {
+        welcomeTourBtn.addEventListener('click', () => {
+          closeWelcome();
+          openInfo();
+        });
+      }
+      if (welcomeDemoBtn) {
+        welcomeDemoBtn.addEventListener('click', () => {
+          seedDemoDefaults();
+          closeWelcome();
+          showToast('Demo prompt loaded.', 'ok');
+        });
+      }
+      if (welcomeStartBtn) welcomeStartBtn.addEventListener('click', () => closeWelcome());
       if (infoModal) {
         infoModal.addEventListener('click', (e) => {
           if (e.target === infoModal) closeInfo();
         });
       }
+      if (welcomeModal) {
+        welcomeModal.addEventListener('click', (e) => {
+          if (e.target === welcomeModal) closeWelcome();
+        });
+      }
       window.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
           // Close the most "modal" thing first.
+          if (welcomeModal && welcomeModal.classList.contains('open')) {
+            closeWelcome();
+            return;
+          }
           if (infoModal && infoModal.classList.contains('open')) {
             closeInfo();
             return;
@@ -6958,6 +7069,7 @@
       updateOutputPaths();
       updateTopbarToggles();
       updateStepProgress();
+      maybeOpenWelcome();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
   </body>
