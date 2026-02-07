@@ -741,6 +741,18 @@
         font-family: 'IBM Plex Mono', monospace;
         margin-left: 8px;
       }
+      .install-prompt {
+        margin-top: 10px;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--panel);
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .install-prompt.hidden { display: none; }
       .timeline-hint {
         margin-top: 6px;
         font-size: 11px;
@@ -1910,8 +1922,14 @@
                       <span id="badgeFfmpeg" class="badge-pill bad">ffmpeg: —</span>
                     </div>
                     <div class="row" style="margin-top:10px;">
+                      <button id="getStarted" class="secondary">Get started</button>
                       <button id="runHealth" class="secondary">Health</button>
                       <button id="openInstallGuide" class="ghost">Install guide</button>
+                    </div>
+                    <div id="installPrompt" class="install-prompt hidden">
+                      <div class="muted">Missing: <span id="installMissingList">manim</span></div>
+                      <button id="installDeps" class="secondary">Install missing</button>
+                      <button id="cancelInstall" class="ghost">Cancel</button>
                     </div>
                     <pre id="health" class="muted" style="margin-top:8px; white-space:pre-wrap;">No checks yet.</pre>
                   </div>
@@ -2357,6 +2375,11 @@
       const closeSettingsBtn = document.getElementById('closeSettings');
       const settingsNavEl = document.getElementById('settingsNav');
       const openInstallGuideBtn = document.getElementById('openInstallGuide');
+      const getStartedBtn = document.getElementById('getStarted');
+      const installPromptEl = document.getElementById('installPrompt');
+      const installMissingListEl = document.getElementById('installMissingList');
+      const installDepsBtn = document.getElementById('installDeps');
+      const cancelInstallBtn = document.getElementById('cancelInstall');
       const openSettingsBtn = document.getElementById('openSettings');
       const openInfoBtn = document.getElementById('openInfo');
       const infoModal = document.getElementById('infoModal');
@@ -2683,6 +2706,7 @@
           appendFromJobId = currentJobId;
           statusEl.textContent = 'Append mode: describe the next scene, then Create plan.';
           chatInputEl.focus();
+          if (!targetSecondsEl.value.trim()) targetSecondsEl.value = '20';
           if (!chatInputEl.value.trim()) {
             chatInputEl.value = 'Continue with the next scene for 20 seconds: ';
           }
@@ -2719,6 +2743,7 @@
       let templates = [];
       let currentJobId = null;
       let appendFromJobId = null;
+      let lastHealthData = null;
       let currentPlanText = null;
       let lastPlanBox = null;
       let timelineState = [];
@@ -4816,6 +4841,8 @@
         });
       }
 
+      const SETTINGS_SAVED_MASK = '******';
+
       async function loadSettings() {
         const resp = await fetch('/api/settings');
         const data = await resp.json();
@@ -4830,6 +4857,14 @@
         if (settingsOutputCopyDirEl) settingsOutputCopyDirEl.value = data.output_copy_dir || '';
         if (settingsElevenVoiceIdEl) settingsElevenVoiceIdEl.value = data.elevenlabs_voice_id || '';
         if (settingsElevenModelIdEl) settingsElevenModelIdEl.value = data.elevenlabs_model_id || '';
+        if (settingsApiKeyEl) {
+          settingsApiKeyEl.placeholder = data.has_api_key ? 'Saved (hidden)' : 'Paste key';
+          settingsApiKeyEl.value = data.has_api_key ? SETTINGS_SAVED_MASK : '';
+        }
+        if (settingsElevenApiKeyEl) {
+          settingsElevenApiKeyEl.placeholder = data.has_elevenlabs_key ? 'Saved (hidden)' : 'Paste key';
+          settingsElevenApiKeyEl.value = data.has_elevenlabs_key ? SETTINGS_SAVED_MASK : '';
+        }
         if (!data.has_api_key) {
           statusEl.textContent = 'Hackathon tip: open Settings and paste your Gemini API key.';
           try {
@@ -4843,16 +4878,20 @@
       }
 
       async function saveSettings() {
+        const apiKeyValue = settingsApiKeyEl ? settingsApiKeyEl.value.trim() : '';
+        const elevenKeyValue = settingsElevenApiKeyEl ? settingsElevenApiKeyEl.value.trim() : '';
+        const apiKey = apiKeyValue && apiKeyValue !== SETTINGS_SAVED_MASK ? apiKeyValue : null;
+        const elevenKey = elevenKeyValue && elevenKeyValue !== SETTINGS_SAVED_MASK ? elevenKeyValue : null;
         const resp = await fetch('/api/settings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            api_key: settingsApiKeyEl.value || null,
+            api_key: apiKey,
             text_model: settingsTextModelEl.value || null,
             image_model: settingsImageModelEl.value || null,
             manim_py: settingsManimPyEl.value || null,
             output_copy_dir: settingsOutputCopyDirEl ? (settingsOutputCopyDirEl.value || null) : null,
-            elevenlabs_api_key: settingsElevenApiKeyEl ? (settingsElevenApiKeyEl.value || null) : null,
+            elevenlabs_api_key: elevenKey,
             elevenlabs_voice_id: settingsElevenVoiceIdEl ? (settingsElevenVoiceIdEl.value || null) : null,
             elevenlabs_model_id: settingsElevenModelIdEl ? (settingsElevenModelIdEl.value || null) : null
           })
@@ -4860,8 +4899,14 @@
         const data = await resp.json();
         if (data.ok) {
           statusEl.textContent = 'Settings saved.';
-          settingsApiKeyEl.value = '';
-          if (settingsElevenApiKeyEl) settingsElevenApiKeyEl.value = '';
+          if (settingsApiKeyEl && data.has_api_key) {
+            settingsApiKeyEl.placeholder = 'Saved (hidden)';
+            settingsApiKeyEl.value = SETTINGS_SAVED_MASK;
+          }
+          if (settingsElevenApiKeyEl && data.has_elevenlabs_key) {
+            settingsElevenApiKeyEl.placeholder = 'Saved (hidden)';
+            settingsElevenApiKeyEl.value = SETTINGS_SAVED_MASK;
+          }
           if (data.text_model) chatModelEl.value = data.text_model;
           showToast('Settings saved.', 'ok');
           pushHistory('Saved settings');
@@ -4876,7 +4921,7 @@
           data = await resp.json();
         } catch (e) {
           healthEl.textContent = 'Failed to reach backend. Is the server running?';
-          return;
+          return null;
         }
         const manimStatus = data.manim_ok ? 'OK' : 'Missing';
         const ffmpegStatus = data.ffmpeg_ok ? 'OK' : 'Missing';
@@ -4926,6 +4971,48 @@
           lines.push('Fix (macOS): brew install ffmpeg');
         }
         healthEl.textContent = lines.join('\n');
+        lastHealthData = data;
+        return data;
+      }
+
+      function showInstallPrompt(missingList) {
+        if (!installPromptEl || !installMissingListEl) return;
+        if (!missingList.length) {
+          installPromptEl.classList.add('hidden');
+          return;
+        }
+        installMissingListEl.textContent = missingList.join(', ');
+        installPromptEl.classList.remove('hidden');
+      }
+
+      async function installMissingDeps() {
+        const data = lastHealthData || await runHealth();
+        if (!data) return;
+        const missing = [];
+        if (!data.manim_ok) missing.push('manim');
+        if (!data.ffmpeg_ok) missing.push('ffmpeg');
+        if (!missing.length) {
+          showInstallPrompt([]);
+          showToast('All dependencies already installed.', 'ok');
+          return;
+        }
+        setTerminalMode(true);
+        showToast('Installing missing dependencies…', 'ok');
+        const py = (settingsManimPyEl.value || data.manim_py || 'python3').trim() || 'python3';
+        if (missing.includes('manim')) {
+          await execTerminalCommand(`${py} -m pip install -U pip`, { append: true });
+          await execTerminalCommand(`${py} -m pip install manim`, { append: true });
+        }
+        if (missing.includes('ffmpeg')) {
+          const brewCheck = await execTerminalCommand('command -v brew', { append: true, silent: true });
+          if (brewCheck && !brewCheck.startsWith('(exit')) {
+            await execTerminalCommand('brew install ffmpeg', { append: true });
+          } else {
+            logsEl.textContent += '\nBrew not found. Install ffmpeg manually or use: apt-get install ffmpeg\n';
+          }
+        }
+        lastHealthData = await runHealth();
+        showInstallPrompt([]);
       }
 
       async function loadMemories() {
@@ -5078,8 +5165,8 @@
         const resp = await fetch('/api/skills');
         const data = await resp.json();
         const skills = data.skills || [];
-        if (!skills.length) {
-          await seedDefaultSkills();
+        const seeded = await seedDefaultSkills(skills);
+        if (!skills.length || seeded) {
           const resp2 = await fetch('/api/skills');
           const data2 = await resp2.json();
           return renderSkills(data2.skills || []);
@@ -5139,30 +5226,88 @@
         renderMentionBar();
       }
 
-      async function seedDefaultSkills() {
+      async function seedDefaultSkills(existingSkills = []) {
+        const existingNormalized = new Set(
+          (existingSkills || []).map((s) => normalizeMentionName(s?.name || s?.id || '')).filter(Boolean)
+        );
         const defaults = [
           {
-            name: 'Physics Explainer',
-            content: 'Always define symbols on screen before equations. Keep one concept per scene and use short labels.'
+            name: 'Photoelectric Director',
+            content: 'For photoelectric scenes: compare low-frequency high-intensity vs high-frequency low-intensity. Always label threshold f0, work function phi, and K_max.'
+          },
+          {
+            name: 'EM Wave Animator',
+            content: 'Animate wavelength/frequency with clean sinusoid or packets. Keep arrows short, centered, and color-code red vs blue with legend.'
+          },
+          {
+            name: 'Equation Builder',
+            content: 'Introduce equations term-by-term: K_max = h f - phi and e V_s = K_max. Highlight one term at a time with matching narration.'
+          },
+          {
+            name: 'Graph Interpreter',
+            content: 'When plotting K_max vs frequency, show x-intercept at f0, slope h, and no emission below threshold. Keep axes labels large and centered.'
+          },
+          {
+            name: 'Lab Apparatus Designer',
+            content: 'Build clear experimental setup visuals: metal plate, incident light arrow, emitted e- dots, collector, and stopping potential battery icon.'
+          },
+          {
+            name: 'Optics Visualizer',
+            content: 'Use clean rays, lenses, and wavefronts to explain optics. Keep beams short, labels large, and show refraction or diffraction clearly.'
+          },
+          {
+            name: 'Quantum Story Beat',
+            content: 'Use sequence: hook -> failed classical expectation -> Einstein photon model -> equation -> graph -> recap takeaway.'
           },
           {
             name: 'Clarity QA',
-            content: 'Check overlaps, safe margins for 9:16, and that every scene has a single visual takeaway.'
+            content: 'Check overlap, safe margins for 9:16 and 16:9, and one concept per scene. Reject tiny labels or overlapping equations.'
           },
           {
-            name: 'Story Beat',
-            content: 'Use sequence: hook -> setup -> mechanism -> equation -> takeaway.'
+            name: 'Narration Sync',
+            content: 'Keep narration aligned to visible action. No narration-only spans longer than 2 seconds; each line should map to one visual change.'
           }
         ];
+        let createdAny = false;
         for (const item of defaults) {
+          const key = normalizeMentionName(item.name);
+          if (existingNormalized.has(key)) continue;
           try {
             await fetch('/api/skills', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(item)
             });
+            existingNormalized.add(key);
+            createdAny = true;
           } catch {}
         }
+        return createdAny;
+      }
+
+      function ensurePhysicsSubagentsForDemo() {
+        const existing = (subagentsTextEl?.value || '')
+          .split('\n')
+          .map((x) => String(x || '').trim())
+          .filter(Boolean);
+        const existingMap = new Set(existing.map((line) => normalizeMentionName(line.split(':')[0] || line)));
+        const physicsDefaults = [
+          'PhotonCoach: drives photon-vs-wave framing and keeps threshold intuition clear.',
+          'LabDesigner: builds emitter plate, collector, stopping-potential layout with clean labels.',
+          'EquationTutor: introduces K_max = h f - phi and eV_s = K_max one symbol at a time.',
+          'GraphAnalyst: ensures K_max vs f graph shows f0 intercept and slope meaning.',
+          'VisualPacer: enforces one concept at a time and smooth transitions for short-form video.',
+          'SafetyQA: validates spacing, overlap, and readability for 9:16 and 16:9 exports.'
+        ];
+        const merged = [...existing];
+        physicsDefaults.forEach((line) => {
+          const name = normalizeMentionName(line.split(':')[0] || line);
+          if (!existingMap.has(name)) {
+            merged.push(line);
+            existingMap.add(name);
+          }
+        });
+        if (subagentsTextEl) subagentsTextEl.value = merged.join('\n');
       }
 
       async function saveSkill() {
@@ -5201,6 +5346,87 @@
           if (tags.includes(byName) && s.id) out.add(s.id);
         });
         return Array.from(out);
+      }
+
+      function sceneIndexFromClientX(clientX) {
+        if (!timelineTrackEl || !timelineState.length) return -1;
+        const rect = timelineTrackEl.getBoundingClientRect();
+        const pct = Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)));
+        const total = timelineState.reduce((s, sc) => s + Math.max(1, Number(sc.seconds || 1)), 0) || 1;
+        let cursor = 0;
+        const target = pct * total;
+        for (let i = 0; i < timelineState.length; i++) {
+          const dur = Math.max(1, Number(timelineState[i]?.seconds || 1));
+          if (target <= cursor + dur) return i;
+          cursor += dur;
+        }
+        return timelineState.length - 1;
+      }
+
+      async function applyDropToSceneIndex(idx, dataTransfer) {
+        const sc = timelineState[idx];
+        if (!sc) return false;
+        const dt = dataTransfer;
+        const assetType = dt.getData('text/asset-type');
+        const assetPath = dt.getData('text/asset-path');
+        if (assetType && assetPath) {
+          sc.assets = sc.assets || {};
+          sc.assets[assetType] = assetPath;
+          renderTimeline();
+          showToast(`Attached ${assetType.toUpperCase()} to scene ${idx + 1}.`, 'ok');
+          return true;
+        }
+
+        const droppedFiles = Array.from(dt.files || []);
+        if (droppedFiles.length) {
+          const img = droppedFiles.find((f) => (f.type || '').startsWith('image/'));
+          if (!img) {
+            showToast('Drop an image file to attach to a scene.', 'err');
+            return true;
+          }
+          const role = imageModeEl.value === 'foreground' ? 'foreground' : 'background';
+          let rel = null;
+          try {
+            rel = await uploadImageToCurrentJob(img, role);
+          } catch {
+            rel = null;
+          }
+          if (!rel) return true;
+          sc.assets = sc.assets || {};
+          sc.assets[role] = rel;
+          if (role === 'background') {
+            setThumb(bgThumbEl, { url: `/work/jobs/${currentJobId}/${rel}?t=${Date.now()}`, type: 'background', relPath: rel });
+          } else {
+            setThumb(fgThumbEl, { url: `/work/jobs/${currentJobId}/${rel}?t=${Date.now()}`, type: 'foreground', relPath: rel });
+          }
+          renderTimeline();
+          showToast(`Attached ${img.name} to scene ${idx + 1}.`, 'ok');
+          return true;
+        }
+
+        const sourceTimeline = (dt.getData('text/source-timeline') || '').trim();
+        const sourceSnippet = (dt.getData('text/source-snippet') || '').trim();
+        const raw = sourceTimeline || sourceSnippet || (dt.getData('text/plain') || '').trim();
+        const kind = dt.getData('text/path-kind');
+        if (!raw) return false;
+        let snippet = '';
+        if (kind === 'folder') {
+          snippet = `[Folder ref: ${raw}]`;
+        } else if (kind === 'file') {
+          try {
+            const resp = await fetch(`/api/files/file?path=${encodeURIComponent(raw)}`);
+            const data = await resp.json();
+            snippet = data.ok ? `[File ref: ${raw}]\n${String(data.content || '').slice(0, 600)}` : `[File ref: ${raw}]`;
+          } catch {
+            snippet = `[File ref: ${raw}]`;
+          }
+        } else {
+          snippet = raw.slice(0, 600);
+        }
+        sc.narration = [sc.narration || '', snippet].filter(Boolean).join('\n');
+        renderTimeline();
+        showToast(`Added note to scene ${idx + 1}.`, 'ok');
+        return true;
       }
 
       function renderTimelineRuler(totalSeconds, scenes) {
@@ -5399,44 +5625,6 @@
             e.preventDefault();
             e.stopPropagation();
             const to = Number(block.dataset.index);
-            const assetType = e.dataTransfer.getData('text/asset-type');
-            const assetPath = e.dataTransfer.getData('text/asset-path');
-            if (assetType && assetPath) {
-              const sc = timelineState[to];
-              sc.assets = sc.assets || {};
-              sc.assets[assetType] = assetPath;
-              renderTimeline();
-              showToast(`Attached ${assetType.toUpperCase()} to scene ${to + 1}.`, 'ok');
-              return;
-            }
-
-            const droppedFiles = Array.from(e.dataTransfer.files || []);
-            if (droppedFiles.length) {
-              const img = droppedFiles.find((f) => (f.type || '').startsWith('image/'));
-              if (!img) {
-                showToast('Drop an image file to attach to a scene.', 'err');
-                return;
-              }
-              const sc = timelineState[to];
-              const role = imageModeEl.value === 'foreground' ? 'foreground' : 'background';
-              let rel = null;
-              try {
-                rel = await uploadImageToCurrentJob(img, role);
-              } catch {
-                rel = null;
-              }
-              if (!rel) return;
-              sc.assets = sc.assets || {};
-              sc.assets[role] = rel;
-              if (role === 'background') {
-                setThumb(bgThumbEl, { url: `/work/jobs/${currentJobId}/${rel}?t=${Date.now()}`, type: 'background', relPath: rel });
-              } else {
-                setThumb(fgThumbEl, { url: `/work/jobs/${currentJobId}/${rel}?t=${Date.now()}`, type: 'foreground', relPath: rel });
-              }
-              renderTimeline();
-              showToast(`Attached ${img.name} to scene ${to + 1}.`, 'ok');
-              return;
-            }
             const timelineFrom = Number(e.dataTransfer.getData('text/timeline-index'));
             if (Number.isFinite(timelineFrom) && !Number.isNaN(timelineFrom)) {
               if (timelineFrom === to) return;
@@ -5445,31 +5633,7 @@
               renderTimeline();
               return;
             }
-
-            const sourceTimeline = (e.dataTransfer.getData('text/source-timeline') || '').trim();
-            const sourceSnippet = (e.dataTransfer.getData('text/source-snippet') || '').trim();
-            const raw = sourceTimeline || sourceSnippet || (e.dataTransfer.getData('text/plain') || '').trim();
-            const kind = e.dataTransfer.getData('text/path-kind');
-            if (!raw) return;
-            const sc = timelineState[to];
-            if (!sc) return;
-            let snippet = '';
-            if (kind === 'folder') {
-              snippet = `[Folder ref: ${raw}]`;
-            } else if (kind === 'file') {
-              try {
-                const resp = await fetch(`/api/files/file?path=${encodeURIComponent(raw)}`);
-                const data = await resp.json();
-                snippet = data.ok ? `[File ref: ${raw}]\n${String(data.content || '').slice(0, 600)}` : `[File ref: ${raw}]`;
-              } catch {
-                snippet = `[File ref: ${raw}]`;
-              }
-            } else {
-              snippet = raw.slice(0, 600);
-            }
-            sc.narration = [sc.narration || '', snippet].filter(Boolean).join('\n');
-            renderTimeline();
-            showToast(`Added note to scene ${to + 1}.`, 'ok');
+            await applyDropToSceneIndex(to, e.dataTransfer);
           };
           block.addEventListener('drop', handleSceneDrop);
 
@@ -5486,6 +5650,46 @@
         highlightTimelineAt(videoEl.currentTime || 0);
         if (lastPlanBox) syncPlanFromTimeline();
         scheduleAutosave();
+      }
+
+      if (timelineTrackEl) {
+        let trackSeeking = false;
+        function seekFromTrack(clientX) {
+          if (!videoEl.duration) return;
+          const rect = timelineTrackEl.getBoundingClientRect();
+          const pct = Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)));
+          videoEl.currentTime = pct * videoEl.duration;
+          timelineScrubEl.value = Math.floor(pct * 100);
+          updateTransportUI();
+        }
+        timelineTrackEl.addEventListener('mousedown', (e) => {
+          trackSeeking = true;
+          seekFromTrack(e.clientX);
+        });
+        window.addEventListener('mousemove', (e) => {
+          if (!trackSeeking) return;
+          seekFromTrack(e.clientX);
+        });
+        window.addEventListener('mouseup', () => { trackSeeking = false; });
+
+        timelineTrackEl.addEventListener('dragover', (e) => {
+          e.preventDefault();
+        });
+        timelineTrackEl.addEventListener('drop', async (e) => {
+          e.preventDefault();
+          if (!timelineState.length) return;
+          const idx = sceneIndexFromClientX(e.clientX);
+          if (idx < 0) return;
+          const timelineFrom = Number(e.dataTransfer.getData('text/timeline-index'));
+          if (Number.isFinite(timelineFrom) && !Number.isNaN(timelineFrom)) {
+            if (timelineFrom === idx) return;
+            const moved = timelineState.splice(timelineFrom, 1)[0];
+            timelineState.splice(idx, 0, moved);
+            renderTimeline();
+            return;
+          }
+          await applyDropToSceneIndex(idx, e.dataTransfer);
+        });
       }
 
       function activeSceneIndexAt(second) {
@@ -5726,6 +5930,49 @@
 
       async function approvePlan(planText) {
         if (!currentJobId) return { ok: false };
+        setStep('approve', 'active');
+        setStepNote('approve', 'Running preflight checks…');
+
+        let preflight = null;
+        try {
+          const preResp = await fetch('/api/preflight');
+          preflight = await preResp.json();
+        } catch {
+          preflight = null;
+        }
+        if (!preflight || !preflight.ok) {
+          const missing = Array.isArray(preflight?.missing) ? preflight.missing : ['backend'];
+          const msg = `Preflight failed: ${missing.join(', ')}.`;
+          statusEl.textContent = msg;
+          showToast(msg, 'err');
+          setStep('approve', 'error');
+          setStepNote('approve', msg);
+
+          const wrap = document.createElement('div');
+          wrap.className = 'drawer-section';
+          const p = document.createElement('div');
+          p.className = 'muted';
+          p.textContent = `${msg} Use the fix button, then retry Approve & Render.`;
+          const fixBtn = document.createElement('button');
+          fixBtn.textContent = 'Fix now';
+          fixBtn.style.marginTop = '8px';
+          fixBtn.addEventListener('click', async () => {
+            const action = preflight?.fix_action || '';
+            if (action === 'open_settings_api') openSettingsTab('api');
+            else openSettingsTab('render');
+            if (action === 'open_settings_render_get_started' && getStartedBtn) {
+              try { getStartedBtn.click(); } catch {}
+            }
+          });
+          wrap.appendChild(p);
+          wrap.appendChild(fixBtn);
+          addChat('agent', 'Preflight check', msg, wrap);
+          return { ok: false, error: msg };
+        }
+
+        setStep('approve', 'done');
+        setStep('code', 'active');
+        setStepNote('code', 'Preflight passed. Starting code generation…');
         if (timelineState.length && lastPlanBox) {
           syncPlanFromTimeline();
           planText = lastPlanBox.value;
@@ -6088,29 +6335,36 @@
         showToast('Downloading video…', 'ok');
       });
 
-      async function runTerminalCommand() {
-        const cmd = (termCmdEl.value || '').trim();
-        if (!cmd) return;
+      async function execTerminalCommand(cmd, { append = false, silent = false } = {}) {
+        const command = (cmd || '').trim();
+        if (!command) return '';
         termRunEl.disabled = true;
-        logsEl.textContent = `> ${cmd}\n`;
+        termCmdEl.value = command;
+        const prefix = `${append ? '\n' : ''}> ${command}\n`;
+        logsEl.textContent = (append ? (logsEl.textContent || '') : '') + prefix;
         try {
           const resp = await fetch('/api/terminal/run', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ command: cmd })
+            body: JSON.stringify({ command })
           });
           const data = await resp.json();
-          if (!data.ok) {
-            logsEl.textContent += (data.error || 'Command failed') + '\n';
-            return;
-          }
-          logsEl.textContent += (data.output || '') + '\n';
-          pushHistory(`Terminal: ${cmd}`);
+          const output = data.ok ? (data.output || '') : (data.error || 'Command failed');
+          if (!silent) logsEl.textContent += (output || '') + '\n';
+          if (data.ok) pushHistory(`Terminal: ${command}`);
+          return output || '';
         } catch (e) {
           logsEl.textContent += 'Failed to reach backend.\n';
+          return '';
         } finally {
           termRunEl.disabled = false;
         }
+      }
+
+      async function runTerminalCommand() {
+        const cmd = (termCmdEl.value || '').trim();
+        if (!cmd) return;
+        await execTerminalCommand(cmd, { append: false });
       }
       safeOn(termRunEl, 'click', runTerminalCommand);
       safeOn(termCmdEl, 'keydown', (e) => {
@@ -6156,6 +6410,23 @@
 
       safeOn(planBtn, 'click', createPlan);
       safeOn(saveSettingsBtn, 'click', saveSettings);
+      safeOn(getStartedBtn, 'click', async () => {
+        openSettingsTab('render');
+        lastHealthData = await runHealth();
+        if (!lastHealthData) return;
+        const missing = [];
+        if (!lastHealthData.manim_ok) missing.push('manim');
+        if (!lastHealthData.ffmpeg_ok) missing.push('ffmpeg');
+        if (!missing.length) {
+          showInstallPrompt([]);
+          showToast('All dependencies are ready.', 'ok');
+          return;
+        }
+        showInstallPrompt(missing);
+        showToast('Missing dependencies detected.', 'err');
+      });
+      safeOn(installDepsBtn, 'click', installMissingDeps);
+      safeOn(cancelInstallBtn, 'click', () => showInstallPrompt([]));
       safeOn(copyOutputNowBtn, 'click', async () => {
         if (!currentJobId) {
           showToast('Render a video first.', 'err');
@@ -6354,9 +6625,12 @@
         }
         if (!subagentsTextEl.value.trim()) {
           subagentsTextEl.value = [
-            'Director: write a tight storyboard + timings.',
-            'Animator: convert storyboard to Manim, centered layout, clean labels.',
-            'QA: check overlaps, padding, and whether the story is intuitive.',
+            'PhotonCoach: drives photon-vs-wave framing and keeps threshold intuition clear.',
+            'LabDesigner: builds emitter plate, collector, stopping-potential layout with clean labels.',
+            'EquationTutor: introduces K_max = h f - phi and eV_s = K_max one symbol at a time.',
+            'GraphAnalyst: ensures K_max vs f graph shows f0 intercept and slope meaning.',
+            'VisualPacer: enforces one concept at a time and smooth transitions for short-form video.',
+            'SafetyQA: validates spacing, overlap, and readability for 9:16 and 16:9 exports.',
           ].join('\\n');
         }
 
@@ -6391,6 +6665,7 @@
       applyLayoutColumns();
       const didRestore = restoreProject();
       if (!didRestore) seedDemoDefaults();
+      ensurePhysicsSubagentsForDemo();
       renderSubagentCards();
       renderMentionBar();
       ensureGeneratedTab();

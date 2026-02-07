@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from .code_format import format_python
+from .code_format import CodeSanitizationError, sanitize_manim_code
 from .gemini_http import GeminiError, generate_content
 from .job_state import JobState, append_event, load_state, write_state
 from .prompts import MANIM_CODE_SYSTEM, REPAIR_SYSTEM, manim_code_user_prompt
@@ -142,7 +142,7 @@ class JobManager:
                 api_key=api_key,
                 model=text_model,
             )
-            code = format_python(code)
+            code = sanitize_manim_code(code)
             scene_path.write_text(code, encoding="utf-8")
 
             state.step = "render"
@@ -229,7 +229,7 @@ class JobManager:
                     api_key=api_key,
                     model=text_model,
                 )
-                code2 = format_python(code2)
+                code2 = sanitize_manim_code(code2)
                 scene_path.write_text(code2, encoding="utf-8")
 
                 state.status = "running"
@@ -281,6 +281,14 @@ class JobManager:
             state.status = "failed"
             state.step = state.step or "code"
             state.error = str(exc)
+            state.message = "Failed."
+            state.updated_at = time.time()
+            write_state(job_dir, state)
+            append_event(job_dir, type_="state", payload={"status": state.status, "step": state.step, "error": state.error})
+        except CodeSanitizationError as exc:
+            state.status = "failed"
+            state.step = state.step or "code"
+            state.error = f"Invalid generated code: {exc}"
             state.message = "Failed."
             state.updated_at = time.time()
             write_state(job_dir, state)

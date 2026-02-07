@@ -1,6 +1,12 @@
 from __future__ import annotations
 
+import ast
 import re
+from textwrap import dedent
+
+
+class CodeSanitizationError(ValueError):
+    pass
 
 
 def strip_markdown_fences(text: str) -> str:
@@ -37,3 +43,49 @@ def format_python(code: str) -> str:
     except Exception:
         # Strip trailing whitespace on each line.
         return "\n".join([ln.rstrip() for ln in code.splitlines()]).rstrip() + "\n"
+
+
+def sanitize_manim_code(code: str) -> str:
+    """Strict sanitizer for model-produced Manim code before rendering.
+
+    - Removes Markdown code fences.
+    - Normalizes tabs/newlines/indent baseline.
+    - Validates Python syntax.
+    - Requires class GeneratedScene(Scene).
+    """
+    raw = strip_markdown_fences(code)
+    raw = raw.replace("\r\n", "\n").replace("\r", "\n")
+    raw = raw.replace("\t", "    ")
+    raw = dedent(raw).strip()
+    if not raw:
+        raise CodeSanitizationError("Generated code is empty.")
+    formatted = format_python(raw)
+    if "```" in formatted:
+        formatted = formatted.replace("```python", "").replace("```py", "").replace("```", "").strip() + "\n"
+
+    try:
+        tree = ast.parse(formatted)
+    except SyntaxError as exc:
+        line = exc.lineno or "?"
+        msg = exc.msg or "syntax error"
+        raise CodeSanitizationError(f"Invalid Python syntax at line {line}: {msg}") from exc
+
+    generated_scene = None
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef) and node.name == "GeneratedScene":
+            generated_scene = node
+            break
+    if generated_scene is None:
+        raise CodeSanitizationError("Missing required class: GeneratedScene(Scene).")
+
+    def _is_scene_base(base: ast.expr) -> bool:
+        if isinstance(base, ast.Name):
+            return base.id == "Scene"
+        if isinstance(base, ast.Attribute):
+            return base.attr == "Scene"
+        return False
+
+    if not any(_is_scene_base(base) for base in generated_scene.bases):
+        raise CodeSanitizationError("GeneratedScene must inherit from Scene.")
+
+    return formatted

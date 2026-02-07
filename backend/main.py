@@ -29,7 +29,7 @@ from .prompts import (
 from .renderer import concat_videos, render_with_manim
 from .storage import job_paths, new_job_id
 from .templates import TEMPLATES
-from .code_format import format_python
+from .code_format import CodeSanitizationError, sanitize_manim_code
 from .context_store import (
     add_memory,
     delete_memory,
@@ -607,6 +607,10 @@ def _generate_assets(
 
 @app.get("/api/health")
 def health():
+    return _health_snapshot(load_settings())
+
+
+def _health_snapshot(settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     import subprocess
     import shutil
 
@@ -619,7 +623,7 @@ def health():
         except Exception as exc:
             return False, str(exc)
 
-    settings = load_settings()
+    settings = settings or load_settings()
     manim_py_setting = settings.get("manim_py")
     candidates: list[str] = []
     if manim_py_setting:
@@ -679,6 +683,56 @@ def health():
         "elevenlabs_voice_id": eleven_voice,
         "elevenlabs_model_id": eleven_model,
     }
+
+
+def _output_path_writable() -> tuple[bool, str]:
+    probe = JOBS / f".preflight-write-{secrets.token_hex(4)}.tmp"
+    try:
+        JOBS.mkdir(parents=True, exist_ok=True)
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink(missing_ok=True)
+        return True, ""
+    except Exception as exc:
+        try:
+            probe.unlink(missing_ok=True)
+        except Exception:
+            pass
+        return False, str(exc)
+
+
+def _preflight_payload(settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    settings = settings or load_settings()
+    health_data = _health_snapshot(settings)
+    api_ok = bool((settings.get("api_key") or "").strip())
+    write_ok, write_error = _output_path_writable()
+    checks = {
+        "api_key": api_ok,
+        "manim": bool(health_data.get("manim_ok")),
+        "ffmpeg": bool(health_data.get("ffmpeg_ok")),
+        "output_writable": write_ok,
+    }
+    missing = [name for name, ok in checks.items() if not ok]
+    fix_action = ""
+    if not checks["api_key"]:
+        fix_action = "open_settings_api"
+    elif not checks["manim"] or not checks["ffmpeg"]:
+        fix_action = "open_settings_render_get_started"
+    elif not checks["output_writable"]:
+        fix_action = "check_output_permissions"
+    return {
+        "ok": not missing,
+        "checks": checks,
+        "missing": missing,
+        "output_root": str(JOBS),
+        "write_error": write_error,
+        "fix_action": fix_action,
+        "health": health_data,
+    }
+
+
+@app.get("/api/preflight")
+def preflight():
+    return _preflight_payload(load_settings())
 
 
 @app.get("/api/settings")
@@ -1115,6 +1169,17 @@ def approve(req: ApproveReq):
         return {"ok": True, "job_id": req.job_id, "status": "already_running"}
 
     settings = load_settings()
+    preflight = _preflight_payload(settings)
+    if not preflight.get("ok"):
+        return JSONResponse(
+            {
+                "ok": False,
+                "job_id": req.job_id,
+                "error": "Preflight failed. Open Settings and run Get started.",
+                "preflight": preflight,
+            },
+            status_code=400,
+        )
     api_key = settings.get("api_key")
     text_model = req.model or settings.get("text_model")
     manim_py = settings.get("manim_py")
@@ -1473,9 +1538,9 @@ def animate(req: AnimateReq):
             api_key=api_key,
             model=text_model,
         )
-        code = format_python(code)
+        code = sanitize_manim_code(code)
         paths.scene_path.write_text(code, encoding="utf-8")
-    except GeminiError as exc:
+    except (GeminiError, CodeSanitizationError) as exc:
         return JSONResponse(
             {
                 "ok": False,
@@ -1507,7 +1572,7 @@ def animate(req: AnimateReq):
         )
         try:
             code2 = generate_content(repair_user, system_text=REPAIR_SYSTEM, api_key=api_key)
-            code2 = format_python(code2)
+            code2 = sanitize_manim_code(code2)
             paths.scene_path.write_text(code2, encoding="utf-8")
             ok, logs = render_with_manim(
                 paths.scene_path,
@@ -1516,7 +1581,7 @@ def animate(req: AnimateReq):
                 manim_py=manim_py,
             )
             paths.logs_path.write_text(logs, encoding="utf-8")
-        except GeminiError as exc:
+        except (GeminiError, CodeSanitizationError) as exc:
             return JSONResponse(
                 {
                     "ok": False,
@@ -1562,7 +1627,14 @@ def render_code(req: RenderCodeReq):
     paths.job_dir.mkdir(parents=True, exist_ok=True)
 
     # If the user edits code, keep it mostly as-is, but normalize tabs/trailing whitespace.
-    paths.scene_path.write_text(format_python(req.code), encoding="utf-8")
+    try:
+        clean_code = sanitize_manim_code(req.code)
+    except CodeSanitizationError as exc:
+        return JSONResponse(
+            {"ok": False, "job_id": job_id, "error": f"Invalid code: {exc}"},
+            status_code=400,
+        )
+    paths.scene_path.write_text(clean_code, encoding="utf-8")
     settings = load_settings()
     ok, logs = render_with_manim(
         paths.scene_path,
