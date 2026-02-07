@@ -14,8 +14,10 @@ def strip_markdown_fences(text: str) -> str:
     if m:
         return (m.group(1) or "").strip()
 
-    # Fallback: remove accidental standalone fence markers.
-    cleaned = raw.replace("```python", "").replace("```py", "").replace("```", "")
+    # Fallback: strip stray fence lines even when the closing fence is missing.
+    cleaned = re.sub(r"(?im)^\s*```(?:python|py)?\s*$", "", raw)
+    cleaned = re.sub(r"(?im)^\s*```\s*$", "", cleaned)
+    cleaned = cleaned.replace("```python", "").replace("```py", "").replace("```", "")
     return cleaned.strip()
 
 

@@ -268,15 +268,19 @@
         gap: 6px;
       }
       .tree-act {
-        width: auto;
+        width: 24px;
+        height: 24px;
         min-width: 24px;
-        padding: 2px 6px;
+        padding: 0;
         border-radius: 8px;
         border: 1px solid rgba(255,255,255,0.12);
         background: rgba(15, 20, 29, 0.9);
         color: var(--muted);
         font-size: 11px;
         line-height: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
       }
       .tree-act svg {
         width: 12px;
@@ -290,6 +294,22 @@
       .tree-act.danger:hover {
         border-color: rgba(239,68,68,0.55);
         color: #fca5a5;
+      }
+      .tree-act.confirm {
+        border-color: rgba(34,197,94,0.55);
+        color: #86efac;
+      }
+      .tree-act.confirm:hover {
+        border-color: rgba(34,197,94,0.85);
+        color: #dcfce7;
+      }
+      .tree-act.reject {
+        border-color: rgba(239,68,68,0.55);
+        color: #fca5a5;
+      }
+      .tree-act.reject:hover {
+        border-color: rgba(239,68,68,0.85);
+        color: #ffe4e6;
       }
 
       .section-title {
@@ -443,6 +463,9 @@
         border-radius: 12px;
         background: rgba(11, 13, 18, 0.58);
         padding: 8px 10px;
+        position: sticky;
+        bottom: 0;
+        z-index: 4;
       }
       .preview-transport #timelineScrub {
         margin-top: 0;
@@ -542,6 +565,33 @@
         font-size: 10px;
         color: var(--muted);
         white-space: nowrap;
+      }
+      .timeline-marker {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        transform: translateX(-50%);
+        pointer-events: none;
+      }
+      .timeline-marker-dot {
+        position: absolute;
+        top: 2px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: #6aa9ff;
+        box-shadow: 0 0 10px rgba(106,169,255,0.55);
+      }
+      .timeline-marker-label {
+        position: absolute;
+        top: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 9px;
+        color: #cfe3ff;
+        font-family: 'IBM Plex Mono', monospace;
       }
       .timeline-track {
         display: flex;
@@ -691,19 +741,6 @@
         font-family: 'IBM Plex Mono', monospace;
         margin-left: 8px;
       }
-      .timeline-actions {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-        justify-content: center;
-        flex-wrap: wrap;
-        width: 100%;
-      }
-      .timeline-actions button {
-        width: auto;
-        min-width: 200px;
-        max-width: 320px;
-      }
       .timeline-hint {
         margin-top: 6px;
         font-size: 11px;
@@ -733,10 +770,23 @@
         animation: shimmer 1.8s ease-in-out infinite;
       }
       .busy-sub { color: var(--muted); font-size: 12px; margin-top: 4px; max-width: 260px; text-align: center; }
+      .busy-thought {
+        color: #93c5fd;
+        font-size: 11px;
+        margin-top: 2px;
+        opacity: 0.9;
+        text-align: center;
+        animation: thoughtPulse 1.25s ease-in-out infinite;
+      }
       @keyframes shimmer {
         0% { background-position: 0% 50%; }
         50% { background-position: 100% 50%; }
         100% { background-position: 0% 50%; }
+      }
+      @keyframes thoughtPulse {
+        0% { opacity: 0.5; }
+        50% { opacity: 1; }
+        100% { opacity: 0.5; }
       }
       .spinner {
         width: 32px;
@@ -1616,6 +1666,7 @@
                         <div class="busy-title" id="busyTitle">Rendering</div>
                       </div>
                       <div class="busy-sub" id="busySub">Directing scenes…</div>
+                      <div class="busy-thought" id="busyThought">Thinking about scene pacing…</div>
                     </div>
                   </div>
                   <div class="preview-overlay">
@@ -1677,11 +1728,7 @@
                   <div class="muted" id="timelineLabel">Timeline</div>
                   <div class="timeline-ruler" id="timelineRuler" style="margin-top:6px;"></div>
                   <div class="timeline-track" id="timelineTrack"></div>
-                  <div class="timeline-actions" style="margin-top:8px;">
-                    <button id="applyTimeline" class="secondary">Apply to plan</button>
-                    <button id="resetTimeline" class="ghost">Reset</button>
-                  </div>
-                  <div class="timeline-hint">Tip: drag scene cards to reorder, drag card right-edge to resize duration, drag assets onto a scene card.</div>
+                  <div class="timeline-hint">Tip: drag scene cards to reorder, drag right-edge to resize, and drop BG/FG assets on a scene.</div>
                 </div>
 
                 <div class="muted" style="margin-top:10px;">
@@ -2100,8 +2147,6 @@
       const ff5Btn = document.getElementById('ff5');
       const ff10Btn = document.getElementById('ff10');
       const timeReadoutEl = document.getElementById('timeReadout');
-      const applyTimelineBtn = document.getElementById('applyTimeline');
-      const resetTimelineBtn = document.getElementById('resetTimeline');
       const codeEl = document.getElementById('code');
       const codeEditorEl = document.getElementById('codeEditor');
       const codeGutterEl = document.getElementById('codeGutter');
@@ -2124,6 +2169,7 @@
       const busyOverlayEl = document.getElementById('busyOverlay');
       const busyTitleEl = document.getElementById('busyTitle');
       const busySubEl = document.getElementById('busySub');
+      const busyThoughtEl = document.getElementById('busyThought');
       const toastEl = document.getElementById('toast');
       let toastTimer = null;
       document.querySelectorAll('button:not([type])').forEach((btn) => btn.setAttribute('type', 'button'));
@@ -2140,6 +2186,54 @@
       }
 
       let isBusy = false;
+      let busyThoughtTimer = null;
+      let busyThoughtIndex = 0;
+      function busyThoughtPool(phase) {
+        const key = String(phase || '').toLowerCase();
+        if (key.includes('plan')) return [
+          'Breaking topic into scenes…',
+          'Balancing clarity and pacing…',
+          'Keeping one concept per scene…'
+        ];
+        if (key.includes('image')) return [
+          'Composing background + foreground assets…',
+          'Matching visual style to the brief…',
+          'Preparing draggable image assets…'
+        ];
+        if (key.includes('voice')) return [
+          'Drafting narration timing…',
+          'Aligning captions and speech…',
+          'Mixing voice with video track…'
+        ];
+        return [
+          'Generating Manim scene code…',
+          'Validating scene structure…',
+          'Rendering frames and stitching output…'
+        ];
+      }
+      function setBusyThought(phase, fallbackMessage) {
+        if (!busyThoughtEl) return;
+        const pool = busyThoughtPool(phase);
+        if (!pool.length) {
+          busyThoughtEl.textContent = String(fallbackMessage || 'Working...');
+          return;
+        }
+        busyThoughtEl.textContent = pool[busyThoughtIndex % pool.length];
+        busyThoughtIndex += 1;
+      }
+      function startBusyThoughts(phase, fallbackMessage) {
+        if (!busyThoughtEl) return;
+        if (busyThoughtTimer) clearInterval(busyThoughtTimer);
+        busyThoughtIndex = 0;
+        setBusyThought(phase, fallbackMessage);
+        busyThoughtTimer = setInterval(() => setBusyThought(phase, fallbackMessage), 1300);
+      }
+      function stopBusyThoughts() {
+        if (busyThoughtTimer) {
+          clearInterval(busyThoughtTimer);
+          busyThoughtTimer = null;
+        }
+      }
       function setBusy(on, message, phase) {
         isBusy = !!on;
         if (busyOverlayEl) busyOverlayEl.classList.toggle('hidden', !isBusy);
@@ -2149,6 +2243,8 @@
         if (typeof message === 'string' && statusEl) statusEl.textContent = message;
         if (typeof message === 'string' && busySubEl) busySubEl.textContent = message || 'Working…';
         if (busyTitleEl) busyTitleEl.textContent = isBusy ? (phase || 'Rendering') : 'Ready';
+        if (isBusy) startBusyThoughts(phase, message);
+        else stopBusyThoughts();
         if (planBtn) planBtn.disabled = isBusy;
         if (renderCodeBtn) renderCodeBtn.disabled = !!isBusy;
         if (toggleHighlightBtn) toggleHighlightBtn.disabled = isBusy;
@@ -3287,7 +3383,7 @@
 
       function addChat(role, title, content, extraNode) {
         const sig = `${role}|${title}|${String(content || '').slice(0, 1200)}`;
-        if (!extraNode && sig === lastChatSignature) return;
+        if (sig === lastChatSignature) return;
         lastChatSignature = sig;
         const bubble = document.createElement('div');
         bubble.className = `bubble ${role}`;
@@ -3591,7 +3687,7 @@
         if (!actionsEl || !path) return;
         actionsEl.innerHTML = '';
         const yesBtn = document.createElement('button');
-        yesBtn.className = 'tree-act danger';
+        yesBtn.className = 'tree-act confirm';
         yesBtn.title = `Confirm delete ${kind}`;
         yesBtn.setAttribute('aria-label', `Confirm delete ${kind}`);
         yesBtn.textContent = '✓';
@@ -3601,7 +3697,7 @@
           await deleteWorkspacePath(path);
         });
         const noBtn = document.createElement('button');
-        noBtn.className = 'tree-act';
+        noBtn.className = 'tree-act reject';
         noBtn.title = 'Cancel';
         noBtn.setAttribute('aria-label', 'Cancel delete');
         noBtn.textContent = '✕';
@@ -4912,7 +5008,7 @@
         return Array.from(out);
       }
 
-      function renderTimelineRuler(totalSeconds) {
+      function renderTimelineRuler(totalSeconds, scenes) {
         if (!timelineRulerEl) return;
         timelineRulerEl.innerHTML = '';
         const total = Math.max(1, Math.floor(Number(totalSeconds || 1)));
@@ -4942,6 +5038,26 @@
           addTick(t, t % major === 0);
         }
         if (total % minor !== 0) addTick(total, true);
+        const rows = Array.isArray(scenes) ? scenes : [];
+        let cursor = 0;
+        rows.forEach((sc, idx) => {
+          const dur = Math.max(1, Number(sc?.seconds || 1));
+          const mid = cursor + Math.max(0.5, dur / 2);
+          const pct = (mid / total) * 100;
+          const marker = document.createElement('div');
+          marker.className = 'timeline-marker';
+          marker.style.left = `${pct}%`;
+          marker.title = `Scene ${idx + 1}: ${String(sc?.goal || 'Scene').slice(0, 120)}`;
+          const dot = document.createElement('div');
+          dot.className = 'timeline-marker-dot';
+          const label = document.createElement('div');
+          label.className = 'timeline-marker-label';
+          label.textContent = `S${idx + 1}`;
+          marker.appendChild(dot);
+          marker.appendChild(label);
+          timelineRulerEl.appendChild(marker);
+          cursor += dur;
+        });
       }
 
       function renderTimeline() {
@@ -4953,7 +5069,7 @@
         }
         const total = timelineState.reduce((s, sc) => s + sc.seconds, 0);
         timelineLabelEl.textContent = `Total ${total}s • ${timelineState.length} scenes`;
-        renderTimelineRuler(total);
+        renderTimelineRuler(total, timelineState);
 
         let cursor = 0;
         timelineState.forEach((scene, idx) => {
@@ -5832,12 +5948,6 @@
           rulerSeeking = false;
         });
       }
-
-      safeOn(applyTimelineBtn, 'click', syncPlanFromTimeline);
-      safeOn(resetTimelineBtn, 'click', () => {
-        timelineState = [];
-        renderTimeline();
-      });
 
       safeOn(planBtn, 'click', createPlan);
       safeOn(saveSettingsBtn, 'click', saveSettings);
