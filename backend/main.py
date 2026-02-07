@@ -5,6 +5,8 @@ import json
 import re
 import secrets
 import time
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Any, Dict, Optional
 from urllib.parse import parse_qs, urlparse
@@ -102,6 +104,10 @@ class SettingsReq(BaseModel):
     text_model: Optional[str] = None
     image_model: Optional[str] = None
     manim_py: Optional[str] = None
+    output_copy_dir: Optional[str] = None
+    elevenlabs_api_key: Optional[str] = None
+    elevenlabs_voice_id: Optional[str] = None
+    elevenlabs_model_id: Optional[str] = None
 
 
 class PlanReq(BaseModel):
@@ -417,6 +423,120 @@ def _merge_plans(base_plan: Dict[str, Any], next_plan: Dict[str, Any]) -> Dict[s
     }
 
 
+def _resolve_output_copy_dir(raw: Optional[str]) -> Optional[Path]:
+    """Resolve optional output-copy destination under host filesystem.
+
+    This is intentionally permissive because users may want Desktop or external
+    folders, but we still normalize and reject empty inputs.
+    """
+    txt = (raw or "").strip()
+    if not txt:
+        return None
+    p = Path(txt).expanduser()
+    if not p.is_absolute():
+        p = (ROOT / p).resolve()
+    return p
+
+
+def _copy_output_video(job_id: str, *, output_copy_dir: Optional[str]) -> tuple[bool, str]:
+    paths = job_paths(JOBS, job_id)
+    if not paths.out_mp4.exists():
+        return False, "No rendered video found for this job."
+    out_dir = _resolve_output_copy_dir(output_copy_dir)
+    if out_dir is None:
+        return False, "No output copy directory configured."
+    out_dir.mkdir(parents=True, exist_ok=True)
+    ext = paths.out_mp4.suffix or ".mp4"
+    target = out_dir / f"{job_id}{ext}"
+    shutil.copy2(paths.out_mp4, target)
+    return True, str(target)
+
+
+def _voiceover_text_from_plan(paths) -> str:
+    if not paths.plan_path.exists():
+        return ""
+    try:
+        plan = json.loads(paths.plan_path.read_text(encoding="utf-8"))
+    except Exception:
+        return ""
+    scenes = list(plan.get("scenes") or [])
+    lines: list[str] = []
+    for sc in scenes:
+        n = str(sc.get("narration") or "").strip()
+        if n:
+            lines.append(n)
+    return " ".join(lines).strip()
+
+
+def _srt_to_plain_text(srt_path: Path) -> str:
+    if not srt_path.exists():
+        return ""
+    text = srt_path.read_text(encoding="utf-8", errors="ignore")
+    out: list[str] = []
+    for ln in text.splitlines():
+        line = ln.strip()
+        if not line:
+            continue
+        if line.isdigit():
+            continue
+        if "-->" in line:
+            continue
+        out.append(line)
+    return " ".join(out).strip()
+
+
+def _add_elevenlabs_voiceover(*, paths, api_key: str, voice_id: str, model_id: Optional[str], text: str) -> tuple[bool, str]:
+    import requests
+
+    if not paths.out_mp4.exists():
+        return False, "Render an MP4 first before adding voiceover."
+    payload_text = (text or "").strip()
+    if not payload_text:
+        return False, "No narration text found. Add captions or scene narration first."
+
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+    headers = {
+        "xi-api-key": api_key,
+        "Content-Type": "application/json",
+        "Accept": "audio/mpeg",
+    }
+    body = {
+        "text": payload_text,
+        "model_id": (model_id or "eleven_multilingual_v2"),
+    }
+    try:
+        resp = requests.post(url, headers=headers, json=body, timeout=120)
+        if resp.status_code >= 400:
+            return False, f"ElevenLabs error {resp.status_code}: {resp.text[:500]}"
+    except Exception as exc:
+        return False, f"ElevenLabs request failed: {exc}"
+
+    audio_mp3 = paths.job_dir / "voiceover.mp3"
+    audio_mp3.write_bytes(resp.content)
+
+    merged_tmp = paths.job_dir / "out-voiceover.mp4"
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        str(paths.out_mp4),
+        "-i",
+        str(audio_mp3),
+        "-c:v",
+        "copy",
+        "-c:a",
+        "aac",
+        "-shortest",
+        str(merged_tmp),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0 or not merged_tmp.exists():
+        return False, ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()[-4000:]
+
+    merged_tmp.replace(paths.out_mp4)
+    return True, str(paths.out_mp4.relative_to(ROOT))
+
+
 @app.get("/")
 def index():
     return FileResponse(WEB / "index.html")
@@ -562,6 +682,12 @@ def get_settings():
         "text_model": settings.get("text_model"),
         "image_model": settings.get("image_model"),
         "manim_py": settings.get("manim_py"),
+        "output_copy_dir": settings.get("output_copy_dir") or "",
+        "has_elevenlabs_key": bool(settings.get("elevenlabs_api_key")),
+        "elevenlabs_voice_id": settings.get("elevenlabs_voice_id") or "",
+        "elevenlabs_model_id": settings.get("elevenlabs_model_id") or "",
+        "project_root": str(ROOT),
+        "work_root": str(WORK),
     }
 
 
@@ -573,6 +699,10 @@ def set_settings(req: SettingsReq):
             "text_model": req.text_model,
             "image_model": req.image_model,
             "manim_py": req.manim_py,
+            "output_copy_dir": req.output_copy_dir,
+            "elevenlabs_api_key": req.elevenlabs_api_key,
+            "elevenlabs_voice_id": req.elevenlabs_voice_id,
+            "elevenlabs_model_id": req.elevenlabs_model_id,
         }
     )
     return {
@@ -581,6 +711,10 @@ def set_settings(req: SettingsReq):
         "text_model": settings.get("text_model"),
         "image_model": settings.get("image_model"),
         "manim_py": settings.get("manim_py"),
+        "output_copy_dir": settings.get("output_copy_dir") or "",
+        "has_elevenlabs_key": bool(settings.get("elevenlabs_api_key")),
+        "elevenlabs_voice_id": settings.get("elevenlabs_voice_id") or "",
+        "elevenlabs_model_id": settings.get("elevenlabs_model_id") or "",
     }
 
 
@@ -1156,6 +1290,53 @@ def job_download(job_id: str):
             zf.write(p, arcname=str(p.relative_to(paths.job_dir)))
 
     return FileResponse(zip_path, filename=f"{job_id}.zip")
+
+
+@app.post("/api/jobs/{job_id}/copy-output")
+def copy_job_output(job_id: str):
+    settings = load_settings()
+    ok, out = _copy_output_video(job_id, output_copy_dir=settings.get("output_copy_dir"))
+    if not ok:
+        return JSONResponse({"ok": False, "error": out}, status_code=400)
+    return {"ok": True, "copied_path": out}
+
+
+@app.post("/api/jobs/{job_id}/voiceover")
+def add_voiceover(job_id: str):
+    settings = load_settings()
+    api_key = (settings.get("elevenlabs_api_key") or "").strip()
+    voice_id = (settings.get("elevenlabs_voice_id") or "").strip()
+    model_id = (settings.get("elevenlabs_model_id") or "").strip() or None
+    if not api_key or not voice_id:
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Configure ElevenLabs API key and Voice ID in Settings first.",
+            },
+            status_code=400,
+        )
+
+    paths = job_paths(JOBS, job_id)
+    if not paths.job_dir.exists():
+        return JSONResponse({"ok": False, "error": "Unknown job_id"}, status_code=404)
+
+    text = _srt_to_plain_text(paths.job_dir / "captions.srt")
+    if not text:
+        text = _voiceover_text_from_plan(paths)
+    ok, msg = _add_elevenlabs_voiceover(
+        paths=paths,
+        api_key=api_key,
+        voice_id=voice_id,
+        model_id=model_id,
+        text=text,
+    )
+    if not ok:
+        return JSONResponse({"ok": False, "error": msg}, status_code=400)
+    return {
+        "ok": True,
+        "video_path": msg,
+        "job_files": _job_files(paths),
+    }
 
 
 @app.post("/api/jobs/append")

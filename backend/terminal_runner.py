@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import subprocess
+from pathlib import Path
 from typing import Optional
 
 
@@ -8,22 +10,22 @@ class TerminalError(Exception):
     pass
 
 
-def run_terminal_command(command: str, *, manim_py: Optional[str] = None) -> str:
-    """Run a very small allow-list of safe commands for the UI terminal panel.
+ROOT = Path(__file__).resolve().parents[1]
 
-    This is NOT a general purpose shell.
-    """
+
+def run_terminal_command(command: str, *, manim_py: Optional[str] = None) -> str:
+    """Run terminal commands from the project root for the middle-panel terminal."""
     cmd = (command or "").strip()
     if not cmd:
         raise TerminalError("Empty command")
 
-    # Normalize common aliases.
     if cmd in {"help", "?", "/help"}:
         return (
             "Allowed commands:\n"
             "- manim --version\n"
             "- ffmpeg -version\n"
             "- ls jobs\n"
+            "- plus most shell commands (runs in project root)\n"
         )
 
     if cmd == "ls jobs":
@@ -51,5 +53,34 @@ def run_terminal_command(command: str, *, manim_py: Optional[str] = None) -> str
         )
         return (proc.stdout or "") + "\n" + (proc.stderr or "")
 
-    raise TerminalError("Command not allowed. Type 'help' for options.")
+    denied = [
+        "rm -rf /",
+        "shutdown",
+        "reboot",
+        "mkfs",
+        ":(){:|:&};:",
+    ]
+    low = cmd.lower()
+    for token in denied:
+        if token in low:
+            raise TerminalError("Command blocked for safety.")
 
+    try:
+        proc = subprocess.run(
+            cmd,
+            shell=True,
+            cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+            timeout=60,
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+        )
+    except subprocess.TimeoutExpired:
+        raise TerminalError("Command timed out after 60s")
+    except Exception as exc:
+        raise TerminalError(str(exc))
+
+    out = ((proc.stdout or "") + ("\n" + proc.stderr if proc.stderr else "")).strip()
+    if proc.returncode != 0:
+        return f"(exit {proc.returncode})\n{out}".strip()
+    return out

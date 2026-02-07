@@ -178,6 +178,11 @@
         padding: 10px 12px;
         overflow: auto;
       }
+      #leftPanel .panel-body {
+        display: flex;
+        flex-direction: column;
+      }
+      #historyPanel { margin-top: auto; }
 
       .tabs {
         display: flex;
@@ -666,6 +671,11 @@
         width: auto;
         min-width: 200px;
       }
+      .timeline-hint {
+        margin-top: 6px;
+        font-size: 11px;
+        color: var(--muted);
+      }
 
       .preview-busy {
         position: absolute;
@@ -1014,6 +1024,66 @@
       }
       .toolbar .spacer { flex: 1; }
       .btn-inline { width: auto; padding: 8px 10px; }
+      .icon-only {
+        width: 36px;
+        height: 36px;
+        padding: 0;
+      }
+      .icon-only svg {
+        width: 15px;
+        height: 15px;
+      }
+
+      .editor-tabs-wrap {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      .editor-tabs {
+        display: flex;
+        gap: 6px;
+        overflow-x: auto;
+        padding-bottom: 2px;
+      }
+      .editor-tab {
+        width: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.1);
+        background: rgba(15, 19, 26, 0.55);
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .editor-tab.active {
+        border-color: rgba(106,169,255,0.55);
+        background: rgba(106,169,255,0.12);
+        color: var(--text);
+      }
+      .editor-tab-name {
+        max-width: 180px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        cursor: pointer;
+      }
+      .editor-tab-close {
+        width: 20px;
+        height: 20px;
+        padding: 0;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.12);
+        background: rgba(11, 13, 18, 0.6);
+        color: var(--muted);
+      }
+      .editor-tab-close:hover {
+        color: #fecaca;
+        border-color: rgba(239,68,68,0.6);
+      }
 
       /* Settings live in the middle panel (IDE style). */
       .tab-panel[data-tab="settings"] { padding: 0; }
@@ -1263,6 +1333,11 @@
             <div id="jobId" style="margin-bottom:8px;">—</div>
             <div class="tree" id="jobFileList"></div>
           </details>
+          <details id="historyPanel" style="margin-top:10px;">
+            <summary>History</summary>
+            <div class="muted" style="margin-top:6px;">Last 3 actions</div>
+            <div class="tree" id="historyList"></div>
+          </details>
         </div>
       </aside>
 
@@ -1335,6 +1410,7 @@
 
                 <details style="margin-top:10px;">
                   <summary>Advanced creative controls</summary>
+                  <div class="muted" style="margin-top:8px;">These controls are applied by default on every plan and render.</div>
                   <div class="row" style="margin-top:8px;">
                     <div>
                       <label for="audience">Audience</label>
@@ -1475,6 +1551,12 @@
                     <button id="appendBtn" class="overlay-btn" title="Add next scene (+)" aria-label="Add next scene" disabled>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
                     </button>
+                    <button id="snapshotBtn" class="overlay-btn" title="Capture PNG frame" aria-label="Capture PNG frame" disabled>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    </button>
+                    <button id="voiceoverBtn" class="overlay-btn" title="Add ElevenLabs voiceover" aria-label="Add ElevenLabs voiceover" disabled>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v4"/><path d="M8 23h8"/></svg>
+                    </button>
                     <button id="exportBtn" class="overlay-btn" title="Download project ZIP" aria-label="Download project ZIP" disabled>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
                     </button>
@@ -1520,6 +1602,7 @@
                     <button id="applyTimeline" class="secondary">Apply to plan</button>
                     <button id="resetTimeline" class="ghost">Reset</button>
                   </div>
+                  <div class="timeline-hint">Tip: drag scene cards to reorder, drag card right-edge to resize duration, drag assets onto a scene card.</div>
                 </div>
 
                 <div class="muted" style="margin-top:10px;">
@@ -1530,11 +1613,19 @@
           </section>
 
           <section class="tab-panel" data-tab="code">
+            <div class="editor-tabs-wrap">
+              <div id="editorTabs" class="editor-tabs"></div>
+              <button id="newCodeTab" class="ghost btn-inline" title="New file tab">+</button>
+            </div>
               <div class="toolbar">
                 <div class="muted" id="editorLabel">Editor</div>
                 <div class="spacer"></div>
-                <button id="undoCode" class="ghost btn-inline" title="Undo">Undo</button>
-                <button id="redoCode" class="ghost btn-inline" title="Redo">Redo</button>
+                <button id="undoCode" class="ghost btn-inline icon-only" title="Undo" aria-label="Undo">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14L4 9l5-5"/><path d="M4 9h9a7 7 0 1 1 0 14h-1"/></svg>
+                </button>
+                <button id="redoCode" class="ghost btn-inline icon-only" title="Redo" aria-label="Redo">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 14l5-5-5-5"/><path d="M20 9h-9a7 7 0 1 0 0 14h1"/></svg>
+                </button>
                 <button id="addSelection" class="ghost btn-inline" title="Add selected text to prompt (@reference)">@</button>
                 <button id="saveFile" class="ghost btn-inline" disabled>Save file</button>
                 <button id="renderCode" class="secondary btn-inline">Render code</button>
@@ -1595,6 +1686,21 @@
                       </div>
                     </div>
                     <div class="muted" style="margin-top:6px;">Nano Banana = <code>gemini-2.5-flash-image</code></div>
+                    <div class="drawer-section" style="margin-top:10px;">
+                      <div class="drawer-title">Voiceover (ElevenLabs)</div>
+                      <div class="row">
+                        <div>
+                          <label for="settingsElevenApiKey">ElevenLabs API key</label>
+                          <input id="settingsElevenApiKey" type="password" placeholder="Paste key" />
+                        </div>
+                        <div>
+                          <label for="settingsElevenVoiceId">Voice ID</label>
+                          <input id="settingsElevenVoiceId" placeholder="21m00Tcm4TlvDq8ikWAM" />
+                        </div>
+                      </div>
+                      <label for="settingsElevenModelId" style="margin-top:8px;">Model ID</label>
+                      <input id="settingsElevenModelId" placeholder="eleven_multilingual_v2" />
+                    </div>
                     <button id="saveSettings" style="margin-top:10px;">Save</button>
                   </div>
                 </div>
@@ -1636,6 +1742,10 @@
                       <div class="muted">Workspace files</div>
                       <code>work/user_files/...</code>
                     </div>
+                    <label for="settingsOutputCopyDir" style="margin-top:10px;">Optional extra copy destination</label>
+                    <input id="settingsOutputCopyDir" placeholder="~/Desktop/NorthStar-Exports" />
+                    <div class="muted" style="margin-top:6px;">After render, click “Copy to output folder” to copy MP4 there.</div>
+                    <button id="copyOutputNow" class="secondary" style="margin-top:8px;">Copy to output folder</button>
                   </div>
                 </div>
 
@@ -1884,6 +1994,8 @@
       const downloadBtnEl = document.getElementById('downloadBtn');
       const shareBtnEl = document.getElementById('shareBtn');
       const appendBtnEl = document.getElementById('appendBtn');
+      const snapshotBtnEl = document.getElementById('snapshotBtn');
+      const voiceoverBtnEl = document.getElementById('voiceoverBtn');
       const exportBtnEl = document.getElementById('exportBtn');
       const ccBtnEl = document.getElementById('ccBtn');
       const timelineRulerEl = document.getElementById('timelineRuler');
@@ -1892,6 +2004,7 @@
       const timelineScrubEl = document.getElementById('timelineScrub');
       const canvasGridEl = document.querySelector('.canvas-grid');
       const canvasSplitterEl = document.getElementById('canvasSplitter');
+      const controlsCardEl = document.querySelector('.controls-card');
       const rew10Btn = document.getElementById('rew10');
       const rew5Btn = document.getElementById('rew5');
       const playPauseBtn = document.getElementById('playPause');
@@ -1905,6 +2018,8 @@
       const codeEl = document.getElementById('code');
       const codeEditorEl = document.getElementById('codeEditor');
       const codeGutterEl = document.getElementById('codeGutter');
+      const editorTabsEl = document.getElementById('editorTabs');
+      const newCodeTabBtn = document.getElementById('newCodeTab');
       const editorLabelEl = document.getElementById('editorLabel');
       const undoCodeBtn = document.getElementById('undoCode');
       const redoCodeBtn = document.getElementById('redoCode');
@@ -2007,6 +2122,11 @@
       const resetLayoutBtn = document.getElementById('resetLayout');
       const settingsOutputVideoPathEl = document.getElementById('settingsOutputVideoPath');
       const settingsOutputCodePathEl = document.getElementById('settingsOutputCodePath');
+      const settingsOutputCopyDirEl = document.getElementById('settingsOutputCopyDir');
+      const copyOutputNowBtn = document.getElementById('copyOutputNow');
+      const settingsElevenApiKeyEl = document.getElementById('settingsElevenApiKey');
+      const settingsElevenVoiceIdEl = document.getElementById('settingsElevenVoiceId');
+      const settingsElevenModelIdEl = document.getElementById('settingsElevenModelId');
 
       const rulesTextEl = document.getElementById('rulesText');
       const subagentsTextEl = document.getElementById('subagentsText');
@@ -2019,6 +2139,7 @@
       const saveSourceBtn = document.getElementById('saveSource');
       const sourceCardsEl = document.getElementById('sourceCards');
       const sourceStatusEl = document.getElementById('sourceStatus');
+      const historyListEl = document.getElementById('historyList');
 
       const videoEl = document.createElement('video');
       videoEl.controls = true;
@@ -2030,6 +2151,8 @@
         if (downloadBtnEl) downloadBtnEl.disabled = !ok;
         if (shareBtnEl) shareBtnEl.disabled = !ok;
         if (appendBtnEl) appendBtnEl.disabled = !ok;
+        if (snapshotBtnEl) snapshotBtnEl.disabled = !ok;
+        if (voiceoverBtnEl) voiceoverBtnEl.disabled = !ok;
         if (exportBtnEl) exportBtnEl.disabled = !ok || !currentJobId;
         if (ccBtnEl) ccBtnEl.disabled = !ok || !lastCaptionsUrl;
         if (previewEmptyEl) previewEmptyEl.classList.toggle('hidden', ok);
@@ -2092,6 +2215,7 @@
         a.click();
         a.remove();
         showToast('Downloading video…', 'ok');
+        if (currentJobId) pushHistory(`Downloaded ${currentJobId}.mp4`);
       });
       if (exportBtnEl) {
         exportBtnEl.addEventListener('click', () => {
@@ -2129,6 +2253,90 @@
           showToast('Share cancelled.', 'err');
         }
       });
+      if (snapshotBtnEl) {
+        snapshotBtnEl.addEventListener('click', async () => {
+          if (!videoEl.src || !currentJobId) return;
+          const vw = videoEl.videoWidth || 1080;
+          const vh = videoEl.videoHeight || 1920;
+          if (!vw || !vh) {
+            showToast('Wait until video metadata is loaded, then capture.', 'err');
+            return;
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = vw;
+          canvas.height = vh;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            showToast('Could not create canvas.', 'err');
+            return;
+          }
+          ctx.drawImage(videoEl, 0, 0, vw, vh);
+          const dataUrl = canvas.toDataURL('image/png');
+          const base64 = dataUrl.split(',', 2)[1] || '';
+          try {
+            const resp = await fetch('/api/jobs/upload-asset', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                job_id: currentJobId,
+                filename: `snapshot-${Date.now()}.png`,
+                content_base64: base64,
+                role: 'foreground'
+              })
+            });
+            const out = await resp.json();
+            const rel = out.ok ? out.asset_path : '';
+            const src = rel ? `/work/jobs/${currentJobId}/${rel}?t=${Date.now()}` : dataUrl;
+            const bubble = document.createElement('div');
+            bubble.innerHTML = `<img src=\"${src}\" alt=\"Snapshot\" style=\"max-width:240px; border-radius:12px; border:1px solid rgba(255,255,255,0.12);\" />`;
+            addChat('agent', 'Snapshot', 'Captured current frame.', bubble);
+            const a = document.createElement('a');
+            a.href = src;
+            a.download = `${currentJobId}-snapshot.png`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            showToast('Snapshot captured.', 'ok');
+            pushHistory(`Captured snapshot for ${currentJobId}`);
+            await loadWorkspaceFiles();
+          } catch {
+            showToast('Snapshot upload failed.', 'err');
+          }
+        });
+      }
+      if (voiceoverBtnEl) {
+        voiceoverBtnEl.addEventListener('click', async () => {
+          if (!currentJobId) return;
+          voiceoverBtnEl.disabled = true;
+          setBusy(true, 'Adding voiceover…', 'Voiceover');
+          try {
+            const resp = await fetch(`/api/jobs/${encodeURIComponent(currentJobId)}/voiceover`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await resp.json();
+            if (!data.ok) {
+              showToast(data.error || 'Voiceover failed.', 'err');
+              return;
+            }
+            if (data.video_path) {
+              const src = '/' + data.video_path + '?t=' + Date.now();
+              lastVideoUrl = src;
+              videoEl.src = src;
+              videoEl.load();
+              setVideoAvailable(true);
+            }
+            if (data.job_files) updateJobFiles(data.job_files);
+            showToast('Voiceover added.', 'ok');
+            pushHistory(`Added voiceover to ${currentJobId}`);
+          } catch {
+            showToast('Voiceover request failed.', 'err');
+          } finally {
+            setBusy(false);
+            if (voiceoverBtnEl) voiceoverBtnEl.disabled = false;
+          }
+        });
+      }
       if (appendBtnEl) {
         appendBtnEl.addEventListener('click', () => {
           if (!currentJobId || !lastVideoUrl) {
@@ -2153,9 +2361,14 @@
       let timelineState = [];
       let timelineMeta = { title: 'Scene Plan' };
       let openFilePath = null;
+      let openFileContent = '';
       let pendingRenameFrom = null;
       let pendingRenameKind = '';
       let lastAssets = { background: '', foreground: '' };
+      const editorTabsState = [];
+      let activeEditorTabId = 'generated';
+      const historyActions = [];
+      let terminalMode = false;
       const mqNarrow = window.matchMedia('(max-width: 1200px)');
       let jobEventSource = null;
       let didAnimateCode = false;
@@ -2259,6 +2472,172 @@
         if (Array.isArray(snap.timeline)) { timelineState = snap.timeline; renderTimeline(); }
         if (typeof snap.code === 'string') { codeEl.value = snap.code; refreshGutter(); if (highlightOn) refreshHighlight(); }
         return true;
+      }
+
+      function pushHistory(action) {
+        const txt = String(action || '').trim();
+        if (!txt) return;
+        const stamp = new Date();
+        const hh = String(stamp.getHours()).padStart(2, '0');
+        const mm = String(stamp.getMinutes()).padStart(2, '0');
+        historyActions.unshift(`${hh}:${mm}  ${txt}`);
+        if (historyActions.length > 3) historyActions.length = 3;
+        renderHistory();
+      }
+
+      function renderHistory() {
+        if (!historyListEl) return;
+        if (!historyActions.length) {
+          historyListEl.innerHTML = '<div class="muted">No actions yet.</div>';
+          return;
+        }
+        historyListEl.innerHTML = '';
+        historyActions.forEach((item) => {
+          const row = document.createElement('div');
+          row.className = 'tree-file';
+          row.textContent = item;
+          historyListEl.appendChild(row);
+        });
+      }
+
+      function fileBaseName(path) {
+        const p = String(path || '');
+        const bits = p.split('/');
+        return bits[bits.length - 1] || p || 'untitled.py';
+      }
+
+      function ensureGeneratedTab() {
+        if (editorTabsState.some((t) => t.id === 'generated')) return;
+        editorTabsState.push({
+          id: 'generated',
+          path: null,
+          label: 'generated.py',
+          content: codeEl.value || '',
+          generated: true,
+        });
+      }
+
+      function getActiveEditorTab() {
+        return editorTabsState.find((t) => t.id === activeEditorTabId) || null;
+      }
+
+      function syncCurrentEditorIntoActiveTab() {
+        const tab = getActiveEditorTab();
+        if (!tab) return;
+        tab.content = codeEl.value || '';
+      }
+
+      function applyActiveEditorTab() {
+        const tab = getActiveEditorTab();
+        if (!tab) return;
+        codeEl.value = tab.content || '';
+        refreshGutter();
+        if (highlightOn) refreshHighlight();
+        openFilePath = tab.path || null;
+        openFileContent = codeEl.value || '';
+        updateEditorMode();
+      }
+
+      function renderEditorTabs() {
+        if (!editorTabsEl) return;
+        ensureGeneratedTab();
+        editorTabsEl.innerHTML = '';
+        editorTabsState.forEach((tab) => {
+          const el = document.createElement('div');
+          el.className = `editor-tab ${tab.id === activeEditorTabId ? 'active' : ''}`;
+          el.dataset.id = tab.id;
+
+          const name = document.createElement('div');
+          name.className = 'editor-tab-name';
+          name.textContent = tab.label || 'untitled.py';
+          name.title = tab.path || tab.label || '';
+          name.addEventListener('click', () => {
+            syncCurrentEditorIntoActiveTab();
+            activeEditorTabId = tab.id;
+            applyActiveEditorTab();
+            renderEditorTabs();
+          });
+          el.appendChild(name);
+
+          if (!tab.generated) {
+            const close = document.createElement('button');
+            close.className = 'editor-tab-close';
+            close.title = 'Close tab';
+            close.setAttribute('aria-label', `Close ${tab.label}`);
+            close.textContent = '×';
+            close.addEventListener('click', (e) => {
+              e.stopPropagation();
+              const idx = editorTabsState.findIndex((x) => x.id === tab.id);
+              if (idx >= 0) editorTabsState.splice(idx, 1);
+              if (activeEditorTabId === tab.id) {
+                activeEditorTabId = (editorTabsState[idx - 1] || editorTabsState[idx] || editorTabsState[0] || { id: 'generated' }).id;
+              }
+              ensureGeneratedTab();
+              applyActiveEditorTab();
+              renderEditorTabs();
+            });
+            el.appendChild(close);
+          }
+
+          editorTabsEl.appendChild(el);
+        });
+      }
+
+      function upsertFileTab(path, content, activate = true) {
+        const p = String(path || '');
+        if (!p) return;
+        let tab = editorTabsState.find((t) => t.path === p);
+        if (!tab) {
+          tab = {
+            id: `file:${p}`,
+            path: p,
+            label: fileBaseName(p),
+            content: String(content || ''),
+            generated: false,
+          };
+          editorTabsState.push(tab);
+        } else if (typeof content === 'string') {
+          tab.content = content;
+        }
+        if (activate) {
+          activeEditorTabId = tab.id;
+          applyActiveEditorTab();
+        }
+        renderEditorTabs();
+      }
+
+      function upsertGeneratedTab(content) {
+        ensureGeneratedTab();
+        const tab = editorTabsState.find((t) => t.id === 'generated');
+        if (!tab) return;
+        tab.content = String(content || '');
+        tab.label = 'generated.py';
+        if (activeEditorTabId === 'generated') applyActiveEditorTab();
+        renderEditorTabs();
+      }
+
+      async function createNewCodeTabFile() {
+        let i = 1;
+        while (i < 500) {
+          const name = `notes/new_scene_${i}.py`;
+          try {
+            const resp = await fetch('/api/files/file', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path: name, content: '' })
+            });
+            const data = await resp.json();
+            if (data.ok && data.path) {
+              await loadWorkspaceFiles();
+              await openWorkspaceFile(data.path);
+              startRename(data.path, 'file');
+              pushHistory(`Created ${data.path}`);
+              return;
+            }
+          } catch {}
+          i += 1;
+        }
+        showToast('Could not create a new code file.', 'err');
       }
 
       function getSources() {
@@ -2481,7 +2860,7 @@
       function updateTopbarToggles() {
         if (toggleLeftBtn) toggleLeftBtn.classList.toggle('toggled', !leftPanel.classList.contains('hidden'));
         if (toggleRightBtn) toggleRightBtn.classList.toggle('toggled', !rightPanel.classList.contains('hidden'));
-        if (toggleTerminalBtn) toggleTerminalBtn.classList.toggle('toggled', !terminalPanel.classList.contains('hidden'));
+        if (toggleTerminalBtn) toggleTerminalBtn.classList.toggle('toggled', !!terminalMode);
         updateBackEnabled();
       }
 
@@ -2523,12 +2902,25 @@
         rightPanel.classList.toggle('hidden');
         applyLayoutColumns();
       });
-      document.getElementById('toggleTerminal').addEventListener('click', () => {
-        const isHidden = terminalPanel.classList.toggle('hidden');
-        updateTopbarToggles();
-        if (!isHidden) {
-          setTimeout(() => termCmdEl.focus(), 0);
+      function setTerminalMode(on) {
+        terminalMode = !!on;
+        if (!controlsCardEl || !terminalPanel) return;
+        if (terminalPanel.parentElement !== controlsCardEl) {
+          controlsCardEl.appendChild(terminalPanel);
         }
+        Array.from(controlsCardEl.children).forEach((child) => {
+          if (child === terminalPanel) return;
+          child.classList.toggle('hidden', terminalMode);
+        });
+        terminalPanel.classList.toggle('hidden', !terminalMode);
+        updateTopbarToggles();
+        if (terminalMode) {
+          setTimeout(() => termCmdEl?.focus(), 0);
+        }
+      }
+
+      document.getElementById('toggleTerminal').addEventListener('click', () => {
+        setTerminalMode(!terminalMode);
       });
 
       document.getElementById('backBtn').addEventListener('click', () => {
@@ -2544,7 +2936,18 @@
         updateOutputPaths();
         codeEl.value = '';
         refreshGutter();
+        upsertGeneratedTab('');
+        editorTabsState.splice(0, editorTabsState.length, {
+          id: 'generated',
+          path: null,
+          label: 'generated.py',
+          content: '',
+          generated: true,
+        });
+        activeEditorTabId = 'generated';
+        renderEditorTabs();
         openFilePath = null;
+        openFileContent = '';
         pendingRenameFrom = null;
         pendingRenameKind = '';
         setSelectedTreePath('', '');
@@ -2563,6 +2966,7 @@
         if (timelineRulerEl) timelineRulerEl.innerHTML = '';
         if (timelineLabelEl) timelineLabelEl.textContent = 'Timeline';
         if (stepDetailEl) stepDetailEl.textContent = 'Click a step to inspect details.';
+        setTerminalMode(false);
         updateBackEnabled();
       });
 
@@ -3076,12 +3480,24 @@
             if (highlightOn) refreshHighlight();
             updateEditorMode();
           }
+          for (let i = editorTabsState.length - 1; i >= 0; i--) {
+            const t = editorTabsState[i];
+            if (!t.path) continue;
+            if (t.path === path || t.path.startsWith(`${path}/`)) editorTabsState.splice(i, 1);
+          }
+          if (!editorTabsState.some((t) => t.id === activeEditorTabId)) {
+            activeEditorTabId = 'generated';
+            ensureGeneratedTab();
+            applyActiveEditorTab();
+          }
+          renderEditorTabs();
           if (selectedTreePath && (selectedTreePath === path || selectedTreePath.startsWith(`${path}/`))) {
             setSelectedTreePath('', '');
           }
           fileStatusEl.textContent = `Deleted: ${path}`;
           await loadWorkspaceFiles();
           showToast('Deleted.', 'ok');
+          pushHistory(`Deleted ${path}`);
         } catch {
           fileStatusEl.textContent = 'Failed to reach backend.';
         }
@@ -3206,6 +3622,7 @@
         const signature = `${currentJobId}:${code.length}:${String(code).slice(0, 128)}`;
         if (persistedSceneSignature === signature) return;
         const path = `notes/generated/${currentJobId}/scene.py`;
+        upsertGeneratedTab(code);
         try {
           const resp = await fetch('/api/files/file', {
             method: 'POST',
@@ -3215,12 +3632,15 @@
           const data = await resp.json();
           if (data.ok) {
             persistedSceneSignature = signature;
-            if (focusEditor || !openFilePath) {
-              openFilePath = data.path;
-              updateEditorMode();
-              setSelectedTreePath(data.path, 'file');
+            upsertFileTab(data.path, code, !!focusEditor);
+            if (focusEditor) {
+              activeEditorTabId = `file:${data.path}`;
+              applyActiveEditorTab();
+              renderEditorTabs();
             }
+            setSelectedTreePath(data.path, 'file');
             await loadWorkspaceFiles();
+            pushHistory(`Generated ${data.path}`);
           }
         } catch {}
       }
@@ -3430,6 +3850,7 @@
 
       codeEl.addEventListener('scroll', () => refreshGutter());
       codeEl.addEventListener('input', () => {
+        syncCurrentEditorIntoActiveTab();
         refreshGutter();
         if (highlightOn) refreshHighlight();
         scheduleAutosave();
@@ -3506,6 +3927,7 @@
             showToast('Images: partial failure (see logs).', 'err');
           } else {
             showToast('Images generated. Drag BG/FG into scenes.', 'ok');
+            pushHistory(`Generated images for ${currentJobId}`);
           }
           scheduleAutosave();
         } catch (e) {
@@ -3519,6 +3941,7 @@
       async function openWorkspaceFile(path) {
         if (!path) return;
         setSelectedTreePath(path, 'file');
+        syncCurrentEditorIntoActiveTab();
         let data = null;
         try {
           const resp = await fetch(`/api/files/file?path=${encodeURIComponent(path)}`);
@@ -3531,17 +3954,16 @@
           logsEl.textContent = data.error || 'Failed to open file.';
           return;
         }
-        openFilePath = data.path;
-        codeEl.value = data.content || '';
-        refreshGutter();
-        if (highlightOn) refreshHighlight();
-        updateEditorMode();
+        upsertFileTab(data.path, data.content || '');
+        openFileContent = data.content || '';
+        pushHistory(`Opened ${data.path}`);
         setActiveTab('code');
         codeEl.focus();
       }
 
       async function saveWorkspaceFile() {
         if (!openFilePath) return;
+        syncCurrentEditorIntoActiveTab();
         let data = null;
         try {
           const resp = await fetch('/api/files/file', {
@@ -3558,8 +3980,12 @@
           logsEl.textContent = data.error || 'Failed to save file.';
           return;
         }
+        const tab = getActiveEditorTab();
+        if (tab) tab.content = codeEl.value || '';
+        openFileContent = codeEl.value || '';
         logsEl.textContent = `Saved: ${openFilePath}`;
         showToast(`Saved: ${openFilePath}`, 'ok');
+        pushHistory(`Saved ${openFilePath}`);
       }
 
       function startRename(fromPath, kind = '') {
@@ -3620,11 +4046,21 @@
         applyRenameBtn.classList.add('hidden');
         newPathEl.value = '';
         fileStatusEl.textContent = `Renamed: ${fromPath} → ${toPath}`;
+        editorTabsState.forEach((t) => {
+          if (!t.path) return;
+          if (t.path === fromPath || t.path.startsWith(`${fromPath}/`)) {
+            t.path = t.path === fromPath ? toPath : `${toPath}${t.path.slice(fromPath.length)}`;
+            t.id = `file:${t.path}`;
+            t.label = fileBaseName(t.path);
+          }
+        });
         if (openFilePath === fromPath) {
           openFilePath = toPath;
           updateEditorMode();
         }
+        renderEditorTabs();
         loadWorkspaceFiles();
+        pushHistory(`Renamed ${fromPath} → ${toPath}`);
       }
 
       async function loadWorkspaceFiles() {
@@ -3656,6 +4092,7 @@
               if (data.ok) {
                 loadWorkspaceFiles();
                 startRename(data.path, 'dir');
+                pushHistory(`Created folder ${data.path}`);
                 return;
               }
             } catch (e) {
@@ -3691,6 +4128,7 @@
         fileStatusEl.textContent = `Folder created: ${data.path}`;
         startRename(data.path, 'dir');
         loadWorkspaceFiles();
+        pushHistory(`Created folder ${data.path}`);
       }
 
       async function createFile() {
@@ -3711,6 +4149,7 @@
                 loadWorkspaceFiles();
                 startRename(data.path, 'file');
                 await openWorkspaceFile(data.path);
+                pushHistory(`Created file ${data.path}`);
                 return;
               }
             } catch (e) {
@@ -3743,6 +4182,7 @@
         startRename(data.path, 'file');
         loadWorkspaceFiles();
         await openWorkspaceFile(data.path);
+        pushHistory(`Created file ${data.path}`);
       }
 
       chatInputEl.addEventListener('dragover', (e) => {
@@ -3988,6 +4428,9 @@
         }
         if (data.image_model) settingsImageModelEl.value = data.image_model;
         if (data.manim_py) settingsManimPyEl.value = data.manim_py;
+        if (settingsOutputCopyDirEl) settingsOutputCopyDirEl.value = data.output_copy_dir || '';
+        if (settingsElevenVoiceIdEl) settingsElevenVoiceIdEl.value = data.elevenlabs_voice_id || '';
+        if (settingsElevenModelIdEl) settingsElevenModelIdEl.value = data.elevenlabs_model_id || '';
         if (!data.has_api_key) {
           statusEl.textContent = 'Hackathon tip: open Settings and paste your Gemini API key.';
           try {
@@ -4008,14 +4451,21 @@
             api_key: settingsApiKeyEl.value || null,
             text_model: settingsTextModelEl.value || null,
             image_model: settingsImageModelEl.value || null,
-            manim_py: settingsManimPyEl.value || null
+            manim_py: settingsManimPyEl.value || null,
+            output_copy_dir: settingsOutputCopyDirEl ? (settingsOutputCopyDirEl.value || null) : null,
+            elevenlabs_api_key: settingsElevenApiKeyEl ? (settingsElevenApiKeyEl.value || null) : null,
+            elevenlabs_voice_id: settingsElevenVoiceIdEl ? (settingsElevenVoiceIdEl.value || null) : null,
+            elevenlabs_model_id: settingsElevenModelIdEl ? (settingsElevenModelIdEl.value || null) : null
           })
         });
         const data = await resp.json();
         if (data.ok) {
           statusEl.textContent = 'Settings saved.';
           settingsApiKeyEl.value = '';
+          if (settingsElevenApiKeyEl) settingsElevenApiKeyEl.value = '';
           if (data.text_model) chatModelEl.value = data.text_model;
+          showToast('Settings saved.', 'ok');
+          pushHistory('Saved settings');
         }
       }
 
@@ -4764,6 +5214,7 @@
         didAnimateCode = false;
         currentPlanText = data.plan_text;
         jobIdEl.textContent = currentJobId;
+        pushHistory(`Created plan ${currentJobId}`);
         if (appendFromJobId && appendFromJobId !== currentJobId) {
           statusEl.textContent = `Append mode active: base ${appendFromJobId} -> next ${currentJobId}`;
         }
@@ -4925,6 +5376,7 @@
               videoEl.src = src;
               videoEl.load();
               setVideoAvailable(true);
+              pushHistory(`Rendered ${runJobId}`);
             }
             lastCaptionsUrl = '';
             if (finalState.captions_path) {
@@ -4959,9 +5411,9 @@
             finish(finalState);
           }
 
-          codeEl.value = '# Generating Manim scene...\n';
-          refreshGutter();
-          if (highlightOn) refreshHighlight();
+          activeEditorTabId = 'generated';
+          upsertGeneratedTab('# Generating Manim scene...\n');
+          applyActiveEditorTab();
 
           setBusy(true, 'Generating video…', 'Rendering');
           setStep('approve', 'done');
@@ -5148,6 +5600,7 @@
         updateJobFiles(data.job_files);
         logsEl.textContent = data.logs || 'Render complete.';
         showToast('Render complete.', 'ok');
+        pushHistory(`Rendered ${currentJobId || 'code'}`);
       });
 
       downloadVideoBtn.addEventListener('click', () => {
@@ -5178,6 +5631,7 @@
             return;
           }
           logsEl.textContent += (data.output || '') + '\n';
+          pushHistory(`Terminal: ${cmd}`);
         } catch (e) {
           logsEl.textContent += 'Failed to reach backend.\n';
         } finally {
@@ -5203,6 +5657,28 @@
         timelineScrubEl.value = Math.floor((videoEl.currentTime / videoEl.duration) * 100);
         updateTransportUI();
       });
+      if (timelineRulerEl) {
+        let rulerSeeking = false;
+        function seekFromRulerClientX(clientX) {
+          if (!videoEl.duration) return;
+          const rect = timelineRulerEl.getBoundingClientRect();
+          const pct = Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)));
+          videoEl.currentTime = pct * videoEl.duration;
+          timelineScrubEl.value = Math.floor(pct * 100);
+          updateTransportUI();
+        }
+        timelineRulerEl.addEventListener('mousedown', (e) => {
+          rulerSeeking = true;
+          seekFromRulerClientX(e.clientX);
+        });
+        window.addEventListener('mousemove', (e) => {
+          if (!rulerSeeking) return;
+          seekFromRulerClientX(e.clientX);
+        });
+        window.addEventListener('mouseup', () => {
+          rulerSeeking = false;
+        });
+      }
 
       safeOn(applyTimelineBtn, 'click', syncPlanFromTimeline);
       safeOn(resetTimelineBtn, 'click', () => {
@@ -5212,6 +5688,24 @@
 
       safeOn(planBtn, 'click', createPlan);
       safeOn(saveSettingsBtn, 'click', saveSettings);
+      safeOn(copyOutputNowBtn, 'click', async () => {
+        if (!currentJobId) {
+          showToast('Render a video first.', 'err');
+          return;
+        }
+        try {
+          const resp = await fetch(`/api/jobs/${encodeURIComponent(currentJobId)}/copy-output`, { method: 'POST' });
+          const data = await resp.json();
+          if (!data.ok) {
+            showToast(data.error || 'Copy failed.', 'err');
+            return;
+          }
+          showToast(`Copied to ${data.copied_path}`, 'ok');
+          pushHistory(`Copied output for ${currentJobId}`);
+        } catch {
+          showToast('Copy request failed.', 'err');
+        }
+      });
       safeOn(runHealthBtn, 'click', runHealth);
       safeOn(resetLayoutBtn, 'click', resetLayout);
       safeOn(addMemoryBtn, 'click', addMemory);
@@ -5226,6 +5720,7 @@
       safeOn(genImagesBtn, 'click', generateImages);
       safeOn(createFolderBtn, 'click', createFolder);
       safeOn(createFileBtn, 'click', createFile);
+      safeOn(newCodeTabBtn, 'click', createNewCodeTabFile);
       safeOn(newPathEl, 'keydown', (e) => {
         if (e.key === 'Enter' && pendingRenameFrom) {
           e.preventDefault();
@@ -5430,6 +5925,10 @@
       if (!didRestore) seedDemoDefaults();
       renderSubagentCards();
       renderMentionBar();
+      ensureGeneratedTab();
+      renderEditorTabs();
+      renderHistory();
+      setTerminalMode(false);
       setContextTab('memory');
       setVideoAvailable(false);
       updateOutputPaths();
