@@ -1768,6 +1768,53 @@
               <input id="creativeComplexity" type="range" min="0" max="100" value="54" />
             </div>
           </div>
+          <div class="section-title" style="margin-top:10px;">Vibe Motion</div>
+          <div class="row">
+            <label style="display:flex; align-items:center; gap:8px;">
+              <input id="vibeEnable" type="checkbox" checked />
+              Enable animated overlays + captions
+            </label>
+          </div>
+          <div class="row" style="margin-top:8px;">
+            <div>
+              <label for="vibeTitle">Video title overlay</label>
+              <input id="vibeTitle" placeholder="The Quantum Spark" />
+            </div>
+            <div>
+              <label for="vibeCaptionMode">Caption mode</label>
+              <select id="vibeCaptionMode">
+                <option value="concise">Concise subtitles</option>
+                <option value="narrative">Narrative subtitles</option>
+                <option value="keyword">Keyword popups</option>
+                <option value="none">No extra captions</option>
+              </select>
+            </div>
+          </div>
+          <div class="row" style="margin-top:8px;">
+            <div>
+              <label for="vibeTextAnim">Text animation style</label>
+              <select id="vibeTextAnim">
+                <option value="cinematic_fade">Cinematic fade</option>
+                <option value="kinetic_slide">Kinetic slide</option>
+                <option value="typewriter">Typewriter</option>
+                <option value="glow_pop">Glow pop</option>
+              </select>
+            </div>
+            <div>
+              <label for="vibeCaptionPosition">Caption position</label>
+              <select id="vibeCaptionPosition">
+                <option value="lower_third">Lower third</option>
+                <option value="center">Center</option>
+                <option value="top">Top</option>
+              </select>
+            </div>
+          </div>
+          <div class="row" style="margin-top:8px;">
+            <div>
+              <label for="vibeOverlayStrength">Overlay intensity</label>
+              <input id="vibeOverlayStrength" type="range" min="0" max="100" value="62" />
+            </div>
+          </div>
           <details id="jobArtifacts" style="margin-top:8px;">
             <summary>Artifacts</summary>
             <div class="muted" style="margin-top:6px;">Job ID</div>
@@ -2514,6 +2561,12 @@
       const creativeDensityEl = document.getElementById('creativeDensity');
       const creativeEnergyEl = document.getElementById('creativeEnergy');
       const creativeComplexityEl = document.getElementById('creativeComplexity');
+      const vibeEnableEl = document.getElementById('vibeEnable');
+      const vibeTitleEl = document.getElementById('vibeTitle');
+      const vibeCaptionModeEl = document.getElementById('vibeCaptionMode');
+      const vibeTextAnimEl = document.getElementById('vibeTextAnim');
+      const vibeCaptionPositionEl = document.getElementById('vibeCaptionPosition');
+      const vibeOverlayStrengthEl = document.getElementById('vibeOverlayStrength');
       const imageGenDetailsEl = document.getElementById('imageGenDetails');
       const imagePromptEl = document.getElementById('imagePrompt');
       const imageModeEl = document.getElementById('imageMode');
@@ -3217,6 +3270,12 @@
             creative_density: creativeDensityEl?.value || '62',
             creative_energy: creativeEnergyEl?.value || '68',
             creative_complexity: creativeComplexityEl?.value || '54',
+            vibe_enable: !!(vibeEnableEl && vibeEnableEl.checked),
+            vibe_title: vibeTitleEl?.value || '',
+            vibe_caption_mode: vibeCaptionModeEl?.value || 'concise',
+            vibe_text_anim: vibeTextAnimEl?.value || 'cinematic_fade',
+            vibe_caption_position: vibeCaptionPositionEl?.value || 'lower_third',
+            vibe_overlay_strength: vibeOverlayStrengthEl?.value || '62',
           },
           plan_text: currentPlanText || '',
           timeline: Array.isArray(timelineState) ? timelineState : [],
@@ -3275,6 +3334,12 @@
         if (creativeDensityEl && c.creative_density !== undefined) creativeDensityEl.value = c.creative_density;
         if (creativeEnergyEl && c.creative_energy !== undefined) creativeEnergyEl.value = c.creative_energy;
         if (creativeComplexityEl && c.creative_complexity !== undefined) creativeComplexityEl.value = c.creative_complexity;
+        if (vibeEnableEl && c.vibe_enable !== undefined) vibeEnableEl.checked = !!c.vibe_enable;
+        if (vibeTitleEl && c.vibe_title !== undefined) vibeTitleEl.value = c.vibe_title;
+        if (vibeCaptionModeEl && c.vibe_caption_mode) vibeCaptionModeEl.value = c.vibe_caption_mode;
+        if (vibeTextAnimEl && c.vibe_text_anim) vibeTextAnimEl.value = c.vibe_text_anim;
+        if (vibeCaptionPositionEl && c.vibe_caption_position) vibeCaptionPositionEl.value = c.vibe_caption_position;
+        if (vibeOverlayStrengthEl && c.vibe_overlay_strength !== undefined) vibeOverlayStrengthEl.value = c.vibe_overlay_strength;
 
         if (Array.isArray(snap.chat_sessions) && snap.chat_sessions.length) {
           chatSessions = snap.chat_sessions.map((s, i) => ({
@@ -4645,6 +4710,12 @@
       bindAutosave(creativeDensityEl, 'input');
       bindAutosave(creativeEnergyEl, 'input');
       bindAutosave(creativeComplexityEl, 'input');
+      bindAutosave(vibeEnableEl, 'change');
+      bindAutosave(vibeTitleEl, 'input');
+      bindAutosave(vibeCaptionModeEl, 'change');
+      bindAutosave(vibeTextAnimEl, 'change');
+      bindAutosave(vibeCaptionPositionEl, 'change');
+      bindAutosave(vibeOverlayStrengthEl, 'input');
 
       function updateEditorMode() {
         if (!openFilePath) {
@@ -6666,6 +6737,21 @@
         if (creativeEnergyEl) creativeLines.push(`Animation energy: ${creativeEnergyEl.value}/100`);
         if (creativeComplexityEl) creativeLines.push(`Scene complexity: ${creativeComplexityEl.value}/100`);
         if (creativeLines.length) pieces.push(`Creative controls:\n${creativeLines.join('\n')}`);
+        const vibeLines = [];
+        if (vibeEnableEl && vibeEnableEl.checked) {
+          vibeLines.push('Enable vibe motion overlays and caption choreography.');
+          if (vibeTitleEl && vibeTitleEl.value.trim()) {
+            vibeLines.push(`Primary title overlay: "${vibeTitleEl.value.trim()}"`);
+          }
+          if (vibeCaptionModeEl) vibeLines.push(`Caption behavior: ${vibeCaptionModeEl.value}`);
+          if (vibeTextAnimEl) vibeLines.push(`Text animation style: ${vibeTextAnimEl.value}`);
+          if (vibeCaptionPositionEl) vibeLines.push(`Caption position: ${vibeCaptionPositionEl.value}`);
+          if (vibeOverlayStrengthEl) vibeLines.push(`Overlay intensity: ${vibeOverlayStrengthEl.value}/100`);
+          vibeLines.push('Use tasteful animated text callouts for key transitions (hook, equation, recap).');
+        } else {
+          vibeLines.push('Keep overlay text minimal; no extra caption choreography beyond essential labels.');
+        }
+        pieces.push(`Vibe motion:\n${vibeLines.join('\n')}`);
         const rules = rulesTextEl.value.trim();
         if (rules) pieces.push(`Rules:\n${rules}`);
         const sub = subagentsTextEl.value.trim();
@@ -7569,6 +7655,12 @@
         if (!qualityEl.value) qualityEl.value = 'pqm';
         if (!targetSecondsEl.value.trim()) targetSecondsEl.value = '60';
         if (!maxScenesEl.value.trim()) maxScenesEl.value = '6';
+        if (vibeEnableEl) vibeEnableEl.checked = true;
+        if (vibeTitleEl && !vibeTitleEl.value.trim()) vibeTitleEl.value = 'The Quantum Spark';
+        if (vibeCaptionModeEl && !vibeCaptionModeEl.value) vibeCaptionModeEl.value = 'concise';
+        if (vibeTextAnimEl && !vibeTextAnimEl.value) vibeTextAnimEl.value = 'cinematic_fade';
+        if (vibeCaptionPositionEl && !vibeCaptionPositionEl.value) vibeCaptionPositionEl.value = 'lower_third';
+        if (vibeOverlayStrengthEl && !String(vibeOverlayStrengthEl.value || '').trim()) vibeOverlayStrengthEl.value = '62';
 
         if (!rulesTextEl.value.trim()) {
           rulesTextEl.value = [
