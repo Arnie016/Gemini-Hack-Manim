@@ -235,8 +235,16 @@
         display: grid;
         gap: 6px;
       }
-      .tree summary { cursor: pointer; color: #93c5fd; }
-      .tree details { padding-left: 12px; }
+      .tree summary { cursor: pointer; color: #93c5fd; list-style: none; }
+      .tree summary::-webkit-details-marker { display: none; }
+      .tree details { padding-left: 0; }
+      .tree details > .tree-children {
+        margin-left: 14px;
+        padding-left: 10px;
+        border-left: 1px solid rgba(255,255,255,0.08);
+        display: grid;
+        gap: 4px;
+      }
       .tree .tree-file {
         color: #cbd5f5;
         padding-left: 0;
@@ -261,6 +269,13 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+      .tree-row-name input {
+        width: 100%;
+        padding: 4px 6px;
+        border-radius: 8px;
+        font-size: 12px;
+        line-height: 1.25;
       }
       .tree-row-actions {
         display: inline-flex;
@@ -518,6 +533,16 @@
         align-content: start;
       }
       .asset-title { font-size: 11px; color: var(--muted); }
+      .asset-meta { font-size: 11px; color: var(--muted); }
+      .asset-actions {
+        display: flex;
+        gap: 6px;
+      }
+      .asset-actions button {
+        width: auto;
+        padding: 6px 8px;
+        font-size: 11px;
+      }
       .asset-thumb {
         height: 64px;
         border-radius: 10px;
@@ -903,6 +928,22 @@
         display: flex;
         flex-wrap: wrap;
         gap: 6px;
+      }
+      .mention-bar.collapsed { display: none; }
+      .mention-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+      }
+      .mention-toggle {
+        width: auto;
+        padding: 4px 8px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: rgba(12, 16, 22, 0.72);
+        color: var(--muted);
+        font-size: 11px;
       }
       .mention-chip {
         width: auto;
@@ -1581,10 +1622,20 @@
                     <div class="asset-slot">
                       <div class="asset-title">Background preview (drag into a scene)</div>
                       <div class="asset-thumb" id="bgThumb">No image yet</div>
+                      <div class="asset-meta" id="bgAppliedInfo">Applied to: none</div>
+                      <div class="asset-actions">
+                        <button id="applyBgAll" class="ghost">BG -> all scenes</button>
+                        <button id="clearBgAll" class="ghost">Clear BG</button>
+                      </div>
                     </div>
                     <div class="asset-slot">
                       <div class="asset-title">Foreground preview (drag into a scene)</div>
                       <div class="asset-thumb" id="fgThumb">No image yet</div>
+                      <div class="asset-meta" id="fgAppliedInfo">Applied to: none</div>
+                      <div class="asset-actions">
+                        <button id="applyFgAll" class="ghost">FG -> all scenes</button>
+                        <button id="clearFgAll" class="ghost">Clear FG</button>
+                      </div>
                     </div>
                   </div>
                 </details>
@@ -1672,6 +1723,15 @@
                     <div>
                       <label for="targetSeconds">Target seconds</label>
                       <input id="targetSeconds" placeholder="Leave blank" />
+                      <select id="durationPreset" style="margin-top:6px;">
+                        <option value="">Duration presets</option>
+                        <option value="30">30s</option>
+                        <option value="45">45s</option>
+                        <option value="60">1 min</option>
+                        <option value="90">1:30</option>
+                        <option value="120">2 min</option>
+                        <option value="180">3 min</option>
+                      </select>
                     </div>
                     <div>
                       <label for="maxScenes">Max scenes</label>
@@ -1868,7 +1928,8 @@
                     <div class="drawer-title">API & Models</div>
                     <label for="settingsApiKey">Gemini API key</label>
                     <input id="settingsApiKey" type="password" placeholder="Paste key" />
-                    <button id="settingsShowKey" class="ghost" style="margin-top:6px;">Show / Hide key</button>
+                    <button id="settingsShowKey" class="ghost" style="margin-top:6px;">Show/Hide Gemini key</button>
+                    <button id="settingsShowAllKeys" class="ghost" style="margin-top:6px;">Show/Hide all keys</button>
 
                     <div class="row" style="margin-top:10px;">
                       <div>
@@ -2117,6 +2178,10 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
             </button>
           </div>
+          <div class="mention-toolbar">
+            <button id="toggleMentions" class="mention-toggle">Hide refs</button>
+            <div class="muted" id="mentionInfo">Skills & agents references</div>
+          </div>
           <div id="mentionBar" class="mention-bar"></div>
           <div class="muted" id="status">Ready.</div>
         </div>
@@ -2180,6 +2245,7 @@
       const paletteEl = document.getElementById('palette');
       const qualityEl = document.getElementById('quality');
       const targetSecondsEl = document.getElementById('targetSeconds');
+      const durationPresetEl = document.getElementById('durationPreset');
       const maxScenesEl = document.getElementById('maxScenes');
       const maxObjectsEl = document.getElementById('maxObjects');
       const directorBriefEl = document.getElementById('directorBrief');
@@ -2205,6 +2271,12 @@
 
       const bgThumbEl = document.getElementById('bgThumb');
       const fgThumbEl = document.getElementById('fgThumb');
+      const bgAppliedInfoEl = document.getElementById('bgAppliedInfo');
+      const fgAppliedInfoEl = document.getElementById('fgAppliedInfo');
+      const applyBgAllBtn = document.getElementById('applyBgAll');
+      const clearBgAllBtn = document.getElementById('clearBgAll');
+      const applyFgAllBtn = document.getElementById('applyFgAll');
+      const clearFgAllBtn = document.getElementById('clearFgAll');
 
       const previewSlot = document.getElementById('previewSlot');
       const previewEmptyEl = document.getElementById('previewEmpty');
@@ -2355,6 +2427,8 @@
       const filePickerEl = document.getElementById('filePicker');
       const voiceBtnEl = document.getElementById('voiceBtn');
       const mentionBarEl = document.getElementById('mentionBar');
+      const mentionInfoEl = document.getElementById('mentionInfo');
+      const toggleMentionsBtn = document.getElementById('toggleMentions');
       const statusEl = document.getElementById('status');
       const agentStepsEl = document.getElementById('agentSteps');
       const agentProgressFillEl = document.getElementById('agentProgressFill');
@@ -2386,6 +2460,7 @@
       const closeInfoBtn = document.getElementById('closeInfo');
       const settingsApiKeyEl = document.getElementById('settingsApiKey');
       const settingsShowKeyBtn = document.getElementById('settingsShowKey');
+      const settingsShowAllKeysBtn = document.getElementById('settingsShowAllKeys');
       const settingsTextModelEl = document.getElementById('settingsTextModel');
       const settingsImageModelEl = document.getElementById('settingsImageModel');
       const settingsManimPyEl = document.getElementById('settingsManimPy');
@@ -3418,6 +3493,25 @@
         const isHidden = settingsApiKeyEl.type === 'password';
         settingsApiKeyEl.type = isHidden ? 'text' : 'password';
       });
+      safeOn(settingsShowAllKeysBtn, 'click', () => {
+        const reveal = settingsApiKeyEl.type === 'password' || settingsElevenApiKeyEl.type === 'password';
+        settingsApiKeyEl.type = reveal ? 'text' : 'password';
+        settingsElevenApiKeyEl.type = reveal ? 'text' : 'password';
+      });
+      let mentionsCollapsed = false;
+      function updateMentionVisibility() {
+        if (!mentionBarEl) return;
+        mentionBarEl.classList.toggle('collapsed', mentionsCollapsed);
+        if (toggleMentionsBtn) toggleMentionsBtn.textContent = mentionsCollapsed ? 'Show refs' : 'Hide refs';
+        if (mentionInfoEl) {
+          if (mentionsCollapsed) mentionInfoEl.textContent = 'References hidden';
+          else mentionInfoEl.textContent = mentionInfoEl.dataset.summary || 'Skills & agents references';
+        }
+      }
+      safeOn(toggleMentionsBtn, 'click', () => {
+        mentionsCollapsed = !mentionsCollapsed;
+        updateMentionVisibility();
+      });
 
       const tabs = Array.from(document.querySelectorAll('.tab'));
       const panels = Array.from(document.querySelectorAll('.tab-panel'));
@@ -3766,7 +3860,7 @@
             row.addEventListener('dblclick', (e) => {
               e.preventDefault();
               e.stopPropagation();
-              startRename(node.path, 'dir');
+              startInlineRename(row, node.path, 'dir');
             });
           }
           const name = document.createElement('div');
@@ -3802,7 +3896,10 @@
           }
           summary.appendChild(row);
           details.appendChild(summary);
-          (node.children || []).forEach(child => renderTree(child, details));
+          const childrenWrap = document.createElement('div');
+          childrenWrap.className = 'tree-children';
+          (node.children || []).forEach(child => renderTree(child, childrenWrap));
+          details.appendChild(childrenWrap);
           container.appendChild(details);
         } else {
           const item = document.createElement('div');
@@ -3857,7 +3954,7 @@
           row.addEventListener('dblclick', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            startRename(node.path, 'file');
+            startInlineRename(row, node.path, 'file');
           });
           container.appendChild(item);
         }
@@ -4283,15 +4380,90 @@
         if (highlightOn) refreshHighlight();
         scheduleAutosave();
       });
+      function sceneIndexSummary(indexes, totalScenes = 0) {
+        if (!Array.isArray(indexes) || !indexes.length) return 'none';
+        const sorted = Array.from(new Set(indexes)).sort((a, b) => a - b);
+        if (totalScenes > 0 && sorted.length === totalScenes) return 'all scenes';
+        const out = [];
+        let start = sorted[0];
+        let prev = sorted[0];
+        for (let i = 1; i < sorted.length; i++) {
+          const cur = sorted[i];
+          if (cur === prev + 1) {
+            prev = cur;
+            continue;
+          }
+          out.push(start === prev ? `S${start + 1}` : `S${start + 1}-S${prev + 1}`);
+          start = cur;
+          prev = cur;
+        }
+        out.push(start === prev ? `S${start + 1}` : `S${start + 1}-S${prev + 1}`);
+        return out.join(', ');
+      }
+
+      function refreshAppliedAssetInfo() {
+        if (bgAppliedInfoEl) {
+          const bgIdx = [];
+          timelineState.forEach((sc, i) => {
+            if (sc?.assets?.background) bgIdx.push(i);
+          });
+          bgAppliedInfoEl.textContent = `Applied to: ${sceneIndexSummary(bgIdx, timelineState.length)}`;
+        }
+        if (fgAppliedInfoEl) {
+          const fgIdx = [];
+          timelineState.forEach((sc, i) => {
+            if (sc?.assets?.foreground) fgIdx.push(i);
+          });
+          fgAppliedInfoEl.textContent = `Applied to: ${sceneIndexSummary(fgIdx, timelineState.length)}`;
+        }
+      }
+
+      function getThumbAsset(role) {
+        const el = role === 'foreground' ? fgThumbEl : bgThumbEl;
+        if (!el) return '';
+        return String(el.dataset.assetPath || '').trim();
+      }
+
+      function applyAssetToAllScenes(role) {
+        const assetPath = getThumbAsset(role);
+        if (!assetPath) {
+          showToast(`Generate a ${role} image first.`, 'err');
+          return;
+        }
+        if (!timelineState.length) {
+          showToast('Create plan first.', 'err');
+          return;
+        }
+        timelineState.forEach((sc) => {
+          sc.assets = sc.assets || {};
+          sc.assets[role] = assetPath;
+        });
+        renderTimeline();
+        showToast(`${role === 'background' ? 'BG' : 'FG'} applied to all scenes.`, 'ok');
+      }
+
+      function clearAssetFromAllScenes(role) {
+        if (!timelineState.length) return;
+        timelineState.forEach((sc) => {
+          if (!sc.assets) return;
+          delete sc.assets[role];
+        });
+        renderTimeline();
+        showToast(`${role === 'background' ? 'BG' : 'FG'} cleared from scenes.`, 'ok');
+      }
+
       function setThumb(el, opts) {
         const url = opts?.url || '';
         const type = opts?.type || '';
         const relPath = opts?.relPath || '';
         el.innerHTML = '';
+        el.dataset.assetType = type;
+        el.dataset.assetPath = relPath;
         if (!url) {
           el.textContent = 'No image yet';
           el.classList.remove('draggable');
           el.removeAttribute('draggable');
+          refreshAppliedAssetInfo();
           return;
         }
         const img = document.createElement('img');
@@ -4306,6 +4478,7 @@
           e.dataTransfer.setData('text/asset-path', relPath);
           e.dataTransfer.effectAllowed = 'copy';
         };
+        refreshAppliedAssetInfo();
       }
 
       async function generateImages() {
@@ -4437,22 +4610,11 @@
         return /\.[A-Za-z0-9]{1,8}$/.test(leaf);
       }
 
-      async function renamePending() {
-        const toPath = newPathEl.value.trim();
-        const fromPath = pendingRenameFrom;
-        if (!fromPath) return;
-        if (!toPath) {
-          fileStatusEl.textContent = 'Rename cancelled: empty path.';
-          pendingRenameFrom = null;
-          pendingRenameKind = '';
-          applyRenameBtn.classList.add('hidden');
-          return;
+      async function doRenamePath(fromPath, toPath, kind = '') {
+        if (!fromPath || !toPath) return { ok: false, error: 'Invalid rename path.' };
+        if (kind === 'dir' && looksLikeFileName(toPath)) {
+          return { ok: false, error: 'Folder names cannot look like files (example: folder.py).' };
         }
-        if (pendingRenameKind === 'dir' && looksLikeFileName(toPath)) {
-          fileStatusEl.textContent = 'Folder names cannot look like files (example: folder.py).';
-          return;
-        }
-        fileStatusEl.textContent = 'Renaming...';
         let data = null;
         try {
           const resp = await fetch('/api/files/rename', {
@@ -4462,18 +4624,12 @@
           });
           data = await resp.json();
         } catch (e) {
-          fileStatusEl.textContent = 'Failed to reach backend.';
-          return;
+          return { ok: false, error: 'Failed to reach backend.' };
         }
         if (!data.ok) {
-          fileStatusEl.textContent = data.error || 'Rename failed.';
-          return;
+          return { ok: false, error: data.error || 'Rename failed.' };
         }
-        pendingRenameFrom = null;
-        pendingRenameKind = '';
-        applyRenameBtn.classList.add('hidden');
-        newPathEl.value = '';
-        fileStatusEl.textContent = `Renamed: ${fromPath} → ${toPath}`;
+
         editorTabsState.forEach((t) => {
           if (!t.path) return;
           if (t.path === fromPath || t.path.startsWith(`${fromPath}/`)) {
@@ -4487,8 +4643,102 @@
           updateEditorMode();
         }
         renderEditorTabs();
-        loadWorkspaceFiles();
+        await loadWorkspaceFiles();
         pushHistory(`Renamed ${fromPath} → ${toPath}`);
+        return { ok: true };
+      }
+
+      async function renamePending() {
+        const toPath = newPathEl.value.trim();
+        const fromPath = pendingRenameFrom;
+        if (!fromPath) return;
+        if (!toPath) {
+          fileStatusEl.textContent = 'Rename cancelled: empty path.';
+          pendingRenameFrom = null;
+          pendingRenameKind = '';
+          applyRenameBtn.classList.add('hidden');
+          return;
+        }
+        fileStatusEl.textContent = 'Renaming...';
+        const out = await doRenamePath(fromPath, toPath, pendingRenameKind);
+        if (!out.ok) {
+          fileStatusEl.textContent = out.error || 'Rename failed.';
+          return;
+        }
+        pendingRenameFrom = null;
+        pendingRenameKind = '';
+        applyRenameBtn.classList.add('hidden');
+        newPathEl.value = '';
+        fileStatusEl.textContent = `Renamed: ${fromPath} → ${toPath}`;
+      }
+
+      function startInlineRename(rowEl, fromPath, kind = '') {
+        if (!rowEl || !fromPath) return;
+        const nameWrap = rowEl.querySelector('.tree-row-name');
+        const actions = rowEl.querySelector('.tree-row-actions');
+        if (!nameWrap || !actions) return;
+        const oldLeaf = String(fromPath).split('/').filter(Boolean).pop() || fromPath;
+        const parent = fromPath.includes('/') ? fromPath.slice(0, fromPath.lastIndexOf('/')) : '';
+        const input = document.createElement('input');
+        input.value = oldLeaf;
+        input.placeholder = kind === 'dir' ? 'folder-name' : 'file-name.ext';
+        nameWrap.innerHTML = '';
+        nameWrap.appendChild(input);
+        actions.innerHTML = '';
+        const okBtn = document.createElement('button');
+        okBtn.className = 'tree-act confirm';
+        okBtn.title = 'Confirm rename';
+        okBtn.textContent = '✓';
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'tree-act reject';
+        cancelBtn.title = 'Cancel rename';
+        cancelBtn.textContent = '✕';
+        actions.appendChild(okBtn);
+        actions.appendChild(cancelBtn);
+
+        const submit = async () => {
+          const newLeaf = (input.value || '').trim();
+          if (!newLeaf) {
+            fileStatusEl.textContent = 'Rename cancelled: empty name.';
+            await loadWorkspaceFiles();
+            return;
+          }
+          const toPath = parent ? `${parent}/${newLeaf}` : newLeaf;
+          fileStatusEl.textContent = 'Renaming...';
+          const out = await doRenamePath(fromPath, toPath, kind);
+          if (!out.ok) {
+            fileStatusEl.textContent = out.error || 'Rename failed.';
+            await loadWorkspaceFiles();
+            return;
+          }
+          fileStatusEl.textContent = `Renamed: ${fromPath} → ${toPath}`;
+        };
+        const cancel = async () => {
+          await loadWorkspaceFiles();
+        };
+        okBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          submit();
+        });
+        cancelBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          cancel();
+        });
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            submit();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            cancel();
+          }
+        });
+        setTimeout(() => {
+          input.focus();
+          input.setSelectionRange(0, oldLeaf.length);
+        }, 0);
       }
 
       async function loadWorkspaceFiles() {
@@ -5105,6 +5355,7 @@
         if (!mentionBarEl) return;
         mentionBarEl.innerHTML = '';
         const chips = [];
+        const maxMentionsVisible = 10;
 
         function insertMentionToken(token) {
           const cur = chatInputEl.value || '';
@@ -5126,10 +5377,16 @@
 
         if (!chips.length) {
           mentionBarEl.classList.add('hidden');
+          if (mentionInfoEl) {
+            mentionInfoEl.dataset.summary = 'No references yet';
+            mentionInfoEl.textContent = mentionInfoEl.dataset.summary;
+          }
+          updateMentionVisibility();
           return;
         }
         mentionBarEl.classList.remove('hidden');
-        chips.slice(0, 24).forEach((c) => {
+        const visible = chips.slice(0, maxMentionsVisible);
+        visible.forEach((c) => {
           const btn = document.createElement('button');
           btn.className = `mention-chip ${c.kind === 'agent' ? 'agent' : ''}`;
           btn.title = `${c.tip} reference: click to insert ${c.token}`;
@@ -5137,6 +5394,17 @@
           btn.addEventListener('click', () => insertMentionToken(c.token));
           mentionBarEl.appendChild(btn);
         });
+        if (chips.length > visible.length) {
+          const more = chips.length - visible.length;
+          if (mentionInfoEl) {
+            mentionInfoEl.dataset.summary = `${visible.length}/${chips.length} refs shown (+${more} hidden)`;
+            mentionInfoEl.textContent = mentionInfoEl.dataset.summary;
+          }
+        } else if (mentionInfoEl) {
+          mentionInfoEl.dataset.summary = `${chips.length} refs`;
+          mentionInfoEl.textContent = mentionInfoEl.dataset.summary;
+        }
+        updateMentionVisibility();
       }
 
       function renderSubagentCards() {
@@ -5486,6 +5754,7 @@
         if (!timelineState.length) {
           timelineLabelEl.textContent = 'Timeline';
           if (timelineRulerEl) timelineRulerEl.innerHTML = '';
+          refreshAppliedAssetInfo();
           return;
         }
         const total = timelineState.reduce((s, sc) => s + sc.seconds, 0);
@@ -5649,6 +5918,7 @@
         });
         highlightTimelineAt(videoEl.currentTime || 0);
         if (lastPlanBox) syncPlanFromTimeline();
+        refreshAppliedAssetInfo();
         scheduleAutosave();
       }
 
@@ -6455,8 +6725,18 @@
         scheduleAutosave();
       });
       safeOn(aspectEl, 'change', () => setPreviewAspect(aspectEl.value));
+      safeOn(durationPresetEl, 'change', () => {
+        const val = Number(durationPresetEl.value || 0);
+        if (!Number.isFinite(val) || val <= 0) return;
+        targetSecondsEl.value = String(val);
+        scheduleAutosave();
+      });
       safeOn(applyRenameBtn, 'click', renamePending);
       safeOn(genImagesBtn, 'click', generateImages);
+      safeOn(applyBgAllBtn, 'click', () => applyAssetToAllScenes('background'));
+      safeOn(clearBgAllBtn, 'click', () => clearAssetFromAllScenes('background'));
+      safeOn(applyFgAllBtn, 'click', () => applyAssetToAllScenes('foreground'));
+      safeOn(clearFgAllBtn, 'click', () => clearAssetFromAllScenes('foreground'));
       safeOn(createFolderBtn, 'click', createFolder);
       safeOn(createFileBtn, 'click', createFile);
       safeOn(newCodeTabBtn, 'click', createNewCodeTabFile);
