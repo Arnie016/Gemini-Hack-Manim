@@ -251,6 +251,11 @@
         cursor: grab;
       }
       .tree .tree-file:hover { color: var(--accent); }
+      .compact-scroll {
+        max-height: 320px;
+        overflow: auto;
+        padding-right: 2px;
+      }
       .tree-row {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
@@ -1769,52 +1774,118 @@
             </div>
           </div>
           <div class="section-title" style="margin-top:10px;">Vibe Motion</div>
-          <div class="row">
-            <label style="display:flex; align-items:center; gap:8px;">
-              <input id="vibeEnable" type="checkbox" checked />
-              Enable animated overlays + captions
-            </label>
-          </div>
-          <div class="row" style="margin-top:8px;">
-            <div>
-              <label for="vibeTitle">Video title overlay</label>
-              <input id="vibeTitle" placeholder="The Quantum Spark" />
+          <details id="vibeMotionDetails" open>
+            <summary>Overlay text, captions, and orientation</summary>
+            <div class="compact-scroll" style="margin-top:8px;">
+              <div class="row">
+                <label style="display:flex; align-items:center; gap:8px;">
+                  <input id="vibeEnable" type="checkbox" checked />
+                  Enable animated overlays + captions
+                </label>
+              </div>
+              <div class="row" style="margin-top:8px;">
+                <div>
+                  <label for="vibePreset">Vibe preset</label>
+                  <select id="vibePreset">
+                    <option value="cinematic_science">Cinematic science</option>
+                    <option value="clean_education">Clean education</option>
+                    <option value="dramatic_docu">Dramatic documentary</option>
+                    <option value="neon_explainer">Neon explainer</option>
+                    <option value="minimal_elegant">Minimal elegant</option>
+                    <option value="chalkboard_classic">Chalkboard classic</option>
+                    <option value="shortform_punchy">Shortform punchy</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="orientationGuide">Orientation guide</label>
+                  <select id="orientationGuide">
+                    <option value="auto">Auto from aspect</option>
+                    <option value="portrait_9_16">Portrait storyteller (9:16)</option>
+                    <option value="landscape_16_9">Landscape board (16:9)</option>
+                    <option value="square_1_1">Square social (1:1)</option>
+                  </select>
+                  <button id="applyOrientationGuide" class="ghost" style="margin-top:6px;">Apply orientation style</button>
+                </div>
+              </div>
+              <div class="row" style="margin-top:8px;">
+                <div>
+                  <label for="vibeTitle">Video title overlay</label>
+                  <input id="vibeTitle" placeholder="The Quantum Spark" />
+                </div>
+                <div>
+                  <label for="vibeCaptionMode">Caption mode</label>
+                  <select id="vibeCaptionMode">
+                    <option value="concise">Concise subtitles</option>
+                    <option value="narrative">Narrative subtitles</option>
+                    <option value="keyword">Keyword popups</option>
+                    <option value="callout">Callout labels</option>
+                    <option value="none">No extra captions</option>
+                  </select>
+                </div>
+              </div>
+              <div class="row" style="margin-top:8px;">
+                <div>
+                  <label for="vibeTextAnim">Text animation style</label>
+                  <select id="vibeTextAnim">
+                    <option value="cinematic_fade">Cinematic fade</option>
+                    <option value="kinetic_slide">Kinetic slide</option>
+                    <option value="typewriter">Typewriter</option>
+                    <option value="glow_pop">Glow pop</option>
+                    <option value="parallax_float">Parallax float</option>
+                    <option value="burst_scale">Burst scale</option>
+                    <option value="flash_cut">Flash cut</option>
+                    <option value="chalk_draw">Chalk draw</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="vibeCaptionAnim">Caption animation</label>
+                  <select id="vibeCaptionAnim">
+                    <option value="soft_fade">Soft fade</option>
+                    <option value="word_by_word">Word-by-word</option>
+                    <option value="line_slide">Line slide</option>
+                    <option value="pulse_highlight">Pulse highlight</option>
+                    <option value="ticker_flow">Ticker flow</option>
+                    <option value="pop_stagger">Pop stagger</option>
+                  </select>
+                </div>
+              </div>
+              <div class="row" style="margin-top:8px;">
+                <div>
+                  <label for="vibeCaptionPosition">Caption position</label>
+                  <select id="vibeCaptionPosition">
+                    <option value="lower_third">Lower third</option>
+                    <option value="center">Center</option>
+                    <option value="top">Top</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="vibeCaptionDensity">Caption density</label>
+                  <select id="vibeCaptionDensity">
+                    <option value="light">Light</option>
+                    <option value="balanced">Balanced</option>
+                    <option value="dense">Dense</option>
+                  </select>
+                </div>
+              </div>
+              <div class="row" style="margin-top:8px;">
+                <div>
+                  <label for="vibeOverlayStrength">Overlay intensity</label>
+                  <input id="vibeOverlayStrength" type="range" min="0" max="100" value="62" />
+                </div>
+                <div>
+                  <label for="vibeTitleWeight">Title weight</label>
+                  <select id="vibeTitleWeight">
+                    <option value="bold">Bold</option>
+                    <option value="medium">Medium</option>
+                    <option value="light">Light</option>
+                  </select>
+                </div>
+              </div>
             </div>
-            <div>
-              <label for="vibeCaptionMode">Caption mode</label>
-              <select id="vibeCaptionMode">
-                <option value="concise">Concise subtitles</option>
-                <option value="narrative">Narrative subtitles</option>
-                <option value="keyword">Keyword popups</option>
-                <option value="none">No extra captions</option>
-              </select>
+            <div class="muted" style="margin-top:8px;">
+              Orientation tip: portrait keeps captions in lower third; landscape shifts captions upward and allows wider scene layouts.
             </div>
-          </div>
-          <div class="row" style="margin-top:8px;">
-            <div>
-              <label for="vibeTextAnim">Text animation style</label>
-              <select id="vibeTextAnim">
-                <option value="cinematic_fade">Cinematic fade</option>
-                <option value="kinetic_slide">Kinetic slide</option>
-                <option value="typewriter">Typewriter</option>
-                <option value="glow_pop">Glow pop</option>
-              </select>
-            </div>
-            <div>
-              <label for="vibeCaptionPosition">Caption position</label>
-              <select id="vibeCaptionPosition">
-                <option value="lower_third">Lower third</option>
-                <option value="center">Center</option>
-                <option value="top">Top</option>
-              </select>
-            </div>
-          </div>
-          <div class="row" style="margin-top:8px;">
-            <div>
-              <label for="vibeOverlayStrength">Overlay intensity</label>
-              <input id="vibeOverlayStrength" type="range" min="0" max="100" value="62" />
-            </div>
-          </div>
+          </details>
           <details id="jobArtifacts" style="margin-top:8px;">
             <summary>Artifacts</summary>
             <div class="muted" style="margin-top:6px;">Job ID</div>
@@ -2562,11 +2633,17 @@
       const creativeEnergyEl = document.getElementById('creativeEnergy');
       const creativeComplexityEl = document.getElementById('creativeComplexity');
       const vibeEnableEl = document.getElementById('vibeEnable');
+      const vibePresetEl = document.getElementById('vibePreset');
+      const orientationGuideEl = document.getElementById('orientationGuide');
+      const applyOrientationGuideEl = document.getElementById('applyOrientationGuide');
       const vibeTitleEl = document.getElementById('vibeTitle');
       const vibeCaptionModeEl = document.getElementById('vibeCaptionMode');
       const vibeTextAnimEl = document.getElementById('vibeTextAnim');
+      const vibeCaptionAnimEl = document.getElementById('vibeCaptionAnim');
       const vibeCaptionPositionEl = document.getElementById('vibeCaptionPosition');
+      const vibeCaptionDensityEl = document.getElementById('vibeCaptionDensity');
       const vibeOverlayStrengthEl = document.getElementById('vibeOverlayStrength');
+      const vibeTitleWeightEl = document.getElementById('vibeTitleWeight');
       const imageGenDetailsEl = document.getElementById('imageGenDetails');
       const imagePromptEl = document.getElementById('imagePrompt');
       const imageModeEl = document.getElementById('imageMode');
@@ -3271,11 +3348,16 @@
             creative_energy: creativeEnergyEl?.value || '68',
             creative_complexity: creativeComplexityEl?.value || '54',
             vibe_enable: !!(vibeEnableEl && vibeEnableEl.checked),
+            vibe_preset: vibePresetEl?.value || 'cinematic_science',
+            orientation_guide: orientationGuideEl?.value || 'auto',
             vibe_title: vibeTitleEl?.value || '',
             vibe_caption_mode: vibeCaptionModeEl?.value || 'concise',
             vibe_text_anim: vibeTextAnimEl?.value || 'cinematic_fade',
+            vibe_caption_anim: vibeCaptionAnimEl?.value || 'soft_fade',
             vibe_caption_position: vibeCaptionPositionEl?.value || 'lower_third',
+            vibe_caption_density: vibeCaptionDensityEl?.value || 'balanced',
             vibe_overlay_strength: vibeOverlayStrengthEl?.value || '62',
+            vibe_title_weight: vibeTitleWeightEl?.value || 'bold',
           },
           plan_text: currentPlanText || '',
           timeline: Array.isArray(timelineState) ? timelineState : [],
@@ -3335,11 +3417,16 @@
         if (creativeEnergyEl && c.creative_energy !== undefined) creativeEnergyEl.value = c.creative_energy;
         if (creativeComplexityEl && c.creative_complexity !== undefined) creativeComplexityEl.value = c.creative_complexity;
         if (vibeEnableEl && c.vibe_enable !== undefined) vibeEnableEl.checked = !!c.vibe_enable;
+        if (vibePresetEl && c.vibe_preset) vibePresetEl.value = c.vibe_preset;
+        if (orientationGuideEl && c.orientation_guide) orientationGuideEl.value = c.orientation_guide;
         if (vibeTitleEl && c.vibe_title !== undefined) vibeTitleEl.value = c.vibe_title;
         if (vibeCaptionModeEl && c.vibe_caption_mode) vibeCaptionModeEl.value = c.vibe_caption_mode;
         if (vibeTextAnimEl && c.vibe_text_anim) vibeTextAnimEl.value = c.vibe_text_anim;
+        if (vibeCaptionAnimEl && c.vibe_caption_anim) vibeCaptionAnimEl.value = c.vibe_caption_anim;
         if (vibeCaptionPositionEl && c.vibe_caption_position) vibeCaptionPositionEl.value = c.vibe_caption_position;
+        if (vibeCaptionDensityEl && c.vibe_caption_density) vibeCaptionDensityEl.value = c.vibe_caption_density;
         if (vibeOverlayStrengthEl && c.vibe_overlay_strength !== undefined) vibeOverlayStrengthEl.value = c.vibe_overlay_strength;
+        if (vibeTitleWeightEl && c.vibe_title_weight) vibeTitleWeightEl.value = c.vibe_title_weight;
 
         if (Array.isArray(snap.chat_sessions) && snap.chat_sessions.length) {
           chatSessions = snap.chat_sessions.map((s, i) => ({
@@ -4242,6 +4329,91 @@
         previewSlot.style.setProperty('--preview-aspect', val);
       }
 
+      function applyVibePreset(preset, announce = false) {
+        const p = String(preset || 'cinematic_science');
+        if (p === 'cinematic_science') {
+          if (vibeCaptionModeEl) vibeCaptionModeEl.value = 'concise';
+          if (vibeTextAnimEl) vibeTextAnimEl.value = 'cinematic_fade';
+          if (vibeCaptionAnimEl) vibeCaptionAnimEl.value = 'soft_fade';
+          if (vibeCaptionDensityEl) vibeCaptionDensityEl.value = 'balanced';
+          if (vibeTitleWeightEl) vibeTitleWeightEl.value = 'bold';
+          if (vibeOverlayStrengthEl) vibeOverlayStrengthEl.value = '62';
+        } else if (p === 'clean_education') {
+          if (vibeCaptionModeEl) vibeCaptionModeEl.value = 'callout';
+          if (vibeTextAnimEl) vibeTextAnimEl.value = 'kinetic_slide';
+          if (vibeCaptionAnimEl) vibeCaptionAnimEl.value = 'line_slide';
+          if (vibeCaptionDensityEl) vibeCaptionDensityEl.value = 'light';
+          if (vibeTitleWeightEl) vibeTitleWeightEl.value = 'medium';
+          if (vibeOverlayStrengthEl) vibeOverlayStrengthEl.value = '44';
+        } else if (p === 'dramatic_docu') {
+          if (vibeCaptionModeEl) vibeCaptionModeEl.value = 'narrative';
+          if (vibeTextAnimEl) vibeTextAnimEl.value = 'parallax_float';
+          if (vibeCaptionAnimEl) vibeCaptionAnimEl.value = 'soft_fade';
+          if (vibeCaptionDensityEl) vibeCaptionDensityEl.value = 'balanced';
+          if (vibeTitleWeightEl) vibeTitleWeightEl.value = 'bold';
+          if (vibeOverlayStrengthEl) vibeOverlayStrengthEl.value = '74';
+        } else if (p === 'neon_explainer') {
+          if (vibeCaptionModeEl) vibeCaptionModeEl.value = 'keyword';
+          if (vibeTextAnimEl) vibeTextAnimEl.value = 'glow_pop';
+          if (vibeCaptionAnimEl) vibeCaptionAnimEl.value = 'pulse_highlight';
+          if (vibeCaptionDensityEl) vibeCaptionDensityEl.value = 'dense';
+          if (vibeTitleWeightEl) vibeTitleWeightEl.value = 'bold';
+          if (vibeOverlayStrengthEl) vibeOverlayStrengthEl.value = '80';
+        } else if (p === 'minimal_elegant') {
+          if (vibeCaptionModeEl) vibeCaptionModeEl.value = 'concise';
+          if (vibeTextAnimEl) vibeTextAnimEl.value = 'typewriter';
+          if (vibeCaptionAnimEl) vibeCaptionAnimEl.value = 'word_by_word';
+          if (vibeCaptionDensityEl) vibeCaptionDensityEl.value = 'light';
+          if (vibeTitleWeightEl) vibeTitleWeightEl.value = 'light';
+          if (vibeOverlayStrengthEl) vibeOverlayStrengthEl.value = '34';
+        } else if (p === 'chalkboard_classic') {
+          if (vibeCaptionModeEl) vibeCaptionModeEl.value = 'callout';
+          if (vibeTextAnimEl) vibeTextAnimEl.value = 'chalk_draw';
+          if (vibeCaptionAnimEl) vibeCaptionAnimEl.value = 'line_slide';
+          if (vibeCaptionDensityEl) vibeCaptionDensityEl.value = 'balanced';
+          if (vibeTitleWeightEl) vibeTitleWeightEl.value = 'medium';
+          if (vibeOverlayStrengthEl) vibeOverlayStrengthEl.value = '28';
+        } else if (p === 'shortform_punchy') {
+          if (vibeCaptionModeEl) vibeCaptionModeEl.value = 'keyword';
+          if (vibeTextAnimEl) vibeTextAnimEl.value = 'flash_cut';
+          if (vibeCaptionAnimEl) vibeCaptionAnimEl.value = 'pop_stagger';
+          if (vibeCaptionDensityEl) vibeCaptionDensityEl.value = 'dense';
+          if (vibeTitleWeightEl) vibeTitleWeightEl.value = 'bold';
+          if (vibeOverlayStrengthEl) vibeOverlayStrengthEl.value = '78';
+        }
+        scheduleAutosave();
+        if (announce) showToast(`Applied vibe preset: ${p.replaceAll('_', ' ')}`, 'ok');
+      }
+
+      function applyOrientationGuidePreset(preset, announce = true) {
+        let p = String(preset || 'auto');
+        if (p === 'auto') {
+          const ar = aspectEl ? aspectEl.value : '9:16';
+          if (ar === '16:9') p = 'landscape_16_9';
+          else if (ar === '1:1') p = 'square_1_1';
+          else p = 'portrait_9_16';
+        }
+        if (p === 'portrait_9_16') {
+          if (aspectEl) aspectEl.value = '9:16';
+          if (vibeCaptionPositionEl) vibeCaptionPositionEl.value = 'lower_third';
+          if (vibeCaptionDensityEl) vibeCaptionDensityEl.value = 'balanced';
+          if (maxObjectsEl && !maxObjectsEl.value.trim()) maxObjectsEl.value = '5';
+        } else if (p === 'landscape_16_9') {
+          if (aspectEl) aspectEl.value = '16:9';
+          if (vibeCaptionPositionEl) vibeCaptionPositionEl.value = 'top';
+          if (vibeCaptionDensityEl) vibeCaptionDensityEl.value = 'light';
+          if (maxObjectsEl && !maxObjectsEl.value.trim()) maxObjectsEl.value = '7';
+        } else if (p === 'square_1_1') {
+          if (aspectEl) aspectEl.value = '1:1';
+          if (vibeCaptionPositionEl) vibeCaptionPositionEl.value = 'center';
+          if (vibeCaptionDensityEl) vibeCaptionDensityEl.value = 'light';
+          if (maxObjectsEl && !maxObjectsEl.value.trim()) maxObjectsEl.value = '5';
+        }
+        if (aspectEl) setPreviewAspect(aspectEl.value);
+        scheduleAutosave();
+        if (announce) showToast(`Applied orientation: ${p.replaceAll('_', ' ')}`, 'ok');
+      }
+
       function setStep(step, state) {
         const el = agentStepsEl.querySelector(`[data-step="${step}"]`);
         if (!el) return;
@@ -4711,11 +4883,16 @@
       bindAutosave(creativeEnergyEl, 'input');
       bindAutosave(creativeComplexityEl, 'input');
       bindAutosave(vibeEnableEl, 'change');
+      bindAutosave(vibePresetEl, 'change');
+      bindAutosave(orientationGuideEl, 'change');
       bindAutosave(vibeTitleEl, 'input');
       bindAutosave(vibeCaptionModeEl, 'change');
       bindAutosave(vibeTextAnimEl, 'change');
+      bindAutosave(vibeCaptionAnimEl, 'change');
       bindAutosave(vibeCaptionPositionEl, 'change');
+      bindAutosave(vibeCaptionDensityEl, 'change');
       bindAutosave(vibeOverlayStrengthEl, 'input');
+      bindAutosave(vibeTitleWeightEl, 'change');
 
       function updateEditorMode() {
         if (!openFilePath) {
@@ -6236,6 +6413,38 @@
           {
             name: 'Narration Sync',
             content: 'Keep narration aligned to visible action. No narration-only spans longer than 2 seconds; each line should map to one visual change.'
+          },
+          {
+            name: 'Caption Choreographer',
+            content: 'Design subtitle rhythm with readable 1-2 line chunks, synchronized pop-ins, and strong contrast over moving backgrounds.'
+          },
+          {
+            name: 'Title Overlay Designer',
+            content: 'Create opening and section title overlays that animate in cleanly, stay inside safe margins, and avoid blocking key visuals.'
+          },
+          {
+            name: 'Orientation Composer',
+            content: 'Adapt scene composition for 9:16, 16:9, and 1:1. Keep focal objects centered and avoid edge clipping in portrait mode.'
+          },
+          {
+            name: 'Color Mood Director',
+            content: 'Map concept phases to palette shifts (hook, mechanism, equation, recap) while preserving contrast and educational clarity.'
+          },
+          {
+            name: 'Hook Builder',
+            content: 'Start with a strong 2-5 second hook visual + text line that sets the question before showing derivations or graphs.'
+          },
+          {
+            name: 'Timeline Sculptor',
+            content: 'Balance scene lengths so each beat lands clearly. Keep transitions smooth and avoid overcrowding any single 5-second window.'
+          },
+          {
+            name: 'Narrative Bridge',
+            content: 'Write transition captions that connect one scene to the next in plain language so viewers never lose context.'
+          },
+          {
+            name: 'Thumbnail Framer',
+            content: 'Frame one key moment per scene that can work as a still image for social previews with readable center-weighted labels.'
           }
         ];
         let createdAny = false;
@@ -6267,7 +6476,13 @@
           'EquationTutor: introduces K_max = h f - phi and eV_s = K_max one symbol at a time.',
           'GraphAnalyst: ensures K_max vs f graph shows f0 intercept and slope meaning.',
           'VisualPacer: enforces one concept at a time and smooth transitions for short-form video.',
-          'SafetyQA: validates spacing, overlap, and readability for 9:16 and 16:9 exports.'
+          'SafetyQA: validates spacing, overlap, and readability for 9:16 and 16:9 exports.',
+          'CaptionConductor: controls subtitle timing, line breaks, and on-screen emphasis words.',
+          'OrientationDirector: adapts framing and text-safe zones for portrait, landscape, and square exports.',
+          'HookEngineer: strengthens first 3 seconds with a surprising visual and clear headline.',
+          'MoodStylist: coordinates palette and glow intensity to fit the selected vibe preset.',
+          'TimelineConductor: balances pacing across scenes and prevents abrupt rhythm breaks.',
+          'CaptionEditor: keeps captions concise, high-contrast, and synchronized with visible actions.'
         ];
         const merged = [...existing];
         physicsDefaults.forEach((line) => {
@@ -6740,13 +6955,19 @@
         const vibeLines = [];
         if (vibeEnableEl && vibeEnableEl.checked) {
           vibeLines.push('Enable vibe motion overlays and caption choreography.');
+          if (vibePresetEl) vibeLines.push(`Vibe preset: ${vibePresetEl.value}`);
+          if (orientationGuideEl) vibeLines.push(`Orientation guide: ${orientationGuideEl.value}`);
           if (vibeTitleEl && vibeTitleEl.value.trim()) {
             vibeLines.push(`Primary title overlay: "${vibeTitleEl.value.trim()}"`);
           }
           if (vibeCaptionModeEl) vibeLines.push(`Caption behavior: ${vibeCaptionModeEl.value}`);
           if (vibeTextAnimEl) vibeLines.push(`Text animation style: ${vibeTextAnimEl.value}`);
+          if (vibeCaptionAnimEl) vibeLines.push(`Caption animation: ${vibeCaptionAnimEl.value}`);
           if (vibeCaptionPositionEl) vibeLines.push(`Caption position: ${vibeCaptionPositionEl.value}`);
+          if (vibeCaptionDensityEl) vibeLines.push(`Caption density: ${vibeCaptionDensityEl.value}`);
           if (vibeOverlayStrengthEl) vibeLines.push(`Overlay intensity: ${vibeOverlayStrengthEl.value}/100`);
+          if (vibeTitleWeightEl) vibeLines.push(`Title typography weight: ${vibeTitleWeightEl.value}`);
+          vibeLines.push(`Frame orientation target: ${aspectEl ? aspectEl.value : '9:16'}. Keep safe margins and avoid edge clipping.`);
           vibeLines.push('Use tasteful animated text callouts for key transitions (hook, equation, recap).');
         } else {
           vibeLines.push('Keep overlay text minimal; no extra caption choreography beyond essential labels.');
@@ -7485,6 +7706,15 @@
         scheduleAutosave();
       });
       safeOn(aspectEl, 'change', () => setPreviewAspect(aspectEl.value));
+      safeOn(vibePresetEl, 'change', () => {
+        applyVibePreset(vibePresetEl.value, true);
+      });
+      safeOn(orientationGuideEl, 'change', () => {
+        applyOrientationGuidePreset(orientationGuideEl.value, true);
+      });
+      safeOn(applyOrientationGuideEl, 'click', () => {
+        applyOrientationGuidePreset(orientationGuideEl ? orientationGuideEl.value : 'auto', true);
+      });
       safeOn(durationPresetEl, 'change', () => {
         const val = Number(durationPresetEl.value || 0);
         if (!Number.isFinite(val) || val <= 0) return;
@@ -7656,11 +7886,16 @@
         if (!targetSecondsEl.value.trim()) targetSecondsEl.value = '60';
         if (!maxScenesEl.value.trim()) maxScenesEl.value = '6';
         if (vibeEnableEl) vibeEnableEl.checked = true;
+        if (vibePresetEl && !vibePresetEl.value) vibePresetEl.value = 'cinematic_science';
+        if (orientationGuideEl && !orientationGuideEl.value) orientationGuideEl.value = 'portrait_9_16';
         if (vibeTitleEl && !vibeTitleEl.value.trim()) vibeTitleEl.value = 'The Quantum Spark';
         if (vibeCaptionModeEl && !vibeCaptionModeEl.value) vibeCaptionModeEl.value = 'concise';
         if (vibeTextAnimEl && !vibeTextAnimEl.value) vibeTextAnimEl.value = 'cinematic_fade';
+        if (vibeCaptionAnimEl && !vibeCaptionAnimEl.value) vibeCaptionAnimEl.value = 'soft_fade';
         if (vibeCaptionPositionEl && !vibeCaptionPositionEl.value) vibeCaptionPositionEl.value = 'lower_third';
+        if (vibeCaptionDensityEl && !vibeCaptionDensityEl.value) vibeCaptionDensityEl.value = 'balanced';
         if (vibeOverlayStrengthEl && !String(vibeOverlayStrengthEl.value || '').trim()) vibeOverlayStrengthEl.value = '62';
+        if (vibeTitleWeightEl && !vibeTitleWeightEl.value) vibeTitleWeightEl.value = 'bold';
 
         if (!rulesTextEl.value.trim()) {
           rulesTextEl.value = [
@@ -7713,6 +7948,8 @@
       applyLayoutColumns();
       const didRestore = restoreProject();
       if (!didRestore) seedDemoDefaults();
+      applyVibePreset(vibePresetEl ? vibePresetEl.value : 'cinematic_science', false);
+      applyOrientationGuidePreset(orientationGuideEl ? orientationGuideEl.value : 'auto', false);
       ensurePhysicsSubagentsForDemo();
       renderSubagentCards();
       renderMentionBar();
