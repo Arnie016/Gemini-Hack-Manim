@@ -355,7 +355,11 @@
       }
       .card.scroll { overflow: auto; }
       .timeline-card { grid-column: 1 / -1; }
-      .timeline-card { overflow: auto; }
+      .timeline-card {
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
       .preview-card { display: flex; flex-direction: column; min-height: 0; }
       .controls-card { grid-column: 1 / -1; grid-row: 4; overflow: auto; }
       .preview-card { grid-column: 1 / -1; grid-row: 1; }
@@ -493,7 +497,13 @@
       .asset-thumb img { width: 100%; height: 100%; object-fit: cover; }
       .asset-thumb.draggable { cursor: grab; }
 
-      .timeline-wrap { margin-top: 12px; }
+      .timeline-wrap {
+        margin-top: 12px;
+        min-height: 0;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+      }
       .timeline-ruler {
         position: relative;
         height: 26px;
@@ -526,7 +536,10 @@
         align-items: stretch;
         margin-top: 8px;
         overflow-x: auto;
+        overflow-y: hidden;
         padding-bottom: 6px;
+        min-height: 140px;
+        flex: 1 1 auto;
       }
       .timeline-block {
         flex: 0 0 180px;
@@ -640,9 +653,10 @@
         gap: 8px;
         align-items: center;
         justify-content: center;
-        margin-top: 8px;
+        margin-top: 10px;
         flex-wrap: wrap;
         padding-bottom: 2px;
+        width: 100%;
       }
       .timeline-controls .ctl {
         width: auto;
@@ -665,11 +679,17 @@
         margin-left: 8px;
       }
       .timeline-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
         justify-content: center;
+        flex-wrap: wrap;
+        width: 100%;
       }
       .timeline-actions button {
         width: auto;
         min-width: 200px;
+        max-width: 320px;
       }
       .timeline-hint {
         margin-top: 6px;
@@ -1598,7 +1618,7 @@
                     </button>
                     <div class="muted" id="timeReadout">0:00</div>
                   </div>
-                  <div class="row timeline-actions" style="margin-top:8px;">
+                  <div class="timeline-actions" style="margin-top:8px;">
                     <button id="applyTimeline" class="secondary">Apply to plan</button>
                     <button id="resetTimeline" class="ghost">Reset</button>
                   </div>
@@ -1741,6 +1761,14 @@
                     <div style="margin-top:8px;">
                       <div class="muted">Workspace files</div>
                       <code>work/user_files/...</code>
+                    </div>
+                    <div style="margin-top:8px;">
+                      <div class="muted">Project root</div>
+                      <code id="settingsProjectRoot">—</code>
+                    </div>
+                    <div style="margin-top:8px;">
+                      <div class="muted">Work root</div>
+                      <code id="settingsWorkRoot">—</code>
                     </div>
                     <label for="settingsOutputCopyDir" style="margin-top:10px;">Optional extra copy destination</label>
                     <input id="settingsOutputCopyDir" placeholder="~/Desktop/NorthStar-Exports" />
@@ -2122,6 +2150,8 @@
       const resetLayoutBtn = document.getElementById('resetLayout');
       const settingsOutputVideoPathEl = document.getElementById('settingsOutputVideoPath');
       const settingsOutputCodePathEl = document.getElementById('settingsOutputCodePath');
+      const settingsProjectRootEl = document.getElementById('settingsProjectRoot');
+      const settingsWorkRootEl = document.getElementById('settingsWorkRoot');
       const settingsOutputCopyDirEl = document.getElementById('settingsOutputCopyDir');
       const copyOutputNowBtn = document.getElementById('copyOutputNow');
       const settingsElevenApiKeyEl = document.getElementById('settingsElevenApiKey');
@@ -3386,10 +3416,10 @@
             delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>';
             delBtn.title = 'Delete folder';
             delBtn.setAttribute('aria-label', 'Delete folder');
-            delBtn.addEventListener('click', async (e) => {
+            delBtn.addEventListener('click', (e) => {
               e.preventDefault();
               e.stopPropagation();
-              await deleteWorkspacePath(node.path);
+              armInlineDelete(actions, node.path, 'folder');
             });
             actions.appendChild(renameBtn);
             actions.appendChild(delBtn);
@@ -3429,10 +3459,10 @@
           delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>';
           delBtn.title = 'Delete file';
           delBtn.setAttribute('aria-label', 'Delete file');
-          delBtn.addEventListener('click', async (e) => {
+          delBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            await deleteWorkspacePath(node.path);
+            armInlineDelete(actions, node.path, 'file');
           });
           actions.appendChild(renameBtn);
           actions.appendChild(delBtn);
@@ -3460,11 +3490,6 @@
 
       async function deleteWorkspacePath(path) {
         if (!path) return;
-        const ok = window.confirm(`Delete "${path}"? This cannot be undone.`);
-        if (!ok) {
-          fileStatusEl.textContent = 'Delete cancelled.';
-          return;
-        }
         fileStatusEl.textContent = `Deleting ${path}...`;
         try {
           const resp = await fetch(`/api/files/file?path=${encodeURIComponent(path)}`, { method: 'DELETE' });
@@ -3501,6 +3526,34 @@
         } catch {
           fileStatusEl.textContent = 'Failed to reach backend.';
         }
+      }
+
+      function armInlineDelete(actionsEl, path, kind) {
+        if (!actionsEl || !path) return;
+        actionsEl.innerHTML = '';
+        const yesBtn = document.createElement('button');
+        yesBtn.className = 'tree-act danger';
+        yesBtn.title = `Confirm delete ${kind}`;
+        yesBtn.setAttribute('aria-label', `Confirm delete ${kind}`);
+        yesBtn.textContent = '✓';
+        yesBtn.addEventListener('click', async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          await deleteWorkspacePath(path);
+        });
+        const noBtn = document.createElement('button');
+        noBtn.className = 'tree-act';
+        noBtn.title = 'Cancel';
+        noBtn.setAttribute('aria-label', 'Cancel delete');
+        noBtn.textContent = '✕';
+        noBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          loadWorkspaceFiles();
+          fileStatusEl.textContent = 'Delete cancelled.';
+        });
+        actionsEl.appendChild(yesBtn);
+        actionsEl.appendChild(noBtn);
       }
 
       function setActiveTab(tabId) {
@@ -3873,11 +3926,11 @@
         el.classList.add('draggable');
         el.draggable = true;
         el.title = `Drag into a scene (${type})`;
-        el.addEventListener('dragstart', (e) => {
+        el.ondragstart = (e) => {
           e.dataTransfer.setData('text/asset-type', type);
           e.dataTransfer.setData('text/asset-path', relPath);
           e.dataTransfer.effectAllowed = 'copy';
-        }, { once: true });
+        };
       }
 
       async function generateImages() {
@@ -4078,31 +4131,28 @@
       async function createFolder() {
         const path = newPathEl.value.trim();
         if (!path) {
-          // Quick create a default folder, then prompt rename.
-          let idx = 0;
-          while (idx < 50) {
-            const candidate = idx === 0 ? 'New Folder' : `New Folder ${idx + 1}`;
-            try {
-              const resp = await fetch('/api/files/folder', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ path: candidate })
-              });
-              const data = await resp.json();
-              if (data.ok) {
-                loadWorkspaceFiles();
-                startRename(data.path, 'dir');
-                pushHistory(`Created folder ${data.path}`);
-                return;
-              }
-            } catch (e) {
-              fileStatusEl.textContent = 'Backend unreachable. Start server: source .venv/bin/activate && python -m uvicorn backend.main:app --reload --port 8000';
+          // Quick-create a unique folder, then prompt rename.
+          const stamp = Date.now().toString().slice(-6);
+          const candidate = `New Folder ${stamp}`;
+          try {
+            const resp = await fetch('/api/files/folder', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path: candidate })
+            });
+            const data = await resp.json();
+            if (!data.ok) {
+              fileStatusEl.textContent = data.error || 'Failed to create a new folder.';
               return;
             }
-            idx += 1;
+            loadWorkspaceFiles();
+            startRename(data.path, 'dir');
+            pushHistory(`Created folder ${data.path}`);
+            return;
+          } catch (e) {
+            fileStatusEl.textContent = 'Backend unreachable. Start server: source .venv/bin/activate && python -m uvicorn backend.main:app --reload --port 8000';
+            return;
           }
-          fileStatusEl.textContent = 'Failed to create a new folder.';
-          return;
         }
         if (looksLikeFileName(path)) {
           fileStatusEl.textContent = 'Folder names cannot look like files (example: folder.py).';
@@ -4134,32 +4184,29 @@
       async function createFile() {
         const path = newPathEl.value.trim();
         if (!path) {
-          // Quick create an untitled file, then prompt rename.
-          let idx = 0;
-          while (idx < 50) {
-            const candidate = idx === 0 ? 'untitled.md' : `untitled-${idx + 1}.md`;
-            try {
-              const resp = await fetch('/api/files/file', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ path: candidate, content: '' })
-              });
-              const data = await resp.json();
-              if (data.ok) {
-                loadWorkspaceFiles();
-                startRename(data.path, 'file');
-                await openWorkspaceFile(data.path);
-                pushHistory(`Created file ${data.path}`);
-                return;
-              }
-            } catch (e) {
-              fileStatusEl.textContent = 'Backend unreachable. Start server: source .venv/bin/activate && python -m uvicorn backend.main:app --reload --port 8000';
+          // Quick-create a unique file, then prompt rename.
+          const stamp = Date.now().toString().slice(-6);
+          const candidate = `untitled-${stamp}.md`;
+          try {
+            const resp = await fetch('/api/files/file', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path: candidate, content: '' })
+            });
+            const data = await resp.json();
+            if (!data.ok) {
+              fileStatusEl.textContent = data.error || 'Failed to create a new file.';
               return;
             }
-            idx += 1;
+            loadWorkspaceFiles();
+            startRename(data.path, 'file');
+            await openWorkspaceFile(data.path);
+            pushHistory(`Created file ${data.path}`);
+            return;
+          } catch (e) {
+            fileStatusEl.textContent = 'Backend unreachable. Start server: source .venv/bin/activate && python -m uvicorn backend.main:app --reload --port 8000';
+            return;
           }
-          fileStatusEl.textContent = 'Failed to create a new file.';
-          return;
         }
         fileStatusEl.textContent = 'Creating file...';
         let data = null;
@@ -4428,6 +4475,8 @@
         }
         if (data.image_model) settingsImageModelEl.value = data.image_model;
         if (data.manim_py) settingsManimPyEl.value = data.manim_py;
+        if (settingsProjectRootEl) settingsProjectRootEl.textContent = data.project_root || '—';
+        if (settingsWorkRootEl) settingsWorkRootEl.textContent = data.work_root || '—';
         if (settingsOutputCopyDirEl) settingsOutputCopyDirEl.value = data.output_copy_dir || '';
         if (settingsElevenVoiceIdEl) settingsElevenVoiceIdEl.value = data.elevenlabs_voice_id || '';
         if (settingsElevenModelIdEl) settingsElevenModelIdEl.value = data.elevenlabs_model_id || '';
@@ -4963,8 +5012,9 @@
           block.addEventListener('dragover', (e) => {
             e.preventDefault();
           });
-          block.addEventListener('drop', async (e) => {
+          const handleSceneDrop = async (e) => {
             e.preventDefault();
+            e.stopPropagation();
             const to = Number(block.dataset.index);
             const assetType = e.dataTransfer.getData('text/asset-type');
             const assetPath = e.dataTransfer.getData('text/asset-path');
@@ -4973,6 +5023,7 @@
               sc.assets = sc.assets || {};
               sc.assets[assetType] = assetPath;
               renderTimeline();
+              showToast(`Attached ${assetType.toUpperCase()} to scene ${to + 1}.`, 'ok');
               return;
             }
 
@@ -5036,6 +5087,15 @@
             sc.narration = [sc.narration || '', snippet].filter(Boolean).join('\n');
             renderTimeline();
             showToast(`Added note to scene ${to + 1}.`, 'ok');
+          };
+          block.addEventListener('drop', handleSceneDrop);
+
+          // Make drops reliable even when targeting nested controls inside a scene card.
+          [header, editRow, goalInput, durInput, badges, noteInput].forEach((target) => {
+            target.addEventListener('dragover', (e) => {
+              e.preventDefault();
+            });
+            target.addEventListener('drop', handleSceneDrop);
           });
 
           timelineTrackEl.appendChild(block);
@@ -5226,7 +5286,8 @@
 
         const planBox = document.createElement('textarea');
         planBox.style.width = '100%';
-        planBox.style.minHeight = '180px';
+        planBox.style.minHeight = '120px';
+        planBox.style.maxHeight = '260px';
         planBox.value = data.plan_text;
         lastPlanBox = planBox;
 
@@ -5238,7 +5299,15 @@
         if (data.plan) {
           wrapper.appendChild(buildPlanInspector(data.plan, planBox));
         }
-        wrapper.appendChild(planBox);
+        const jsonEditor = document.createElement('details');
+        jsonEditor.className = 'drawer-section';
+        const sum = document.createElement('summary');
+        sum.style.cursor = 'pointer';
+        sum.style.color = 'var(--muted)';
+        sum.textContent = 'Editable plan JSON';
+        jsonEditor.appendChild(sum);
+        jsonEditor.appendChild(planBox);
+        wrapper.appendChild(jsonEditor);
         wrapper.appendChild(approveBtn);
 
         addChat('agent', 'Scene Plan (edit if needed)', '', wrapper);
@@ -5401,10 +5470,14 @@
             }
             if (finalState.job_files) updateJobFiles(finalState.job_files);
             if (finalState.logs_tail) logsEl.textContent = finalState.logs_tail;
-            const noticeKey = `${runJobId}:${finalState.video_path || 'done'}`;
+            const noticeKey = `${runJobId}`;
             if (!renderNoticeByJob.has(noticeKey)) {
               renderNoticeByJob.add(noticeKey);
-              addChat('agent', 'Render complete', finalState.video_path ? `<a href="/${finalState.video_path}" target="_blank">Open video</a>` : 'Done.');
+              if (finalState.video_path) {
+                statusEl.textContent = `Render complete. Output: ${finalState.video_path}`;
+              } else {
+                statusEl.textContent = 'Render complete.';
+              }
               showToast('Render complete.', 'ok');
             }
             updateBackEnabled();
