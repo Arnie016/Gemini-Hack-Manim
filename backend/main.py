@@ -663,6 +663,10 @@ def health():
         ffmpeg_ok, ffmpeg_out = _run([ffmpeg_path, "-version"], timeout_s=20)
     else:
         ffmpeg_ok, ffmpeg_out = False, "ffmpeg not found on PATH"
+    eleven_api = (settings.get("elevenlabs_api_key") or "").strip()
+    eleven_voice = (settings.get("elevenlabs_voice_id") or "").strip()
+    eleven_model = (settings.get("elevenlabs_model_id") or "").strip() or "eleven_multilingual_v2"
+
     return {
         "manim_ok": manim_ok,
         "manim_version": manim_out.splitlines()[0] if manim_out else "",
@@ -671,6 +675,9 @@ def health():
         "ffmpeg_path": ffmpeg_path or "",
         "manim_py": used_py or manim_py_setting or "python3",
         "python_candidates": candidates,
+        "elevenlabs_ready": bool(eleven_api and eleven_voice),
+        "elevenlabs_voice_id": eleven_voice,
+        "elevenlabs_model_id": eleven_model,
     }
 
 

@@ -437,6 +437,19 @@
         flex: 1;
         min-height: 0;
       }
+      .preview-transport {
+        margin-top: 10px;
+        border: 1px solid rgba(255,255,255,0.10);
+        border-radius: 12px;
+        background: rgba(11, 13, 18, 0.58);
+        padding: 8px 10px;
+      }
+      .preview-transport #timelineScrub {
+        margin-top: 0;
+      }
+      .preview-transport .timeline-controls {
+        margin-top: 8px;
+      }
       .preview-empty {
         position: absolute;
         inset: 0;
@@ -863,6 +876,26 @@
         background: linear-gradient(180deg, rgba(34,197,94,0.10), rgba(11,18,32,0.35));
       }
       .bubble-title { font-weight: 600; font-size: 12px; color: var(--muted); }
+      .bubble pre {
+        margin: 8px 0 0 0;
+        padding: 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.10);
+        background: rgba(11, 13, 18, 0.72);
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 12px;
+        line-height: 1.35;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        max-height: 260px;
+        overflow: auto;
+      }
+      .bubble code {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 12px;
+      }
+      .bubble a { color: #93c5fd; }
 
       /* Code editor (editable) with line numbers. */
       .code-editor {
@@ -896,6 +929,9 @@
         font-family: 'IBM Plex Mono', monospace;
         font-size: 12px;
         line-height: 18px;
+        white-space: pre;
+        overflow: auto;
+        tab-size: 4;
       }
 
       /* Highlighted code view with line numbers. */
@@ -905,8 +941,25 @@
         padding: 0;
         overflow: auto;
         max-height: 640px;
-        background: rgba(11, 13, 18, 0.6);
+        background: linear-gradient(180deg, rgba(6, 10, 16, 0.95), rgba(8, 12, 18, 0.92));
       }
+      pre.hljs code { color: #dbeafe; }
+      .hljs-keyword,
+      .hljs-selector-tag,
+      .hljs-meta .hljs-keyword { color: #ff7ab2; }
+      .hljs-title,
+      .hljs-title.function_,
+      .hljs-title.class_ { color: #7dd3fc; }
+      .hljs-built_in,
+      .hljs-type { color: #86efac; }
+      .hljs-string,
+      .hljs-regexp { color: #fcd34d; }
+      .hljs-number,
+      .hljs-literal { color: #fca5a5; }
+      .hljs-comment,
+      .hljs-quote { color: #94a3b8; }
+      .hljs-params,
+      .hljs-variable { color: #c4b5fd; }
       .code-lines {
         counter-reset: line;
         padding: 12px 0;
@@ -1164,6 +1217,10 @@
         flex: 1;
         min-height: 0;
         overflow: auto;
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 12px;
+        background: rgba(11, 13, 18, 0.45);
+        padding: 8px;
       }
 
       .drawer-section {
@@ -1585,16 +1642,8 @@
                     </button>
                   </div>
                 </div>
-              </div>
-
-              <div class="canvas-splitter" id="canvasSplitter" title="Drag to resize preview/timeline"></div>
-
-              <div class="card timeline-card">
-                <div class="timeline-wrap">
-                  <div class="muted" id="timelineLabel">Timeline</div>
-                  <div class="timeline-ruler" id="timelineRuler" style="margin-top:6px;"></div>
-                  <div class="timeline-track" id="timelineTrack"></div>
-                  <input id="timelineScrub" type="range" min="0" max="100" value="0" style="margin-top:8px;" />
+                <div class="preview-transport">
+                  <input id="timelineScrub" type="range" min="0" max="100" value="0" />
                   <div class="timeline-controls">
                     <button id="rew10" class="ctl" title="Rewind 10s" aria-label="Rewind 10 seconds">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 19l-9-7 9-7v14z"/><path d="M22 19l-9-7 9-7v14z"/></svg>
@@ -1618,6 +1667,16 @@
                     </button>
                     <div class="muted" id="timeReadout">0:00</div>
                   </div>
+                </div>
+              </div>
+
+              <div class="canvas-splitter" id="canvasSplitter" title="Drag to resize preview/timeline"></div>
+
+              <div class="card timeline-card">
+                <div class="timeline-wrap">
+                  <div class="muted" id="timelineLabel">Timeline</div>
+                  <div class="timeline-ruler" id="timelineRuler" style="margin-top:6px;"></div>
+                  <div class="timeline-track" id="timelineTrack"></div>
                   <div class="timeline-actions" style="margin-top:8px;">
                     <button id="applyTimeline" class="secondary">Apply to plan</button>
                     <button id="resetTimeline" class="ghost">Reset</button>
@@ -1655,7 +1714,7 @@
             <div class="code-body">
               <div class="code-editor" id="codeEditor">
                 <div class="code-gutter" id="codeGutter">1</div>
-                <textarea id="code" spellcheck="false"></textarea>
+                <textarea id="code" spellcheck="false" wrap="off"></textarea>
               </div>
               <pre id="codePrettyWrap" class="hljs hidden"><code id="codePretty" class="language-python code-lines"></code></pre>
             </div>
@@ -4543,14 +4602,27 @@
         }
         const cands = (data.python_candidates || []).join(', ');
         const ffmpegPath = data.ffmpeg_path || '';
+        const voiceReady = !!data.elevenlabs_ready;
+        const voiceId = data.elevenlabs_voice_id || '';
+        const voiceModel = data.elevenlabs_model_id || '';
         const lines = [
           `Manim: ${manimStatus}`,
           `ffmpeg: ${ffmpegStatus}`,
+          `ElevenLabs narrator: ${voiceReady ? 'Ready' : 'Not configured'}`,
           `python: ${py}`,
         ];
         if (data.manim_version) lines.push(data.manim_version);
         if (cands) lines.push(`python candidates: ${cands}`);
         if (ffmpegPath) lines.push(`ffmpeg path: ${ffmpegPath}`);
+        if (voiceId) lines.push(`voice id: ${voiceId}`);
+        if (voiceModel) lines.push(`voice model: ${voiceModel}`);
+        if (!voiceReady) {
+          lines.push('');
+          lines.push('Narrator setup: Settings -> API & Models -> Voiceover (ElevenLabs).');
+          lines.push('- Set ElevenLabs API key');
+          lines.push('- Set Voice ID');
+          lines.push('- Optional model id (default: eleven_multilingual_v2)');
+        }
         if (!data.manim_ok) {
           lines.push('');
           lines.push('Fix: choose a Python that has Manim installed (or leave blank to auto-detect).');
@@ -5101,6 +5173,7 @@
           timelineTrackEl.appendChild(block);
         });
         highlightTimelineAt(videoEl.currentTime || 0);
+        if (lastPlanBox) syncPlanFromTimeline();
         scheduleAutosave();
       }
 
@@ -5319,7 +5392,10 @@
         approveBtn.addEventListener('click', async () => {
           approveBtn.disabled = true;
           approveBtn.textContent = 'Rendering…';
-          await approvePlan(planBox.value);
+          if (timelineState.length) {
+            syncPlanFromTimeline();
+          }
+          await approvePlan(lastPlanBox ? lastPlanBox.value : planBox.value);
           approveBtn.disabled = false;
           approveBtn.textContent = 'Approve & Render';
         });
@@ -5339,6 +5415,10 @@
 
       async function approvePlan(planText) {
         if (!currentJobId) return { ok: false };
+        if (timelineState.length && lastPlanBox) {
+          syncPlanFromTimeline();
+          planText = lastPlanBox.value;
+        }
         const runJobId = currentJobId;
         didAnimateCode = false;
         let lastPushedCode = '';
