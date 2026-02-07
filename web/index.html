@@ -361,7 +361,7 @@
         --canvas-top: 72%;
         --canvas-timeline: 16%;
         --canvas-controls: calc(100% - var(--canvas-top) - var(--canvas-timeline) - 8px);
-        grid-template-rows: minmax(220px, var(--canvas-top)) 8px minmax(140px, var(--canvas-timeline)) minmax(180px, var(--canvas-controls));
+        grid-template-rows: minmax(180px, var(--canvas-top)) 8px minmax(110px, var(--canvas-timeline)) minmax(120px, var(--canvas-controls));
         gap: 12px;
         height: 100%;
         min-height: 0;
@@ -392,6 +392,9 @@
         border: 1px solid var(--border);
         background: linear-gradient(180deg, rgba(106,169,255,0.18), rgba(106,169,255,0.08));
         cursor: row-resize;
+        position: relative;
+        z-index: 6;
+        pointer-events: auto;
       }
 
       .preview-area {
@@ -463,9 +466,6 @@
         border-radius: 12px;
         background: rgba(11, 13, 18, 0.58);
         padding: 8px 10px;
-        position: sticky;
-        bottom: 0;
-        z-index: 4;
       }
       .preview-transport #timelineScrub {
         margin-top: 0;
@@ -745,6 +745,66 @@
         margin-top: 6px;
         font-size: 11px;
         color: var(--muted);
+      }
+      .deck-btn {
+        width: auto;
+        min-width: 34px;
+        padding: 6px 8px;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.12);
+        background: rgba(12, 16, 22, 0.78);
+        color: var(--text);
+        font-weight: 700;
+      }
+      .deck-inline {
+        margin-top: 8px;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 6px;
+        align-items: center;
+      }
+      .deck-inline.hidden {
+        display: none !important;
+      }
+      .deck-inline-track {
+        min-width: 0;
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 4px 2px;
+        scrollbar-width: thin;
+      }
+      .deck-card {
+        flex: 0 0 150px;
+        width: 150px;
+        height: 56px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.16);
+        background: linear-gradient(180deg, rgba(16, 24, 35, 0.95), rgba(8, 12, 18, 0.95));
+        transition: transform 160ms ease, opacity 160ms ease, box-shadow 160ms ease;
+        overflow: hidden;
+        cursor: pointer;
+      }
+      .deck-card.active {
+        border-color: rgba(106,169,255,0.75);
+        box-shadow: 0 0 0 2px rgba(106,169,255,0.22) inset, 0 6px 18px rgba(0,0,0,0.45);
+      }
+      .deck-card-line1 {
+        font-size: 11px;
+        color: #dbeafe;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        padding: 8px 10px 2px;
+      }
+      .deck-card-line2 {
+        font-size: 10px;
+        color: var(--muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        padding: 0 10px;
       }
 
       .preview-busy {
@@ -1718,6 +1778,11 @@
                     </button>
                     <div class="muted" id="timeReadout">0:00</div>
                   </div>
+                  <div id="deckCarousel" class="deck-inline hidden" aria-label="Render history">
+                    <button id="deckPrev" class="deck-btn" title="Previous render">◀</button>
+                    <div id="deckTrack" class="deck-inline-track"></div>
+                    <button id="deckNext" class="deck-btn" title="Next render">▶</button>
+                  </div>
                 </div>
               </div>
 
@@ -2132,6 +2197,10 @@
       const voiceoverBtnEl = document.getElementById('voiceoverBtn');
       const exportBtnEl = document.getElementById('exportBtn');
       const ccBtnEl = document.getElementById('ccBtn');
+      const deckCarouselEl = document.getElementById('deckCarousel');
+      const deckTrackEl = document.getElementById('deckTrack');
+      const deckPrevBtn = document.getElementById('deckPrev');
+      const deckNextBtn = document.getElementById('deckNext');
       const timelineRulerEl = document.getElementById('timelineRuler');
       const timelineTrackEl = document.getElementById('timelineTrack');
       const timelineLabelEl = document.getElementById('timelineLabel');
@@ -2331,6 +2400,8 @@
       previewSlot.appendChild(videoEl);
       let lastVideoUrl = '';
       let lastCaptionsUrl = '';
+      const renderDeck = [];
+      let activeDeckIndex = -1;
       function setVideoAvailable(available) {
         const ok = !!available;
         if (downloadBtnEl) downloadBtnEl.disabled = !ok;
@@ -2341,6 +2412,87 @@
         if (exportBtnEl) exportBtnEl.disabled = !ok || !currentJobId;
         if (ccBtnEl) ccBtnEl.disabled = !ok || !lastCaptionsUrl;
         if (previewEmptyEl) previewEmptyEl.classList.toggle('hidden', ok);
+      }
+
+      function setActiveDeckIndex(idx) {
+        if (!renderDeck.length) {
+          activeDeckIndex = -1;
+          renderDeckUI();
+          return;
+        }
+        const n = renderDeck.length;
+        const raw = Number(idx || 0);
+        activeDeckIndex = ((raw % n) + n) % n;
+        renderDeckUI();
+      }
+
+      function addRenderToDeck(entry) {
+        const jobId = String(entry?.job_id || '');
+        const videoPath = String(entry?.video_path || '');
+        if (!jobId || !videoPath) return;
+        const existing = renderDeck.findIndex((it) => it.job_id === jobId && it.video_path === videoPath);
+        const payload = {
+          job_id: jobId,
+          video_path: videoPath,
+          url: '/' + videoPath + '?t=' + Date.now(),
+          appended_from: entry?.appended_from || '',
+          created_at: Date.now(),
+        };
+        if (existing >= 0) {
+          renderDeck[existing] = { ...renderDeck[existing], ...payload };
+          activeDeckIndex = existing;
+        } else {
+          renderDeck.push(payload);
+          activeDeckIndex = renderDeck.length - 1;
+        }
+        renderDeckUI();
+      }
+
+      function openDeckItem(item, index) {
+        if (!item) return;
+        activeDeckIndex = index;
+        lastVideoUrl = item.url;
+        videoEl.src = item.url;
+        videoEl.load();
+        setVideoAvailable(true);
+        if (item.job_id) {
+          currentJobId = item.job_id;
+          jobIdEl.textContent = item.job_id;
+          updateOutputPaths();
+        }
+        renderDeckUI();
+      }
+
+      function renderDeckUI() {
+        if (!deckCarouselEl || !deckTrackEl) return;
+        deckTrackEl.innerHTML = '';
+        if (renderDeck.length <= 1) {
+          deckCarouselEl.classList.add('hidden');
+          return;
+        }
+        deckCarouselEl.classList.remove('hidden');
+        if (activeDeckIndex < 0 || activeDeckIndex >= renderDeck.length) {
+          activeDeckIndex = renderDeck.length - 1;
+        }
+        renderDeck.forEach((item, idx) => {
+          const card = document.createElement('button');
+          card.type = 'button';
+          card.className = 'deck-card' + (idx === activeDeckIndex ? ' active' : '');
+          card.style.opacity = idx === activeDeckIndex ? '1' : '0.72';
+          const jid = item.job_id || '';
+          card.innerHTML = `
+            <div class="deck-card-line1">${idx + 1}. ${jid}</div>
+            <div class="deck-card-line2">${item.appended_from ? 'Stitched' : 'Single segment'} • ${item.video_path.split('/').slice(-1)[0]}</div>
+          `;
+          card.addEventListener('click', () => openDeckItem(item, idx));
+          deckTrackEl.appendChild(card);
+        });
+        if (deckPrevBtn) deckPrevBtn.disabled = renderDeck.length <= 1;
+        if (deckNextBtn) deckNextBtn.disabled = renderDeck.length <= 1;
+        const activeCard = deckTrackEl.children[activeDeckIndex];
+        if (activeCard && activeCard.scrollIntoView) {
+          activeCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }
       }
 
       function fmtTime(s) {
@@ -2536,6 +2688,32 @@
           }
           showToast('Append mode enabled. Create the next scene.', 'ok');
         });
+      }
+      if (deckPrevBtn) {
+        deckPrevBtn.addEventListener('click', () => {
+          if (!renderDeck.length) return;
+          setActiveDeckIndex(activeDeckIndex - 1);
+          const item = renderDeck[activeDeckIndex];
+          if (item) openDeckItem(item, activeDeckIndex);
+        });
+      }
+      if (deckNextBtn) {
+        deckNextBtn.addEventListener('click', () => {
+          if (!renderDeck.length) return;
+          setActiveDeckIndex(activeDeckIndex + 1);
+          const item = renderDeck[activeDeckIndex];
+          if (item) openDeckItem(item, activeDeckIndex);
+        });
+      }
+      if (deckTrackEl) {
+        deckTrackEl.addEventListener('wheel', (e) => {
+          if (!renderDeck.length) return;
+          e.preventDefault();
+          const dir = (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) > 0 ? 1 : -1;
+          setActiveDeckIndex(activeDeckIndex + dir);
+          const item = renderDeck[activeDeckIndex];
+          if (item) openDeckItem(item, activeDeckIndex);
+        }, { passive: false });
       }
 
       let templates = [];
@@ -3012,22 +3190,22 @@
         try {
           const raw = localStorage.getItem('canvasTopSplit');
           const n = Number(raw);
-          if (Number.isFinite(n)) return clampNumber(n, 48, 82);
+          if (Number.isFinite(n)) return clampNumber(n, 42, 86);
         } catch {}
         return 72;
       }
 
       function saveCanvasTopSplit(pct) {
         try {
-          localStorage.setItem('canvasTopSplit', String(clampNumber(pct, 48, 82)));
+          localStorage.setItem('canvasTopSplit', String(clampNumber(pct, 42, 86)));
         } catch {}
       }
 
       function applyCanvasTopSplit(pct) {
         if (!canvasGridEl) return;
-        const top = clampNumber(pct, 48, 82);
+        const top = clampNumber(pct, 42, 86);
         // Keep timeline compact as preview grows.
-        const timeline = clampNumber(Math.round((100 - top) * 0.42), 12, 22);
+        const timeline = clampNumber(Math.round((100 - top) * 0.42), 10, 24);
         canvasGridEl.style.setProperty('--canvas-top', `${top}%`);
         canvasGridEl.style.setProperty('--canvas-timeline', `${timeline}%`);
       }
@@ -3151,6 +3329,7 @@
         if (timelineRulerEl) timelineRulerEl.innerHTML = '';
         if (timelineLabelEl) timelineLabelEl.textContent = 'Timeline';
         if (stepDetailEl) stepDetailEl.textContent = 'Click a step to inspect details.';
+        renderDeckUI();
         setTerminalMode(false);
         updateBackEnabled();
       });
@@ -3271,34 +3450,50 @@
       function initCanvasSplitter() {
         if (!canvasSplitterEl || !canvasGridEl) return;
         applyCanvasTopSplit(getCanvasTopSplit());
-        canvasSplitterEl.addEventListener('mousedown', (e) => {
+        let dragging = false;
+        let startY = 0;
+        let startTopPct = getCanvasTopSplit();
+        let rect = canvasGridEl.getBoundingClientRect();
+        let prevUserSelect = '';
+        let prevCursor = '';
+
+        function onMove(ev) {
+          if (!dragging) return;
+          const dy = ev.clientY - startY;
+          const deltaPct = (dy / Math.max(1, rect.height)) * 100;
+          const next = clampNumber(startTopPct + deltaPct, 42, 86);
+          applyCanvasTopSplit(next);
+        }
+        function onUp() {
+          if (!dragging) return;
+          dragging = false;
+          const topNow = parseFloat((canvasGridEl.style.getPropertyValue('--canvas-top') || '').replace('%', '')) || startTopPct;
+          saveCanvasTopSplit(topNow);
+          document.body.style.userSelect = prevUserSelect;
+          document.body.style.cursor = prevCursor;
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onUp);
+        }
+        function onDown(e) {
           e.preventDefault();
-          const startY = e.clientY;
-          const rect = canvasGridEl.getBoundingClientRect();
-          const startTopPct = getCanvasTopSplit();
-          const prevUserSelect = document.body.style.userSelect;
-          const prevCursor = document.body.style.cursor;
+          dragging = true;
+          startY = e.clientY;
+          rect = canvasGridEl.getBoundingClientRect();
+          const curTop = parseFloat((canvasGridEl.style.getPropertyValue('--canvas-top') || '').replace('%', ''));
+          startTopPct = Number.isFinite(curTop) ? curTop : getCanvasTopSplit();
+          prevUserSelect = document.body.style.userSelect;
+          prevCursor = document.body.style.cursor;
           document.body.style.userSelect = 'none';
           document.body.style.cursor = 'row-resize';
-
-          function onMove(ev) {
-            const dy = ev.clientY - startY;
-            const deltaPct = (dy / Math.max(1, rect.height)) * 100;
-            const next = clampNumber(startTopPct + deltaPct, 48, 82);
-            applyCanvasTopSplit(next);
-          }
-          function onUp() {
-            const topNow = parseFloat((canvasGridEl.style.getPropertyValue('--canvas-top') || '').replace('%', '')) || startTopPct;
-            saveCanvasTopSplit(topNow);
-            window.removeEventListener('mousemove', onMove);
-            window.removeEventListener('mouseup', onUp);
-            document.body.style.userSelect = prevUserSelect;
-            document.body.style.cursor = prevCursor;
-          }
-
+          window.addEventListener('pointermove', onMove);
+          window.addEventListener('pointerup', onUp);
           window.addEventListener('mousemove', onMove);
           window.addEventListener('mouseup', onUp);
-        });
+        }
+
+        canvasSplitterEl.addEventListener('pointerdown', onDown);
       }
       initCanvasSplitter();
       // Keep layout sane across resizes and avoid "panels disappeared" glitches.
@@ -5642,6 +5837,11 @@
               videoEl.load();
               setVideoAvailable(true);
               pushHistory(`Rendered ${runJobId}`);
+              addRenderToDeck({
+                job_id: runJobId,
+                video_path: finalState.video_path,
+                appended_from: appendResult?.appended_from || '',
+              });
             }
             lastCaptionsUrl = '';
             if (finalState.captions_path) {
@@ -5865,6 +6065,11 @@
         videoEl.src = src;
         videoEl.load();
         setVideoAvailable(true);
+        addRenderToDeck({
+          job_id: currentJobId || 'manual',
+          video_path: data.video_path,
+          appended_from: '',
+        });
         updateEditorMode();
         updateJobFiles(data.job_files);
         logsEl.textContent = data.logs || 'Render complete.';
@@ -6191,6 +6396,7 @@
       ensureGeneratedTab();
       renderEditorTabs();
       renderHistory();
+      renderDeckUI();
       setTerminalMode(false);
       setContextTab('memory');
       setVideoAvailable(false);
