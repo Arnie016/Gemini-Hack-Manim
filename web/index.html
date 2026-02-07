@@ -469,6 +469,35 @@
         opacity: 0.45;
         cursor: not-allowed;
       }
+      .voiceover-panel {
+        position: absolute;
+        top: 50px;
+        right: 10px;
+        width: min(340px, calc(100% - 20px));
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.12);
+        background: rgba(9, 12, 18, 0.92);
+        backdrop-filter: blur(12px);
+        padding: 10px;
+        display: grid;
+        gap: 8px;
+        z-index: 9;
+      }
+      .voiceover-panel.hidden { display: none; }
+      .voiceover-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .voiceover-title {
+        font-weight: 700;
+        font-size: 12px;
+        letter-spacing: 0.3px;
+      }
+      .voiceover-panel textarea {
+        min-height: 72px;
+      }
 
       .preview-wrap {
         position: relative;
@@ -735,6 +764,25 @@
         color: var(--muted);
         background: rgba(11,13,18,0.55);
       }
+      .timeline-asset-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 2px 7px 2px 3px;
+      }
+      .timeline-asset-badge img {
+        width: 14px;
+        height: 14px;
+        border-radius: 4px;
+        object-fit: cover;
+        border: 1px solid rgba(255,255,255,0.16);
+        box-shadow: 0 0 0 1px rgba(0,0,0,0.25) inset;
+      }
+      .timeline-asset-badge .asset-label {
+        font-size: 10px;
+        color: var(--text);
+        letter-spacing: 0.2px;
+      }
 
       .timeline-controls {
         display: flex;
@@ -910,6 +958,54 @@
         flex-direction: column;
         height: 100%;
         gap: 10px;
+      }
+      .chat-sessions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        overflow: auto;
+        padding-bottom: 4px;
+      }
+      .chat-session-tab {
+        width: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 9px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.14);
+        background: rgba(11, 13, 18, 0.66);
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .chat-session-tab.active {
+        border-color: rgba(106,169,255,0.65);
+        color: #dbeafe;
+      }
+      .chat-session-swatch {
+        width: 9px;
+        height: 9px;
+        border-radius: 999px;
+        display: inline-block;
+      }
+      .chat-session-close {
+        margin-left: 2px;
+        border: none;
+        background: transparent;
+        color: inherit;
+        font-size: 12px;
+        line-height: 1;
+        width: auto;
+        padding: 0;
+      }
+      .chat-session-add {
+        width: auto;
+        padding: 6px 9px;
+        border-radius: 999px;
+        border: 1px dashed rgba(255,255,255,0.26);
+        background: rgba(11, 13, 18, 0.42);
+        color: var(--muted);
+        font-size: 12px;
       }
       .chat-messages {
         flex: 1;
@@ -1494,6 +1590,30 @@
         gap: 10px;
         margin-top: 10px;
       }
+      .welcome-subline {
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .welcome-flow {
+        margin-top: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .flow-step {
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 999px;
+        padding: 4px 8px;
+        font-size: 11px;
+        color: #dbeafe;
+        background: rgba(11, 18, 32, 0.8);
+      }
+      .flow-arrow {
+        color: rgba(154, 164, 178, 0.9);
+        font-size: 12px;
+      }
       .welcome-card {
         border: 1px solid rgba(255,255,255,0.08);
         border-radius: 12px;
@@ -1513,6 +1633,40 @@
         gap: 8px;
         justify-content: flex-end;
         flex-wrap: wrap;
+      }
+      @keyframes welcomeEnter {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      #welcomeModal .welcome-subline,
+      #welcomeModal .welcome-flow,
+      #welcomeModal .welcome-card,
+      #welcomeModal .welcome-actions {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      #welcomeModal.open .welcome-subline {
+        animation: welcomeEnter 240ms ease forwards;
+      }
+      #welcomeModal.open .welcome-flow {
+        animation: welcomeEnter 280ms ease forwards;
+        animation-delay: 60ms;
+      }
+      #welcomeModal.open .welcome-card:nth-of-type(1) {
+        animation: welcomeEnter 320ms ease forwards;
+        animation-delay: 120ms;
+      }
+      #welcomeModal.open .welcome-card:nth-of-type(2) {
+        animation: welcomeEnter 320ms ease forwards;
+        animation-delay: 190ms;
+      }
+      #welcomeModal.open .welcome-card:nth-of-type(3) {
+        animation: welcomeEnter 320ms ease forwards;
+        animation-delay: 260ms;
+      }
+      #welcomeModal.open .welcome-actions {
+        animation: welcomeEnter 320ms ease forwards;
+        animation-delay: 330ms;
       }
 
       @media (max-width: 1200px) {
@@ -1594,8 +1748,28 @@
 
           <div class="section-title">Job</div>
           <div class="muted" id="outputPaths" style="margin-bottom:8px;">Current output: work/jobs/&lt;job_id&gt;/out.mp4</div>
-          <details id="jobArtifacts">
-            <summary>Job artifacts</summary>
+          <div class="row" style="margin-top:8px;">
+            <div>
+              <label for="creativeMotion">Camera motion</label>
+              <input id="creativeMotion" type="range" min="0" max="100" value="58" />
+            </div>
+            <div>
+              <label for="creativeDensity">Label density</label>
+              <input id="creativeDensity" type="range" min="0" max="100" value="62" />
+            </div>
+          </div>
+          <div class="row" style="margin-top:8px;">
+            <div>
+              <label for="creativeEnergy">Animation energy</label>
+              <input id="creativeEnergy" type="range" min="0" max="100" value="68" />
+            </div>
+            <div>
+              <label for="creativeComplexity">Scene complexity</label>
+              <input id="creativeComplexity" type="range" min="0" max="100" value="54" />
+            </div>
+          </div>
+          <details id="jobArtifacts" style="margin-top:8px;">
+            <summary>Artifacts</summary>
             <div class="muted" style="margin-top:6px;">Job ID</div>
             <div id="jobId" style="margin-bottom:8px;">—</div>
             <div class="tree" id="jobFileList"></div>
@@ -1625,7 +1799,7 @@
                   <div class="row" style="margin-top:8px;">
                     <div>
                       <label for="imagePrompt">Image prompt</label>
-                      <input id="imagePrompt" placeholder="Scientist walking in a park" />
+                      <input id="imagePrompt" value="Matte black cinematic background, soft vignette, subtle texture, no text, no objects" placeholder="Scientist walking in a park" />
                     </div>
                     <div>
                       <label for="imageMode">Image placement</label>
@@ -1664,6 +1838,10 @@
                         <button id="clearFgAll" class="ghost">Clear FG</button>
                       </div>
                     </div>
+                  </div>
+                  <div class="row" style="margin-top:8px;">
+                    <button id="resetSceneAssets" class="ghost">Reset scene image mapping</button>
+                    <div class="muted" style="display:flex; align-items:center;">Keeps generated images, clears BG/FG assignments from timeline scenes.</div>
                   </div>
                 </details>
 
@@ -1850,6 +2028,32 @@
                     <button id="ccBtn" class="overlay-btn" title="Download captions (.srt)" aria-label="Download captions" disabled>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 5H3v14h18V5z"/><path d="M7 10h1"/><path d="M7 14h1"/><path d="M11 10h1"/><path d="M11 14h1"/><path d="M15 10h2"/><path d="M15 14h2"/></svg>
                     </button>
+                  </div>
+                  <div id="voiceoverPanel" class="voiceover-panel hidden" aria-hidden="true">
+                    <div class="voiceover-head">
+                      <div class="voiceover-title">Narration Voiceover</div>
+                      <button id="closeVoiceoverPanel" class="overlay-btn" title="Close voiceover panel" aria-label="Close voiceover panel">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                    <label for="voiceoverVoiceSelect">Voice</label>
+                    <select id="voiceoverVoiceSelect">
+                      <option value="">Use settings voice</option>
+                      <option value="21m00Tcm4TlvDq8ikWAM">Rachel (clear)</option>
+                      <option value="EXAVITQu4vr4xnSDxMaL">Bella (warm)</option>
+                      <option value="TxGEqnHWrfWFTfGW9XjX">Josh (confident)</option>
+                      <option value="VR6AewLTigWG4xSOukaG">Arnold (narrative)</option>
+                    </select>
+                    <label for="voiceoverModelSelect">Voice model</label>
+                    <select id="voiceoverModelSelect">
+                      <option value="">Use settings model</option>
+                      <option value="eleven_multilingual_v2">eleven_multilingual_v2</option>
+                      <option value="eleven_turbo_v2_5">eleven_turbo_v2_5</option>
+                    </select>
+                    <label for="voiceoverScript">Optional script override</label>
+                    <textarea id="voiceoverScript" placeholder="Leave blank to auto-build from captions + scene plan."></textarea>
+                    <label><input id="voiceoverUseContext" type="checkbox" checked /> Include chat context for narration cues</label>
+                    <button id="voiceoverApply" class="secondary">Apply voiceover</button>
                   </div>
                 </div>
                 <div class="preview-transport">
@@ -2088,6 +2292,8 @@
                     <div class="drawer-title">Layout</div>
                     <div class="muted">If panels disappear or sizes feel broken, reset the layout.</div>
                     <button id="resetLayout" class="secondary" style="margin-top:8px;">Reset layout</button>
+                    <div class="muted" style="margin-top:10px;">Replay onboarding intro for first-time demo flow.</div>
+                    <button id="replayWelcome" class="ghost" style="margin-top:6px;">Replay intro</button>
                   </div>
                 </div>
               </div>
@@ -2111,6 +2317,7 @@
       <aside class="panel" id="rightPanel">
         <div class="panel-header">Chat & Agent</div>
         <div class="panel-body chat">
+          <div class="chat-sessions" id="chatSessions"></div>
           <div class="agent-steps" id="agentSteps">
             <div class="agent-step" data-step="plan">Plan</div>
             <div class="agent-step" data-step="approve">Approve</div>
@@ -2254,6 +2461,14 @@
         </div>
         <div class="modal-body">
           <div class="muted">No login. No paywall. Judges can use this immediately.</div>
+          <div class="welcome-subline">Idea in -> Scene plan -> Manim code -> Rendered MP4</div>
+          <div class="welcome-flow">
+            <span class="flow-step">Create plan</span>
+            <span class="flow-arrow">-></span>
+            <span class="flow-step">Generate images</span>
+            <span class="flow-arrow">-></span>
+            <span class="flow-step">Approve & Render</span>
+          </div>
           <div class="welcome-grid">
             <div class="welcome-card">
               <div class="welcome-kicker">Step 1</div>
@@ -2295,6 +2510,10 @@
       const templateDescriptionEl = document.getElementById('templateDescription');
       const resetToTemplateBtn = document.getElementById('resetToTemplate');
       const templateOutputPathEl = document.getElementById('templateOutputPath');
+      const creativeMotionEl = document.getElementById('creativeMotion');
+      const creativeDensityEl = document.getElementById('creativeDensity');
+      const creativeEnergyEl = document.getElementById('creativeEnergy');
+      const creativeComplexityEl = document.getElementById('creativeComplexity');
       const imageGenDetailsEl = document.getElementById('imageGenDetails');
       const imagePromptEl = document.getElementById('imagePrompt');
       const imageModeEl = document.getElementById('imageMode');
@@ -2340,6 +2559,7 @@
       const clearBgAllBtn = document.getElementById('clearBgAll');
       const applyFgAllBtn = document.getElementById('applyFgAll');
       const clearFgAllBtn = document.getElementById('clearFgAll');
+      const resetSceneAssetsBtn = document.getElementById('resetSceneAssets');
 
       const previewSlot = document.getElementById('previewSlot');
       const previewEmptyEl = document.getElementById('previewEmpty');
@@ -2348,6 +2568,13 @@
       const appendBtnEl = document.getElementById('appendBtn');
       const snapshotBtnEl = document.getElementById('snapshotBtn');
       const voiceoverBtnEl = document.getElementById('voiceoverBtn');
+      const voiceoverPanelEl = document.getElementById('voiceoverPanel');
+      const closeVoiceoverPanelEl = document.getElementById('closeVoiceoverPanel');
+      const voiceoverVoiceSelectEl = document.getElementById('voiceoverVoiceSelect');
+      const voiceoverModelSelectEl = document.getElementById('voiceoverModelSelect');
+      const voiceoverScriptEl = document.getElementById('voiceoverScript');
+      const voiceoverUseContextEl = document.getElementById('voiceoverUseContext');
+      const voiceoverApplyEl = document.getElementById('voiceoverApply');
       const exportBtnEl = document.getElementById('exportBtn');
       const ccBtnEl = document.getElementById('ccBtn');
       const deckCarouselEl = document.getElementById('deckCarousel');
@@ -2492,6 +2719,7 @@
       const mentionBarEl = document.getElementById('mentionBar');
       const mentionInfoEl = document.getElementById('mentionInfo');
       const toggleMentionsBtn = document.getElementById('toggleMentions');
+      const chatSessionsEl = document.getElementById('chatSessions');
       const statusEl = document.getElementById('status');
       const agentStepsEl = document.getElementById('agentSteps');
       const agentProgressFillEl = document.getElementById('agentProgressFill');
@@ -2538,6 +2766,7 @@
       const badgeManimEl = document.getElementById('badgeManim');
       const badgeFfmpegEl = document.getElementById('badgeFfmpeg');
       const resetLayoutBtn = document.getElementById('resetLayout');
+      const replayWelcomeBtn = document.getElementById('replayWelcome');
       const settingsOutputVideoPathEl = document.getElementById('settingsOutputVideoPath');
       const settingsOutputCodePathEl = document.getElementById('settingsOutputCodePath');
       const settingsProjectRootEl = document.getElementById('settingsProjectRoot');
@@ -2808,38 +3037,71 @@
         });
       }
       if (voiceoverBtnEl) {
-        voiceoverBtnEl.addEventListener('click', async () => {
-          if (!currentJobId) return;
-          voiceoverBtnEl.disabled = true;
-          setBusy(true, 'Adding voiceover…', 'Voiceover');
-          try {
-            const resp = await fetch(`/api/jobs/${encodeURIComponent(currentJobId)}/voiceover`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' }
-            });
-            const data = await resp.json();
-            if (!data.ok) {
-              showToast(data.error || 'Voiceover failed.', 'err');
-              return;
-            }
-            if (data.video_path) {
-              const src = '/' + data.video_path + '?t=' + Date.now();
-              lastVideoUrl = src;
-              videoEl.src = src;
-              videoEl.load();
-              setVideoAvailable(true);
-            }
-            if (data.job_files) updateJobFiles(data.job_files);
-            showToast('Voiceover added.', 'ok');
-            pushHistory(`Added voiceover to ${currentJobId}`);
-          } catch {
-            showToast('Voiceover request failed.', 'err');
-          } finally {
-            setBusy(false);
-            if (voiceoverBtnEl) voiceoverBtnEl.disabled = false;
+        voiceoverBtnEl.addEventListener('click', () => {
+          if (!currentJobId) {
+            showToast('Render a video first.', 'err');
+            return;
+          }
+          if (!voiceoverPanelEl) return;
+          const open = voiceoverPanelEl.classList.contains('hidden');
+          voiceoverPanelEl.classList.toggle('hidden', !open);
+          voiceoverPanelEl.setAttribute('aria-hidden', open ? 'false' : 'true');
+          if (open && voiceoverScriptEl && !voiceoverScriptEl.value.trim()) {
+            voiceoverScriptEl.value = '';
           }
         });
       }
+      safeOn(closeVoiceoverPanelEl, 'click', () => {
+        if (!voiceoverPanelEl) return;
+        voiceoverPanelEl.classList.add('hidden');
+        voiceoverPanelEl.setAttribute('aria-hidden', 'true');
+      });
+      safeOn(voiceoverApplyEl, 'click', async () => {
+        if (!currentJobId) {
+          showToast('Render a video first.', 'err');
+          return;
+        }
+        if (voiceoverApplyEl) voiceoverApplyEl.disabled = true;
+        setBusy(true, 'Adding voiceover…', 'Voiceover');
+        try {
+          const resp = await fetch(`/api/jobs/${encodeURIComponent(currentJobId)}/voiceover`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              voice_id: voiceoverVoiceSelectEl ? (voiceoverVoiceSelectEl.value || null) : null,
+              model_id: voiceoverModelSelectEl ? (voiceoverModelSelectEl.value || null) : null,
+              script_text: voiceoverScriptEl ? (voiceoverScriptEl.value || null) : null,
+              include_chat_context: !!(voiceoverUseContextEl && voiceoverUseContextEl.checked),
+              chat_context: buildNarrationContext(),
+            }),
+          });
+          const data = await resp.json();
+          if (!data.ok) {
+            showToast(data.error || 'Voiceover failed.', 'err');
+            return;
+          }
+          if (data.video_path) {
+            const src = '/' + data.video_path + '?t=' + Date.now();
+            lastVideoUrl = src;
+            videoEl.src = src;
+            videoEl.load();
+            setVideoAvailable(true);
+          }
+          if (data.job_files) updateJobFiles(data.job_files);
+          if (voiceoverPanelEl) {
+            voiceoverPanelEl.classList.add('hidden');
+            voiceoverPanelEl.setAttribute('aria-hidden', 'true');
+          }
+          showToast('Voiceover added.', 'ok');
+          pushHistory(`Added voiceover to ${currentJobId}`);
+        } catch {
+          showToast('Voiceover request failed.', 'err');
+        } finally {
+          setBusy(false);
+          if (voiceoverApplyEl) voiceoverApplyEl.disabled = false;
+          if (voiceoverBtnEl) voiceoverBtnEl.disabled = false;
+        }
+      });
       if (appendBtnEl) {
         appendBtnEl.addEventListener('click', () => {
           if (!currentJobId || !lastVideoUrl) {
@@ -2904,11 +3166,15 @@
       let jobEventSource = null;
       let didAnimateCode = false;
       let persistedSceneSignature = '';
+      let lastGeneratedCodePath = '';
       let selectedTreePath = '';
       let selectedTreeKind = '';
       let skillsCache = [];
       const renderNoticeByJob = new Set();
       let lastChatSignature = '';
+      const SESSION_COLORS = ['#6aa9ff', '#22c55e', '#f59e0b', '#c084fc', '#fb7185', '#14b8a6'];
+      let chatSessions = [];
+      let activeChatSessionId = '';
       const stepNotes = {
         plan: 'No plan yet.',
         approve: 'Waiting for approval.',
@@ -2947,10 +3213,16 @@
             graphs: graphsEl?.value || 'true',
             narration: narrationEl?.value || 'true',
             image_model_override: imageModelOverrideEl?.value || '',
+            creative_motion: creativeMotionEl?.value || '58',
+            creative_density: creativeDensityEl?.value || '62',
+            creative_energy: creativeEnergyEl?.value || '68',
+            creative_complexity: creativeComplexityEl?.value || '54',
           },
           plan_text: currentPlanText || '',
           timeline: Array.isArray(timelineState) ? timelineState : [],
           code: codeEl?.value || '',
+          chat_sessions: chatSessions,
+          active_chat_session_id: activeChatSessionId,
         };
       }
 
@@ -2999,6 +3271,29 @@
         if (graphsEl && c.graphs) graphsEl.value = c.graphs;
         if (narrationEl && c.narration) narrationEl.value = c.narration;
         if (imageModelOverrideEl) imageModelOverrideEl.value = c.image_model_override || '';
+        if (creativeMotionEl && c.creative_motion !== undefined) creativeMotionEl.value = c.creative_motion;
+        if (creativeDensityEl && c.creative_density !== undefined) creativeDensityEl.value = c.creative_density;
+        if (creativeEnergyEl && c.creative_energy !== undefined) creativeEnergyEl.value = c.creative_energy;
+        if (creativeComplexityEl && c.creative_complexity !== undefined) creativeComplexityEl.value = c.creative_complexity;
+
+        if (Array.isArray(snap.chat_sessions) && snap.chat_sessions.length) {
+          chatSessions = snap.chat_sessions.map((s, i) => ({
+            id: String(s.id || `chat-${i + 1}`),
+            name: String(s.name || makeSessionName(i + 1)),
+            color: String(s.color || SESSION_COLORS[i % SESSION_COLORS.length]),
+            prompt: String(s.prompt || ''),
+            model: String(s.model || (chatModelEl?.value || 'gemini-3-flash-preview')),
+            messages_html: String(s.messages_html || ''),
+            last_sig: String(s.last_sig || ''),
+            context_lock: !!s.context_lock,
+          }));
+          activeChatSessionId = String(snap.active_chat_session_id || chatSessions[0].id);
+          if (!chatSessions.some((s) => s.id === activeChatSessionId)) {
+            activeChatSessionId = chatSessions[0].id;
+          }
+          restoreSessionState(getActiveChatSession());
+          renderChatSessions();
+        }
 
         if (snap.plan_text) currentPlanText = snap.plan_text;
         if (Array.isArray(snap.timeline)) { timelineState = snap.timeline; renderTimeline(); }
@@ -3486,8 +3781,16 @@
         updateEditorMode();
         logsEl.textContent = 'Cleared.';
         statusEl.textContent = 'Ready.';
+        const session = getActiveChatSession();
+        if (session) {
+          session.messages_html = '';
+          session.prompt = '';
+          session.last_sig = '';
+        }
         chatMessagesEl.innerHTML = '';
+        if (chatInputEl) chatInputEl.value = '';
         lastChatSignature = '';
+        renderChatSessions();
         videoEl.removeAttribute('src');
         videoEl.load();
         lastVideoUrl = '';
@@ -3609,7 +3912,7 @@
         settingsApiKeyEl.type = reveal ? 'text' : 'password';
         settingsElevenApiKeyEl.type = reveal ? 'text' : 'password';
       });
-      let mentionsCollapsed = false;
+      let mentionsCollapsed = true;
       function updateMentionVisibility() {
         if (!mentionBarEl) return;
         mentionBarEl.classList.toggle('collapsed', mentionsCollapsed);
@@ -3623,6 +3926,139 @@
         mentionsCollapsed = !mentionsCollapsed;
         updateMentionVisibility();
       });
+
+      function getActiveChatSession() {
+        return chatSessions.find((s) => s.id === activeChatSessionId) || null;
+      }
+
+      function saveActiveSessionState() {
+        const session = getActiveChatSession();
+        if (!session) return;
+        session.messages_html = chatMessagesEl ? chatMessagesEl.innerHTML : '';
+        session.prompt = chatInputEl ? chatInputEl.value : '';
+        session.model = chatModelEl ? chatModelEl.value : '';
+        session.last_sig = lastChatSignature || '';
+      }
+
+      function restoreSessionState(session) {
+        if (!session) return;
+        if (chatMessagesEl) chatMessagesEl.innerHTML = session.messages_html || '';
+        if (chatInputEl) chatInputEl.value = session.prompt || '';
+        if (chatModelEl && session.model) chatModelEl.value = session.model;
+        lastChatSignature = session.last_sig || '';
+      }
+
+      function makeSessionName(idx) {
+        return `Session ${idx}`;
+      }
+
+      function renderChatSessions() {
+        if (!chatSessionsEl) return;
+        chatSessionsEl.innerHTML = '';
+        chatSessions.forEach((session) => {
+          const tab = document.createElement('button');
+          tab.type = 'button';
+          tab.className = `chat-session-tab ${session.id === activeChatSessionId ? 'active' : ''}`;
+          tab.title = session.context_lock
+            ? `${session.name} (context lock on)`
+            : `${session.name}`;
+          const lockTag = session.context_lock ? ' *' : '';
+          tab.innerHTML = `<span class="chat-session-swatch" style="background:${session.color};"></span><span>${escapeHtml(session.name)}${lockTag}</span>`;
+          tab.addEventListener('click', () => {
+            if (session.id === activeChatSessionId) return;
+            saveActiveSessionState();
+            activeChatSessionId = session.id;
+            restoreSessionState(session);
+            renderChatSessions();
+          });
+          tab.addEventListener('dblclick', () => {
+            session.context_lock = !session.context_lock;
+            renderChatSessions();
+            showToast(session.context_lock ? `${session.name}: context lock on` : `${session.name}: context lock off`, 'ok');
+          });
+
+          if (chatSessions.length > 1) {
+            const close = document.createElement('button');
+            close.type = 'button';
+            close.className = 'chat-session-close';
+            close.textContent = 'x';
+            close.title = `Close ${session.name}`;
+            close.addEventListener('click', (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const idx = chatSessions.findIndex((s) => s.id === session.id);
+              if (idx < 0) return;
+              const wasActive = session.id === activeChatSessionId;
+              chatSessions.splice(idx, 1);
+              if (!chatSessions.length) {
+                const fallback = {
+                  id: `chat-${Date.now()}`,
+                  name: makeSessionName(1),
+                  color: SESSION_COLORS[0],
+                  prompt: '',
+                  model: chatModelEl?.value || 'gemini-3-flash-preview',
+                  messages_html: '',
+                  last_sig: '',
+                  context_lock: false,
+                };
+                chatSessions.push(fallback);
+              }
+              if (wasActive) {
+                const next = chatSessions[Math.max(0, idx - 1)] || chatSessions[0];
+                activeChatSessionId = next.id;
+                restoreSessionState(next);
+              }
+              renderChatSessions();
+            });
+            tab.appendChild(close);
+          }
+          chatSessionsEl.appendChild(tab);
+        });
+
+        const addBtn = document.createElement('button');
+        addBtn.type = 'button';
+        addBtn.className = 'chat-session-add';
+        addBtn.textContent = '+';
+        addBtn.title = 'New chat session';
+        addBtn.addEventListener('click', () => {
+          saveActiveSessionState();
+          const nextIndex = chatSessions.length + 1;
+          const s = {
+            id: `chat-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+            name: makeSessionName(nextIndex),
+            color: SESSION_COLORS[(nextIndex - 1) % SESSION_COLORS.length],
+            prompt: '',
+            model: chatModelEl?.value || 'gemini-3-flash-preview',
+            messages_html: '',
+            last_sig: '',
+            context_lock: false,
+          };
+          chatSessions.push(s);
+          activeChatSessionId = s.id;
+          restoreSessionState(s);
+          renderChatSessions();
+          showToast(`Started ${s.name}.`, 'ok');
+        });
+        chatSessionsEl.appendChild(addBtn);
+      }
+
+      function initChatSessions() {
+        if (!chatSessions.length) {
+          chatSessions.push({
+            id: 'chat-1',
+            name: makeSessionName(1),
+            color: SESSION_COLORS[0],
+            prompt: '',
+            model: chatModelEl?.value || 'gemini-3-flash-preview',
+            messages_html: '',
+            last_sig: '',
+            context_lock: false,
+          });
+        }
+        if (!activeChatSessionId) activeChatSessionId = chatSessions[0].id;
+        restoreSessionState(getActiveChatSession());
+        renderChatSessions();
+      }
 
       const tabs = Array.from(document.querySelectorAll('.tab'));
       const panels = Array.from(document.querySelectorAll('.tab-panel'));
@@ -3807,15 +4243,25 @@
       }
 
       function addChat(role, title, content, extraNode) {
+        const session = getActiveChatSession();
         const sig = `${role}|${title}|${String(content || '').slice(0, 1200)}`;
-        if (sig === lastChatSignature) return;
+        const lastSig = session ? (session.last_sig || '') : lastChatSignature;
+        if (sig === lastSig) return;
         lastChatSignature = sig;
+        if (session) session.last_sig = sig;
         const bubble = document.createElement('div');
         bubble.className = `bubble ${role}`;
         bubble.innerHTML = `<div class="bubble-title">${title}</div><div>${content}</div>`;
         if (extraNode) bubble.appendChild(extraNode);
         chatMessagesEl.appendChild(bubble);
         chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+        if (session) session.messages_html = chatMessagesEl.innerHTML;
+      }
+
+      function buildNarrationContext() {
+        const bubbles = Array.from(chatMessagesEl.querySelectorAll('.bubble')).slice(-10);
+        const lines = bubbles.map((el) => cleanInline(el.innerText || '')).filter(Boolean);
+        return lines.join('\n').slice(0, 2500);
       }
 
       function jsonHtml(obj) {
@@ -3918,17 +4364,18 @@
 
       function updateOutputPaths() {
         if (!outputPathsEl) return;
+        const codePath = lastGeneratedCodePath || (currentJobId ? `notes/generated/${currentJobId}/scene.py` : 'notes/generated/<job_id>/scene.py');
         if (!currentJobId) {
           outputPathsEl.innerHTML = 'Current output: <code>work/jobs/&lt;job_id&gt;/out.mp4</code><br><span class="muted">Project root: <code>Gemini-Hack-Manim/</code></span>';
           if (templateOutputPathEl) templateOutputPathEl.innerHTML = 'Output: <code>work/jobs/&lt;job_id&gt;/out.mp4</code>';
           if (settingsOutputVideoPathEl) settingsOutputVideoPathEl.textContent = 'work/jobs/<job_id>/out.mp4';
-          if (settingsOutputCodePathEl) settingsOutputCodePathEl.textContent = 'notes/generated/<job_id>/scene.py';
+          if (settingsOutputCodePathEl) settingsOutputCodePathEl.textContent = codePath;
           return;
         }
-        outputPathsEl.innerHTML = `Current output: <code>work/jobs/${currentJobId}/out.mp4</code><br><span class="muted">Scene code: <code>notes/generated/${currentJobId}/scene.py</code></span>`;
+        outputPathsEl.innerHTML = `Current output: <code>work/jobs/${currentJobId}/out.mp4</code><br><span class="muted">Scene code: <code>${codePath}</code></span>`;
         if (templateOutputPathEl) templateOutputPathEl.innerHTML = `Output: <code>work/jobs/${currentJobId}/out.mp4</code>`;
         if (settingsOutputVideoPathEl) settingsOutputVideoPathEl.textContent = `work/jobs/${currentJobId}/out.mp4`;
-        if (settingsOutputCodePathEl) settingsOutputCodePathEl.textContent = `notes/generated/${currentJobId}/scene.py`;
+        if (settingsOutputCodePathEl) settingsOutputCodePathEl.textContent = codePath;
       }
 
       function markTreeSelection() {
@@ -4167,6 +4614,14 @@
       }
       bindAutosave(chatInputEl, 'input');
       bindAutosave(chatModelEl, 'change');
+      safeOn(chatInputEl, 'input', () => {
+        const session = getActiveChatSession();
+        if (session) session.prompt = chatInputEl.value || '';
+      });
+      safeOn(chatModelEl, 'change', () => {
+        const session = getActiveChatSession();
+        if (session) session.model = chatModelEl.value || '';
+      });
       bindAutosave(directorBriefEl, 'input');
       bindAutosave(templateSelectEl, 'change');
       bindAutosave(imagePromptEl, 'input');
@@ -4186,6 +4641,10 @@
       bindAutosave(graphsEl, 'change');
       bindAutosave(narrationEl, 'change');
       bindAutosave(imageModelOverrideEl, 'change');
+      bindAutosave(creativeMotionEl, 'input');
+      bindAutosave(creativeDensityEl, 'input');
+      bindAutosave(creativeEnergyEl, 'input');
+      bindAutosave(creativeComplexityEl, 'input');
 
       function updateEditorMode() {
         if (!openFilePath) {
@@ -4253,11 +4712,36 @@
         requestAnimationFrame(tick);
       }
 
-      async function persistGeneratedSceneFile(code, focusEditor = false) {
+      function resolvePreferredCodePath(preferredPath = '') {
+        const raw = String(preferredPath || '').trim();
+        if (raw && raw.toLowerCase().endsWith('.py')) return raw;
+        const active = getActiveEditorTab();
+        const activePath = String(active?.path || '').trim();
+        if (activePath && activePath.toLowerCase().endsWith('.py')) return activePath;
+        const openPath = String(openFilePath || '').trim();
+        if (openPath && openPath.toLowerCase().endsWith('.py')) return openPath;
+        if (selectedTreeKind === 'file') {
+          const sel = String(selectedTreePath || '').trim();
+          if (sel && sel.toLowerCase().endsWith('.py')) return sel;
+        }
+        return '';
+      }
+
+      function ensureHighlightMode() {
+        if (!highlightOn) {
+          highlightOn = true;
+          if (codePrettyWrapEl) codePrettyWrapEl.classList.remove('hidden');
+          if (codeEditorEl) codeEditorEl.classList.add('hidden');
+          if (toggleHighlightBtn) toggleHighlightBtn.textContent = 'Edit';
+        }
+        refreshHighlight();
+      }
+
+      async function persistGeneratedSceneFile(code, focusEditor = false, preferredPath = '') {
         if (!currentJobId || !code) return;
-        const signature = `${currentJobId}:${code.length}:${String(code).slice(0, 128)}`;
+        const path = resolvePreferredCodePath(preferredPath) || `notes/generated/${currentJobId}/scene.py`;
+        const signature = `${currentJobId}:${path}:${code.length}:${String(code).slice(0, 128)}`;
         if (persistedSceneSignature === signature) return;
-        const path = `notes/generated/${currentJobId}/scene.py`;
         upsertGeneratedTab(code);
         try {
           const resp = await fetch('/api/files/file', {
@@ -4268,6 +4752,8 @@
           const data = await resp.json();
           if (data.ok) {
             persistedSceneSignature = signature;
+            lastGeneratedCodePath = data.path || path;
+            updateOutputPaths();
             upsertFileTab(data.path, code, !!focusEditor);
             if (focusEditor) {
               activeEditorTabId = `file:${data.path}`;
@@ -4535,6 +5021,12 @@
         return String(el.dataset.assetPath || '').trim();
       }
 
+      function notifyImageChangeNeedsRerender() {
+        if (!lastVideoUrl) return;
+        statusEl.textContent = 'Image mapping updated. Re-render to apply changes to the MP4.';
+        showToast('Image mapping changed. Click Approve & Render to update video.', 'ok');
+      }
+
       function applyAssetToAllScenes(role) {
         const assetPath = getThumbAsset(role);
         if (!assetPath) {
@@ -4551,6 +5043,7 @@
         });
         renderTimeline();
         showToast(`${role === 'background' ? 'BG' : 'FG'} applied to all scenes.`, 'ok');
+        notifyImageChangeNeedsRerender();
       }
 
       function clearAssetFromAllScenes(role) {
@@ -4561,6 +5054,22 @@
         });
         renderTimeline();
         showToast(`${role === 'background' ? 'BG' : 'FG'} cleared from scenes.`, 'ok');
+        notifyImageChangeNeedsRerender();
+      }
+
+      function resetSceneAssetAssignments() {
+        if (!timelineState.length) {
+          showToast('Create plan first.', 'err');
+          return;
+        }
+        timelineState.forEach((sc) => {
+          if (!sc.assets) return;
+          delete sc.assets.background;
+          delete sc.assets.foreground;
+        });
+        renderTimeline();
+        showToast('Cleared BG/FG mapping for all scenes.', 'ok');
+        notifyImageChangeNeedsRerender();
       }
 
       function setThumb(el, opts) {
@@ -4640,6 +5149,9 @@
           } else {
             showToast('Images generated. Drag BG/FG into scenes.', 'ok');
             pushHistory(`Generated images for ${currentJobId}`);
+            if (lastVideoUrl) {
+              statusEl.textContent = 'New images generated. Drop onto scenes, then re-render to apply.';
+            }
           }
           scheduleAutosave();
         } catch (e) {
@@ -5218,6 +5730,14 @@
         if (settingsOutputCopyDirEl) settingsOutputCopyDirEl.value = data.output_copy_dir || '';
         if (settingsElevenVoiceIdEl) settingsElevenVoiceIdEl.value = data.elevenlabs_voice_id || '';
         if (settingsElevenModelIdEl) settingsElevenModelIdEl.value = data.elevenlabs_model_id || '';
+        if (voiceoverVoiceSelectEl && data.elevenlabs_voice_id) {
+          const hasVoice = Array.from(voiceoverVoiceSelectEl.options || []).some((o) => o.value === data.elevenlabs_voice_id);
+          voiceoverVoiceSelectEl.value = hasVoice ? data.elevenlabs_voice_id : '';
+        }
+        if (voiceoverModelSelectEl && data.elevenlabs_model_id) {
+          const hasModel = Array.from(voiceoverModelSelectEl.options || []).some((o) => o.value === data.elevenlabs_model_id);
+          voiceoverModelSelectEl.value = hasModel ? data.elevenlabs_model_id : '';
+        }
         if (settingsApiKeyEl) {
           settingsApiKeyEl.placeholder = data.has_api_key ? 'Saved (hidden)' : 'Paste key';
           settingsApiKeyEl.value = data.has_api_key ? SETTINGS_SAVED_MASK : '';
@@ -5466,7 +5986,7 @@
         if (!mentionBarEl) return;
         mentionBarEl.innerHTML = '';
         const chips = [];
-        const maxMentionsVisible = 10;
+        const maxMentionsVisible = 6;
 
         function insertMentionToken(token) {
           const cur = chatInputEl.value || '';
@@ -5753,6 +6273,7 @@
           sc.assets[assetType] = assetPath;
           renderTimeline();
           showToast(`Attached ${assetType.toUpperCase()} to scene ${idx + 1}.`, 'ok');
+          notifyImageChangeNeedsRerender();
           return true;
         }
 
@@ -5780,6 +6301,7 @@
           }
           renderTimeline();
           showToast(`Attached ${img.name} to scene ${idx + 1}.`, 'ok');
+          notifyImageChangeNeedsRerender();
           return true;
         }
 
@@ -5860,6 +6382,32 @@
         });
       }
 
+      function resolveAssetPreviewSrc(relPath) {
+        const rel = String(relPath || '').trim();
+        if (!rel) return '';
+        if (/^(https?:)?\/\//i.test(rel)) return rel;
+        if (rel.startsWith('/work/')) return rel;
+        if (!currentJobId) return '';
+        return `/work/jobs/${currentJobId}/${rel}`;
+      }
+
+      function buildTimelineAssetBadge(role, relPath) {
+        const badge = document.createElement('div');
+        badge.className = 'timeline-badge timeline-asset-badge';
+        const src = resolveAssetPreviewSrc(relPath);
+        if (src) {
+          const img = document.createElement('img');
+          img.src = src;
+          img.alt = role;
+          badge.appendChild(img);
+        }
+        const label = document.createElement('span');
+        label.className = 'asset-label';
+        label.textContent = role === 'background' ? 'BG' : 'FG';
+        badge.appendChild(label);
+        return badge;
+      }
+
       function renderTimeline() {
         timelineTrackEl.innerHTML = '';
         if (!timelineState.length) {
@@ -5932,15 +6480,13 @@
           durBadge.textContent = `${scene.seconds}s`;
           badges.appendChild(durBadge);
           if (scene.assets?.background) {
-            const bg = document.createElement('div');
-            bg.className = 'timeline-badge';
-            bg.textContent = 'BG';
+            const bg = buildTimelineAssetBadge('background', scene.assets.background);
+            bg.title = `Background image\n${scene.assets.background}`;
             badges.appendChild(bg);
           }
           if (scene.assets?.foreground) {
-            const fg = document.createElement('div');
-            fg.className = 'timeline-badge';
-            fg.textContent = 'FG';
+            const fg = buildTimelineAssetBadge('foreground', scene.assets.foreground);
+            fg.title = `Foreground image\n${scene.assets.foreground}`;
             badges.appendChild(fg);
           }
 
@@ -6114,6 +6660,12 @@
       function buildDirectorBrief() {
         const pieces = [];
         if (directorBriefEl.value.trim()) pieces.push(directorBriefEl.value.trim());
+        const creativeLines = [];
+        if (creativeMotionEl) creativeLines.push(`Camera motion intensity: ${creativeMotionEl.value}/100`);
+        if (creativeDensityEl) creativeLines.push(`On-screen label density: ${creativeDensityEl.value}/100`);
+        if (creativeEnergyEl) creativeLines.push(`Animation energy: ${creativeEnergyEl.value}/100`);
+        if (creativeComplexityEl) creativeLines.push(`Scene complexity: ${creativeComplexityEl.value}/100`);
+        if (creativeLines.length) pieces.push(`Creative controls:\n${creativeLines.join('\n')}`);
         const rules = rulesTextEl.value.trim();
         if (rules) pieces.push(`Rules:\n${rules}`);
         const sub = subagentsTextEl.value.trim();
@@ -6359,6 +6911,10 @@
           planText = lastPlanBox.value;
         }
         const runJobId = currentJobId;
+        const preferredCodePath = resolvePreferredCodePath();
+        if (preferredCodePath) {
+          setStepNote('code', `Preflight passed. Generating code into ${preferredCodePath}…`);
+        }
         didAnimateCode = false;
         let lastPushedCode = '';
         let shownCodeToast = false;
@@ -6378,13 +6934,15 @@
             lastPushedCode = text;
             didAnimateCode = true;
             setActiveTab('code');
+            ensureHighlightMode();
             animateCodeIntoEditor(text, opts);
-            persistGeneratedSceneFile(text, true);
-            statusEl.textContent = `Coding… saved to notes/generated/${runJobId}/scene.py`;
-            setStepNote('code', `Code generated and saved: notes/generated/${runJobId}/scene.py`);
+            persistGeneratedSceneFile(text, true, preferredCodePath);
+            const codePath = resolvePreferredCodePath(preferredCodePath) || `notes/generated/${runJobId}/scene.py`;
+            statusEl.textContent = `Coding… writing to ${codePath}`;
+            setStepNote('code', `Code generated and saved: ${codePath}`);
             if (!shownCodeToast) {
               shownCodeToast = true;
-              showToast('Code generated.', 'ok');
+              showToast(`Code generated -> ${codePath}`, 'ok');
             }
           }
 
@@ -6511,6 +7069,7 @@
           activeEditorTabId = 'generated';
           upsertGeneratedTab('# Generating Manim scene...\n');
           applyActiveEditorTab();
+          ensureHighlightMode();
 
           setBusy(true, 'Generating video…', 'Rendering');
           setStep('approve', 'done');
@@ -6828,6 +7387,10 @@
       });
       safeOn(runHealthBtn, 'click', runHealth);
       safeOn(resetLayoutBtn, 'click', resetLayout);
+      safeOn(replayWelcomeBtn, 'click', () => {
+        try { localStorage.removeItem(WELCOME_SEEN_KEY); } catch {}
+        openWelcome();
+      });
       safeOn(addMemoryBtn, 'click', addMemory);
       safeOn(saveSkillBtn, 'click', saveSkill);
       safeOn(generateSkillBtn, 'click', generateSkill);
@@ -6848,6 +7411,7 @@
       safeOn(clearBgAllBtn, 'click', () => clearAssetFromAllScenes('background'));
       safeOn(applyFgAllBtn, 'click', () => applyAssetToAllScenes('foreground'));
       safeOn(clearFgAllBtn, 'click', () => clearAssetFromAllScenes('foreground'));
+      safeOn(resetSceneAssetsBtn, 'click', resetSceneAssetAssignments);
       safeOn(createFolderBtn, 'click', createFolder);
       safeOn(createFileBtn, 'click', createFile);
       safeOn(newCodeTabBtn, 'click', createNewCodeTabFile);
@@ -6991,7 +7555,7 @@
           chatInputEl.value = 'Explain the photoelectric effect in 60 seconds (red vs blue light, threshold frequency, Einstein equation).';
         }
         if (!imagePromptEl.value.trim()) {
-          imagePromptEl.value = 'Scientist walking in a park at sunrise';
+          imagePromptEl.value = 'Matte black cinematic background, soft vignette, subtle texture, no text, no objects';
         }
         if (!includeImagesEl.value) includeImagesEl.value = 'true';
         if (!imageModeEl.value) imageModeEl.value = 'background';
@@ -7052,6 +7616,7 @@
       loadWorkspaceFiles();
       renderSources();
       setPreviewAspect(aspectEl.value);
+      initChatSessions();
       updateEditorMode();
       applyLayoutColumns();
       const didRestore = restoreProject();

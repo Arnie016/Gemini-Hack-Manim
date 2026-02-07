@@ -179,6 +179,14 @@ class AppendReq(BaseModel):
     next_job_id: str
 
 
+class VoiceoverReq(BaseModel):
+    voice_id: Optional[str] = None
+    model_id: Optional[str] = None
+    script_text: Optional[str] = None
+    include_chat_context: bool = False
+    chat_context: Optional[str] = None
+
+
 class SourceIndexReq(BaseModel):
     url: str
     notes: Optional[str] = None
@@ -1374,11 +1382,12 @@ def copy_job_output(job_id: str):
 
 
 @app.post("/api/jobs/{job_id}/voiceover")
-def add_voiceover(job_id: str):
+def add_voiceover(job_id: str, req: Optional[VoiceoverReq] = None):
+    req = req or VoiceoverReq()
     settings = load_settings()
     api_key = (settings.get("elevenlabs_api_key") or "").strip()
-    voice_id = (settings.get("elevenlabs_voice_id") or "").strip()
-    model_id = (settings.get("elevenlabs_model_id") or "").strip() or None
+    voice_id = (req.voice_id or settings.get("elevenlabs_voice_id") or "").strip()
+    model_id = (req.model_id or settings.get("elevenlabs_model_id") or "").strip() or None
     if not api_key or not voice_id:
         return JSONResponse(
             {
@@ -1392,9 +1401,25 @@ def add_voiceover(job_id: str):
     if not paths.job_dir.exists():
         return JSONResponse({"ok": False, "error": "Unknown job_id"}, status_code=404)
 
-    text = _srt_to_plain_text(paths.job_dir / "captions.srt")
+    script_text = (req.script_text or "").strip()
+    if script_text:
+        text = script_text
+    else:
+        text = _srt_to_plain_text(paths.job_dir / "captions.srt")
+        if not text:
+            text = _voiceover_text_from_plan(paths)
+
+    chat_context = (req.chat_context or "").strip()
+    if req.include_chat_context and chat_context:
+        context_block = f"Context cues:\n{chat_context[:1800]}"
+        text = f"{context_block}\n\n{text}"
+
+    text = text.strip()
+    if len(text) > 3800:
+        text = text[:3800]
     if not text:
-        text = _voiceover_text_from_plan(paths)
+        return JSONResponse({"ok": False, "error": "No narration text available for voiceover."}, status_code=400)
+
     ok, msg = _add_elevenlabs_voiceover(
         paths=paths,
         api_key=api_key,
@@ -1407,6 +1432,8 @@ def add_voiceover(job_id: str):
     return {
         "ok": True,
         "video_path": msg,
+        "voice_id": voice_id,
+        "model_id": model_id or "",
         "job_files": _job_files(paths),
     }
 
