@@ -2,20 +2,22 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import re
 import secrets
 import time
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 from urllib.parse import parse_qs, urlparse
 
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Response, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from .gemini_http import GeminiError, generate_content, generate_image
 from .prompts import (
@@ -64,6 +66,21 @@ JOBS.mkdir(parents=True, exist_ok=True)
 app = FastAPI()
 app.mount("/work", StaticFiles(directory=WORK), name="work")
 job_manager = JobManager()
+logger = logging.getLogger("northstar.api")
+
+
+@app.middleware("http")
+async def security_headers_middleware(request, call_next):
+    request_id = request.headers.get("X-Request-ID") or secrets.token_hex(8)
+    request.state.request_id = request_id
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 class AnimateReq(BaseModel):
@@ -71,6 +88,7 @@ class AnimateReq(BaseModel):
     image_prompt: Optional[str] = None
     image_mode: str = "background"
     include_images: bool = False
+    image_variants: int = 1
     audience: str = "general"
     tone: str = "epic"
     style: str = "cinematic"
@@ -138,6 +156,7 @@ class ApproveReq(BaseModel):
     image_prompt: Optional[str] = None
     image_mode: str = "background"
     include_images: bool = False
+    image_variants: int = 1
     image_model: Optional[str] = None
     quality: str = "pql"
     aspect_ratio: str = "9:16"
@@ -165,6 +184,7 @@ class ImageGenReq(BaseModel):
     image_prompt: str
     image_mode: str = "background"
     image_model: Optional[str] = None
+    variants: int = 1
 
 
 class UploadJobAssetReq(BaseModel):
@@ -180,11 +200,14 @@ class AppendReq(BaseModel):
 
 
 class VoiceoverReq(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
     voice_id: Optional[str] = None
     model_id: Optional[str] = None
     script_text: Optional[str] = None
     include_chat_context: bool = False
     chat_context: Optional[str] = None
+    use_gemini_script: bool = True
 
 
 class SourceIndexReq(BaseModel):
@@ -192,6 +215,89 @@ class SourceIndexReq(BaseModel):
     notes: Optional[str] = None
     source_type: str = "auto"  # auto | youtube | web
     model: Optional[str] = None
+
+
+class ScriptPackReq(BaseModel):
+    languages: Optional[List[str]] = None
+    model: Optional[str] = None
+
+
+class GeminiRefineReq(BaseModel):
+    idea: str
+    director_brief: Optional[str] = None
+    image_prompt: Optional[str] = None
+    audience: Optional[str] = None
+    tone: Optional[str] = None
+    style: Optional[str] = None
+    pace: Optional[str] = None
+    color_palette: Optional[str] = None
+    model: Optional[str] = None
+
+
+class OnboardingReq(BaseModel):
+    prompt: Optional[str] = None
+    audience: Optional[str] = None
+    model: Optional[str] = None
+    image_model: Optional[str] = None
+
+
+class CrazyRunReq(BaseModel):
+    idea: str
+    variants: int = 3
+    audience: str = "general"
+    tone: str = "epic"
+    style: str = "cinematic"
+    pace: str = "medium"
+    color_palette: str = "cool"
+    include_equations: bool = True
+    include_graphs: bool = True
+    include_narration: bool = True
+    target_seconds: Optional[float] = None
+    max_scenes: Optional[int] = None
+    max_objects: Optional[int] = None
+    aspect_ratio: str = "9:16"
+    quality: str = "pql"
+    director_brief: Optional[str] = None
+    memory_ids: Optional[list[str]] = None
+    skill_ids: Optional[list[str]] = None
+    include_images: bool = False
+    image_prompt: Optional[str] = None
+    image_mode: str = "background"
+    image_variants: int = 1
+    model: Optional[str] = None
+    image_model: Optional[str] = None
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError):
+    request_id = getattr(request.state, "request_id", "")
+    if request.url.path.startswith("/api/"):
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Validation error",
+                "details": exc.errors(),
+                "request_id": request_id,
+            },
+            status_code=422,
+        )
+    return JSONResponse({"detail": exc.errors()}, status_code=422)
+
+
+@app.exception_handler(Exception)
+async def unhandled_error_handler(request: Request, exc: Exception):
+    request_id = getattr(request.state, "request_id", "")
+    logger.exception("Unhandled error [%s] %s", request_id, request.url.path, exc_info=exc)
+    if request.url.path.startswith("/api/"):
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Internal server error",
+                "request_id": request_id,
+            },
+            status_code=500,
+        )
+    return JSONResponse({"detail": "Internal server error"}, status_code=500)
 
 
 def _extract_youtube_id(url: str) -> Optional[str]:
@@ -315,10 +421,10 @@ def _build_director_brief(req: AnimateReq) -> str:
     if req.max_objects:
         lines.append(f"Max objects per scene: {req.max_objects}")
     if req.director_brief:
-        lines.append(f"Additional brief: {req.director_brief}")
+        lines.append(f"Additional brief: {str(req.director_brief)[:1200]}")
     if getattr(req, "include_images", False) and getattr(req, "image_prompt", None):
         lines.append(
-            f"Include visual assets based on: {getattr(req, 'image_prompt')}"
+            f"Include visual assets based on: {str(getattr(req, 'image_prompt'))[:600]}"
         )
     memories = get_memories_by_ids(req.memory_ids)
     if memories:
@@ -408,6 +514,137 @@ def _parse_json(text: str) -> Dict[str, Any]:
         raise
 
 
+def _bounded_text(field: str, value: Optional[str], *, max_len: int, required: bool = False) -> str:
+    txt = (value or "").strip()
+    if required and not txt:
+        raise ValueError(f"{field} is required")
+    if len(txt) > max_len:
+        raise ValueError(f"{field} is too long (max {max_len} chars)")
+    return txt
+
+
+def _policy_block_reason(*texts: Optional[str]) -> Optional[str]:
+    merged = " ".join([(t or "") for t in texts]).lower()
+    if not merged.strip():
+        return None
+    blocked = [
+        ("child sexual", "Requests involving sexual content with minors are blocked."),
+        ("child porn", "Requests involving sexual content with minors are blocked."),
+        ("rape", "Sexual violence content is not supported."),
+        ("bestiality", "Explicit abusive sexual content is not supported."),
+        ("gore", "Graphic violence/gore content is not supported for this app."),
+        ("beheading", "Graphic violence/gore content is not supported for this app."),
+        ("terrorist manifesto", "Extremist propaganda content is not supported."),
+    ]
+    for token, msg in blocked:
+        if token in merged:
+            return msg
+    return None
+
+
+def _default_onboarding_steps() -> list[Dict[str, str]]:
+    return [
+        {
+            "id": "template",
+            "target": "#templateSelect",
+            "title": "Choose a starter template",
+            "body": "Pick a template in Explorer so the scene style, pacing, and defaults load fast.",
+            "hint": "Left panel -> Template",
+            "icon_prompt": (
+                "Minimal line icon for choosing a storyboard template, dark matte background, "
+                "neon cyan accents, clean UI style"
+            ),
+        },
+        {
+            "id": "plan",
+            "target": "#chatInput",
+            "title": "Describe the idea",
+            "body": "Type the concept in one line. Gemini will turn it into a scene-by-scene plan.",
+            "hint": "Right panel -> Prompt box",
+            "icon_prompt": (
+                "Minimal line icon of a prompt box with spark cursor, dark matte background, "
+                "electric blue and teal accent"
+            ),
+        },
+        {
+            "id": "images",
+            "target": "#imageGenDetails",
+            "title": "Generate image assets",
+            "body": "Use Nano Banana to create background and foreground variants, then drag into scene cards.",
+            "hint": "Middle panel -> Image generation",
+            "icon_prompt": (
+                "Minimal icon showing image variants and drag and drop to timeline card, "
+                "dark matte background, subtle green accent"
+            ),
+        },
+        {
+            "id": "timeline",
+            "target": "#timelineTrack",
+            "title": "Refine scenes on the timeline",
+            "body": "Edit each scene focus and duration. Keep one clear concept per scene for readability.",
+            "hint": "Middle panel -> Timeline",
+            "icon_prompt": (
+                "Minimal timeline icon with labeled scene blocks and edit handles, "
+                "cinematic dark UI, high contrast"
+            ),
+        },
+        {
+            "id": "preview",
+            "target": "#previewSlot",
+            "title": "Approve and render",
+            "body": "Run plan -> code -> render. If a render fails, Gemini diagnoses and retries automatically.",
+            "hint": "Middle panel -> Preview area",
+            "icon_prompt": (
+                "Minimal icon for render pipeline plan code render with play symbol, "
+                "dark matte background, blue green glow"
+            ),
+        },
+        {
+            "id": "steps",
+            "target": "#agentSteps",
+            "title": "Track every phase",
+            "body": "Watch Plan, Approve, Code, and Render status. Open details to inspect each phase output.",
+            "hint": "Right panel -> Phase tracker",
+            "icon_prompt": (
+                "Minimal icon showing four progress stages with diagnostics panel, "
+                "dark interface, subtle neon highlights"
+            ),
+        },
+    ]
+
+
+def _normalize_onboarding_steps(raw_steps: Any) -> list[Dict[str, str]]:
+    defaults = _default_onboarding_steps()
+    if not isinstance(raw_steps, list):
+        return defaults
+
+    allowed_targets = {step["target"] for step in defaults}
+    out: list[Dict[str, str]] = []
+    for idx, default in enumerate(defaults):
+        src = raw_steps[idx] if idx < len(raw_steps) else {}
+        src = src if isinstance(src, dict) else {}
+        merged = dict(default)
+
+        title = str(src.get("title") or "").strip()
+        body = str(src.get("body") or "").strip()
+        hint = str(src.get("hint") or "").strip()
+        icon_prompt = str(src.get("icon_prompt") or "").strip()
+        target = str(src.get("target") or "").strip()
+
+        if title:
+            merged["title"] = title[:140]
+        if body:
+            merged["body"] = body[:360]
+        if hint:
+            merged["hint"] = hint[:140]
+        if icon_prompt:
+            merged["icon_prompt"] = icon_prompt[:320]
+        if target in allowed_targets:
+            merged["target"] = target
+        out.append(merged)
+    return out
+
+
 def _merge_plans(base_plan: Dict[str, Any], next_plan: Dict[str, Any]) -> Dict[str, Any]:
     base_scenes = list(base_plan.get("scenes") or [])
     next_scenes = list(next_plan.get("scenes") or [])
@@ -493,6 +730,196 @@ def _srt_to_plain_text(srt_path: Path) -> str:
     return " ".join(out).strip()
 
 
+def _scene_ranges_from_plan(plan: Dict[str, Any]) -> list[tuple[float, float]]:
+    scenes = list(plan.get("scenes") or [])
+    cursor = 0.0
+    out: list[tuple[float, float]] = []
+    for sc in scenes:
+        sec = max(0.5, float(sc.get("seconds") or 0.5))
+        start = cursor
+        end = cursor + sec
+        out.append((start, end))
+        cursor = end
+    return out
+
+
+def _fmt_srt_ts(ts: float) -> str:
+    ts = max(0.0, float(ts))
+    h = int(ts // 3600)
+    m = int((ts % 3600) // 60)
+    s = int(ts % 60)
+    ms = int(round((ts - int(ts)) * 1000))
+    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+
+def _build_srt_from_lines(plan: Dict[str, Any], lines: list[str]) -> str:
+    spans = _scene_ranges_from_plan(plan)
+    out: list[str] = []
+    idx = 1
+    for i, (start, end) in enumerate(spans):
+        text = (lines[i] if i < len(lines) else "").strip()
+        if not text:
+            continue
+        out.append(str(idx))
+        out.append(f"{_fmt_srt_ts(start)} --> {_fmt_srt_ts(end)}")
+        out.append(text)
+        out.append("")
+        idx += 1
+    return "\n".join(out).strip() + "\n"
+
+
+def _language_label(code: str) -> str:
+    labels = {
+        "en": "English",
+        "hi": "Hindi",
+        "es": "Spanish",
+        "pt": "Portuguese",
+        "fr": "French",
+        "de": "German",
+        "ja": "Japanese",
+    }
+    c = (code or "").strip().lower()
+    return labels.get(c, c or "Unknown")
+
+
+def _multilingual_script_packs(
+    *,
+    plan: Dict[str, Any],
+    languages: list[str],
+    api_key: Optional[str],
+    model: Optional[str],
+) -> dict[str, Any]:
+    scenes = list(plan.get("scenes") or [])
+    base_lines = [str(sc.get("narration") or "").strip() for sc in scenes]
+    if not base_lines:
+        base_lines = [str(sc.get("goal") or "").strip() for sc in scenes]
+
+    langs = []
+    for code in languages:
+        c = (code or "").strip().lower()
+        if c and c not in langs:
+            langs.append(c)
+    if not langs:
+        langs = ["en", "hi", "es"]
+
+    schema = {
+        "type": "OBJECT",
+        "properties": {
+            "packs": {
+                "type": "ARRAY",
+                "items": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "language": {"type": "STRING"},
+                        "scene_lines": {"type": "ARRAY", "items": {"type": "STRING"}},
+                        "voice_script": {"type": "STRING"},
+                    },
+                    "required": ["language", "scene_lines", "voice_script"],
+                },
+            }
+        },
+        "required": ["packs"],
+    }
+    user = (
+        "Build multilingual narration packs for this scene plan.\n"
+        f"Languages: {', '.join(langs)}\n"
+        "Rules:\n"
+        "- Keep one narration line per scene.\n"
+        "- Keep style natural and engaging, not robotic.\n"
+        "- Preserve scientific meaning.\n\n"
+        f"Plan JSON:\n{json.dumps(plan)[:9000]}\n"
+    )
+    try:
+        raw = generate_content(
+            user,
+            system_text=(
+                "You are a multilingual science narrator. "
+                "Return strict JSON only."
+            ),
+            generation_config={
+                "response_mime_type": "application/json",
+                "response_schema": schema,
+            },
+            api_key=api_key,
+            model=model,
+        )
+        parsed = _parse_json(raw)
+        packs = list(parsed.get("packs") or [])
+    except Exception:
+        packs = []
+
+    out_packs: list[dict[str, Any]] = []
+    by_lang: dict[str, dict[str, Any]] = {}
+    for p in packs:
+        code = str(p.get("language") or "").strip().lower()
+        if not code:
+            continue
+        by_lang[code] = {
+            "language": code,
+            "scene_lines": [str(x).strip() for x in (p.get("scene_lines") or [])],
+            "voice_script": str(p.get("voice_script") or "").strip(),
+        }
+
+    for code in langs:
+        item = by_lang.get(code, {})
+        lines = item.get("scene_lines") or []
+        if len(lines) < len(base_lines):
+            lines = lines + base_lines[len(lines):]
+        if len(lines) > len(base_lines):
+            lines = lines[: len(base_lines)]
+        script = item.get("voice_script") or " ".join([x for x in lines if x]).strip()
+        out_packs.append(
+            {
+                "language": code,
+                "language_label": _language_label(code),
+                "scene_lines": lines,
+                "voice_script": script,
+                "captions_srt": _build_srt_from_lines(plan, lines),
+            }
+        )
+    return {"packs": out_packs}
+
+
+def _voiceover_script_with_gemini(
+    *,
+    paths,
+    api_key: str,
+    model: Optional[str],
+    chat_context: str,
+) -> str:
+    plan_text = ""
+    total_seconds = 0.0
+    if paths.plan_path.exists():
+        plan_text = paths.plan_path.read_text(encoding="utf-8", errors="ignore")
+        try:
+            plan_obj = json.loads(plan_text)
+            total_seconds = float(plan_obj.get("total_seconds") or 0)
+        except Exception:
+            total_seconds = 0.0
+    if total_seconds <= 0:
+        total_seconds = 60.0
+    target_words = int(max(80, min(420, total_seconds * 2.4)))
+
+    system = (
+        "You are a narration writer for short science explainer videos. "
+        "Write in a natural, engaging voice, concise sentences, no stage directions, no bullet points. "
+        "Avoid repeating equations verbatim; explain them in plain language. "
+        "Return only the script."
+    )
+    user = (
+        f"Target length: about {target_words} words for ~{int(total_seconds)} seconds.\n\n"
+        f"Scene plan JSON:\n{plan_text[:4000]}\n\n"
+    )
+    if chat_context:
+        user += f"Context cues:\n{chat_context[:1200]}\n\n"
+    user += "Write the final voiceover script now."
+
+    try:
+        script = generate_content(user, system_text=system, api_key=api_key, model=model)
+    except Exception:
+        script = ""
+    return (script or "").strip()
+
 def _add_elevenlabs_voiceover(*, paths, api_key: str, voice_id: str, model_id: Optional[str], text: str) -> tuple[bool, str]:
     import requests
 
@@ -563,7 +990,8 @@ def _generate_assets(
     image_mode: str,
     api_key: Optional[str],
     image_model: Optional[str],
-) -> tuple[Optional[str], Optional[str], Optional[str], str]:
+    variants: int = 1,
+) -> tuple[list[str], list[str], Optional[str], str]:
     """Generate optional background/foreground assets in job_dir/assets.
 
     Returns: (bg_rel, fg_rel, warning, assets_description)
@@ -579,37 +1007,52 @@ def _generate_assets(
     if not base_prompt:
         return None, None, None, ""
 
-    bg_rel = None
-    fg_rel = None
+    bg_rel: list[str] = []
+    fg_rel: list[str] = []
     warning: Optional[str] = None
     try:
+        variants = max(1, int(variants or 1))
         if mode in {"background", "both"}:
-            bg_bytes = generate_image(
-                f"Wide background scene, no text, cinematic lighting: {base_prompt}",
-                api_key=api_key,
-                model=image_model,
-            )
-            (assets_dir / "background.png").write_bytes(bg_bytes)
-            bg_rel = "assets/background.png"
+            for i in range(1, variants + 1):
+                bg_bytes = generate_image(
+                    (
+                        f"Variation {i}/{variants}. "
+                        "Generate a cinematic full-frame background plate for an educational explainer. "
+                        "Keep center-safe composition, clean contrast, and low clutter. "
+                        f"Prompt: {base_prompt}"
+                    ),
+                    api_key=api_key,
+                    model=image_model,
+                )
+                name = "background.png" if variants == 1 else f"background-{i}.png"
+                (assets_dir / name).write_bytes(bg_bytes)
+                bg_rel.append(f"assets/{name}")
 
         if mode in {"foreground", "both"}:
-            fg_bytes = generate_image(
-                f"Single character or prop, centered, clean background, no text: {base_prompt}",
-                api_key=api_key,
-                model=image_model,
-            )
-            (assets_dir / "foreground.png").write_bytes(fg_bytes)
-            fg_rel = "assets/foreground.png"
+            for i in range(1, variants + 1):
+                fg_bytes = generate_image(
+                    (
+                        f"Variation {i}/{variants}. "
+                        "Generate a foreground explainer asset (avatar, prop, card, or diagram) with crisp edges and high readability. "
+                        "Allow typography when requested by the prompt (equation/TDX cards). "
+                        f"Prompt: {base_prompt}"
+                    ),
+                    api_key=api_key,
+                    model=image_model,
+                )
+                name = "foreground.png" if variants == 1 else f"foreground-{i}.png"
+                (assets_dir / name).write_bytes(fg_bytes)
+                fg_rel.append(f"assets/{name}")
     except GeminiError as exc:
         warning = f"Image generation failed: {exc}"
-        bg_rel = None
-        fg_rel = None
+        bg_rel = []
+        fg_rel = []
 
     desc = ""
     if bg_rel:
-        desc += f"- background: {bg_rel} (full-frame backdrop, low motion, z_index -10)\n"
+        desc += f"- background: {bg_rel[0]} (full-frame backdrop, low motion, z_index -10)\n"
     if fg_rel:
-        desc += f"- foreground: {fg_rel} (small prop/character in lower third)\n"
+        desc += f"- foreground: {fg_rel[0]} (small prop/character in lower third)\n"
     return bg_rel, fg_rel, warning, desc
 
 
@@ -875,16 +1318,25 @@ def generate_images(req: ImageGenReq):
             status_code=404,
         )
 
+    try:
+        image_prompt = _bounded_text("image_prompt", req.image_prompt, max_len=1200, required=True)
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    reason = _policy_block_reason(image_prompt)
+    if reason:
+        return JSONResponse({"ok": False, "error": reason}, status_code=400)
+
     settings = load_settings()
     api_key = settings.get("api_key")
     image_model = req.image_model or settings.get("image_model")
     try:
         bg_rel, fg_rel, warning, desc = _generate_assets(
             job_dir=paths.job_dir,
-            image_prompt=req.image_prompt,
+            image_prompt=image_prompt,
             image_mode=req.image_mode,
             api_key=api_key,
             image_model=image_model,
+            variants=req.variants,
         )
     except ValueError as exc:
         return JSONResponse(
@@ -894,7 +1346,12 @@ def generate_images(req: ImageGenReq):
     resp: Dict[str, Any] = {
         "ok": True,
         "job_id": req.job_id,
-        "assets": {"background": bg_rel, "foreground": fg_rel},
+        "assets": {
+            "background": bg_rel[0] if bg_rel else None,
+            "foreground": fg_rel[0] if fg_rel else None,
+            "backgrounds": bg_rel,
+            "foregrounds": fg_rel,
+        },
         "assets_description": desc,
     }
     if warning:
@@ -904,14 +1361,17 @@ def generate_images(req: ImageGenReq):
 
 @app.post("/api/docs/index")
 def docs_index(req: SourceIndexReq):
-    url = (req.url or "").strip()
+    try:
+        url = _bounded_text("url", req.url, max_len=1200, required=True)
+        notes = _bounded_text("notes", req.notes, max_len=30000, required=False)
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
     if not url or not (url.startswith("http://") or url.startswith("https://")):
         return JSONResponse(
             {"ok": False, "error": "Please provide a valid http(s) URL."},
             status_code=400,
         )
-
-    notes = (req.notes or "").strip()
     kind, video_id = _normalize_source_kind(url, req.source_type)
     settings = load_settings()
     api_key = settings.get("api_key")
@@ -1118,8 +1578,210 @@ def templates():
     return {"templates": TEMPLATES}
 
 
+@app.post("/api/gemini/refine")
+def gemini_refine(req: GeminiRefineReq):
+    try:
+        idea = _bounded_text("idea", req.idea, max_len=6000, required=True)
+        director_brief = _bounded_text("director_brief", req.director_brief, max_len=24000, required=False)
+        image_prompt = _bounded_text("image_prompt", req.image_prompt, max_len=1600, required=False)
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+    reason = _policy_block_reason(idea, director_brief, image_prompt)
+    if reason:
+        return JSONResponse({"ok": False, "error": reason}, status_code=400)
+
+    settings = load_settings()
+    api_key = settings.get("api_key")
+    text_model = req.model or settings.get("text_model")
+
+    schema = {
+        "type": "OBJECT",
+        "properties": {
+            "refined_idea": {"type": "STRING"},
+            "refined_director_brief": {"type": "STRING"},
+            "refined_image_prompt": {"type": "STRING"},
+            "checklist": {"type": "ARRAY", "items": {"type": "STRING"}},
+        },
+        "required": ["refined_idea", "refined_director_brief", "refined_image_prompt", "checklist"],
+    }
+    user = (
+        "Refine this creator prompt for a Manim explainer pipeline.\n"
+        "Keep scientific meaning intact, improve clarity and structure, remove redundancy.\n"
+        "Do not over-lengthen text.\n\n"
+        f"Idea:\n{idea}\n\n"
+        f"Audience: {req.audience or 'general'}\n"
+        f"Tone: {req.tone or 'epic'}\n"
+        f"Style: {req.style or 'cinematic'}\n"
+        f"Pace: {req.pace or 'medium'}\n"
+        f"Color palette: {req.color_palette or 'cool'}\n\n"
+        f"Director brief:\n{director_brief or '(none)'}\n\n"
+        f"Image prompt:\n{image_prompt or '(none)'}\n\n"
+        "Return strict JSON only. "
+        "Checklist should be 4-8 concise bullets for creator review."
+    )
+    try:
+        out = generate_content(
+            user,
+            system_text=(
+                "You are a senior creative director for science explainers. "
+                "Tighten prompts for planning, coding, and rendering quality. "
+                "Keep language concise and actionable."
+            ),
+            generation_config={
+                "response_mime_type": "application/json",
+                "response_schema": schema,
+            },
+            api_key=api_key,
+            model=text_model,
+        )
+        obj = _parse_json(out)
+    except (GeminiError, json.JSONDecodeError) as exc:
+        return JSONResponse({"ok": False, "error": f"Gemini refine failed: {exc}"}, status_code=400)
+
+    return {
+        "ok": True,
+        "refined_idea": str(obj.get("refined_idea") or idea).strip(),
+        "refined_director_brief": str(obj.get("refined_director_brief") or director_brief or "").strip(),
+        "refined_image_prompt": str(obj.get("refined_image_prompt") or image_prompt or "").strip(),
+        "checklist": [str(x).strip() for x in (obj.get("checklist") or []) if str(x).strip()][:8],
+    }
+
+
+@app.post("/api/onboarding/quickstart")
+def onboarding_quickstart(req: OnboardingReq):
+    try:
+        prompt = _bounded_text("prompt", req.prompt, max_len=4000, required=False)
+        audience = _bounded_text("audience", req.audience, max_len=200, required=False) or "first-time creators"
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+    settings = load_settings()
+    api_key = settings.get("api_key")
+    text_model = req.model or settings.get("text_model")
+    image_model = req.image_model or settings.get("image_model")
+
+    steps = _default_onboarding_steps()
+    intro_title = "NorthStar quick tour"
+    intro_body = "Follow the highlights to go from idea to rendered explainer in under a minute."
+    outro_title = "You are ready to create"
+    outro_body = "Press Create plan, generate assets, approve, and render your first scene."
+    warnings: list[str] = []
+
+    if api_key:
+        schema = {
+            "type": "OBJECT",
+            "properties": {
+                "intro_title": {"type": "STRING"},
+                "intro_body": {"type": "STRING"},
+                "outro_title": {"type": "STRING"},
+                "outro_body": {"type": "STRING"},
+                "steps": {
+                    "type": "ARRAY",
+                    "items": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "title": {"type": "STRING"},
+                            "body": {"type": "STRING"},
+                            "hint": {"type": "STRING"},
+                            "target": {"type": "STRING"},
+                            "icon_prompt": {"type": "STRING"},
+                        },
+                        "required": ["title", "body", "hint", "target", "icon_prompt"],
+                    },
+                },
+            },
+            "required": ["intro_title", "intro_body", "outro_title", "outro_body", "steps"],
+        }
+        targets = [step["target"] for step in _default_onboarding_steps()]
+        user = (
+            "Write a concise, premium onboarding walkthrough for a Manim creator studio.\n"
+            "Audience: "
+            + audience
+            + "\n"
+            + ("Current user intent:\n" + prompt + "\n\n" if prompt else "")
+            + "Use exactly six steps mapped to these targets in order:\n"
+            + "\n".join([f"{idx + 1}. {target}" for idx, target in enumerate(targets)])
+            + "\n\n"
+            + "Each step should have:\n"
+            + "- title (max 6 words)\n"
+            + "- body (max 24 words)\n"
+            + "- hint (max 6 words)\n"
+            + "- icon_prompt (max 20 words)\n"
+            + "Return strict JSON only."
+        )
+        try:
+            out = generate_content(
+                user,
+                system_text=(
+                    "You are a product onboarding writer for creative AI tools. "
+                    "Keep copy calm, clear, and action-oriented."
+                ),
+                generation_config={
+                    "response_mime_type": "application/json",
+                    "response_schema": schema,
+                },
+                api_key=api_key,
+                model=text_model,
+            )
+            obj = _parse_json(out)
+            intro_title = str(obj.get("intro_title") or intro_title).strip()[:120]
+            intro_body = str(obj.get("intro_body") or intro_body).strip()[:260]
+            outro_title = str(obj.get("outro_title") or outro_title).strip()[:120]
+            outro_body = str(obj.get("outro_body") or outro_body).strip()[:260]
+            steps = _normalize_onboarding_steps(obj.get("steps"))
+        except (GeminiError, json.JSONDecodeError, ValueError) as exc:
+            warnings.append(f"Gemini onboarding copy fallback: {exc}")
+    else:
+        warnings.append("GEMINI_API_KEY is not set; using built-in onboarding copy and placeholders.")
+
+    tour_id = f"{int(time.time())}-{secrets.token_hex(4)}"
+    tour_dir = WORK / "onboarding" / tour_id
+    tour_dir.mkdir(parents=True, exist_ok=True)
+
+    for idx, step in enumerate(steps, start=1):
+        step["icon_url"] = ""
+        if not api_key:
+            continue
+        icon_prompt = str(step.get("icon_prompt") or "").strip()
+        if not icon_prompt:
+            continue
+        try:
+            img = generate_image(icon_prompt, model=image_model, api_key=api_key)
+            out_path = tour_dir / f"step-{idx}.png"
+            out_path.write_bytes(img)
+            step["icon_url"] = f"/work/onboarding/{tour_id}/{out_path.name}"
+        except GeminiError as exc:
+            warnings.append(f"Step {idx} icon fallback: {str(exc)[:180]}")
+
+    return {
+        "ok": True,
+        "tour_id": tour_id,
+        "intro_title": intro_title,
+        "intro_body": intro_body,
+        "outro_title": outro_title,
+        "outro_body": outro_body,
+        "steps": steps,
+        "warnings": warnings[:12],
+        "models": {
+            "text_model": text_model,
+            "image_model": image_model,
+        },
+    }
+
+
 @app.post("/api/plan")
 def plan(req: PlanReq):
+    try:
+        idea = _bounded_text("idea", req.idea, max_len=6000, required=True)
+        _ = _bounded_text("director_brief", req.director_brief, max_len=1800, required=False)
+        _ = _bounded_text("image_prompt", req.image_prompt, max_len=1200, required=False)
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    reason = _policy_block_reason(idea, req.director_brief, req.image_prompt)
+    if reason:
+        return JSONResponse({"ok": False, "error": reason}, status_code=400)
+
     job_id = new_job_id()
     paths = job_paths(JOBS, job_id)
     paths.job_dir.mkdir(parents=True, exist_ok=True)
@@ -1130,7 +1792,7 @@ def plan(req: PlanReq):
 
     try:
         plan_text = generate_content(
-            scene_plan_user_prompt(req.idea, director_brief=_build_director_brief(req)),
+            scene_plan_user_prompt(idea, director_brief=_build_director_brief(req)),
             system_text=SCENE_PLAN_SYSTEM,
             generation_config={
                 "response_mime_type": "application/json",
@@ -1171,6 +1833,12 @@ def plan(req: PlanReq):
 
 @app.post("/api/approve")
 def approve(req: ApproveReq):
+    try:
+        _ = _bounded_text("plan_text", req.plan_text, max_len=180000, required=True)
+        _ = _bounded_text("image_prompt", req.image_prompt, max_len=1200, required=False)
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
     paths = job_paths(JOBS, req.job_id)
     paths.job_dir.mkdir(parents=True, exist_ok=True)
     if job_manager.is_running(req.job_id):
@@ -1215,12 +1883,30 @@ def approve(req: ApproveReq):
 
     # Describe any pre-generated assets already present on disk (created via /api/images/generate).
     assets_description = ""
-    bg_rel = "assets/background.png"
-    fg_rel = "assets/foreground.png"
-    if (paths.job_dir / bg_rel).exists():
-        assets_description += f"- background: {bg_rel} (full-frame backdrop, low motion, z_index -10)\n"
-    if (paths.job_dir / fg_rel).exists():
-        assets_description += f"- foreground: {fg_rel} (small prop/character in lower third)\n"
+    bg_candidates = sorted((paths.job_dir / "assets").glob("background*.png"))
+    fg_candidates = sorted((paths.job_dir / "assets").glob("foreground*.png"))
+    if not bg_candidates and not fg_candidates and req.include_images and req.image_prompt and req.image_prompt.strip():
+        try:
+            bg_rel, fg_rel, _warning, desc = _generate_assets(
+                job_dir=paths.job_dir,
+                image_prompt=req.image_prompt,
+                image_mode=req.image_mode,
+                api_key=api_key,
+                image_model=req.image_model or settings.get("image_model"),
+                variants=max(1, int(req.image_variants or 1)),
+            )
+            assets_description = desc or ""
+        except ValueError as exc:
+            return JSONResponse(
+                {"ok": False, "job_id": req.job_id, "error": str(exc)}, status_code=400
+            )
+    else:
+        if bg_candidates:
+            bg_rel = str(bg_candidates[0].relative_to(paths.job_dir))
+            assets_description += f"- background: {bg_rel} (full-frame backdrop, low motion, z_index -10)\n"
+        if fg_candidates:
+            fg_rel = str(fg_candidates[0].relative_to(paths.job_dir))
+            assets_description += f"- foreground: {fg_rel} (small prop/character in lower third)\n"
 
     # Mark planned state and kick off async approve worker.
     st = JobState(
@@ -1266,6 +1952,9 @@ def job_status(job_id: str):
         "message": st.message,
         "updated_at": st.updated_at,
         "error": st.error,
+        "diagnosis": st.diagnosis,
+        "code_diff": st.code_diff,
+        "retry_result": st.retry_result,
         "running": job_manager.is_running(job_id),
     }
     if paths.out_mp4.exists():
@@ -1388,6 +2077,8 @@ def add_voiceover(job_id: str, req: Optional[VoiceoverReq] = None):
     api_key = (settings.get("elevenlabs_api_key") or "").strip()
     voice_id = (req.voice_id or settings.get("elevenlabs_voice_id") or "").strip()
     model_id = (req.model_id or settings.get("elevenlabs_model_id") or "").strip() or None
+    gemini_key = (settings.get("api_key") or "").strip()
+    gemini_model = settings.get("text_model")
     if not api_key or not voice_id:
         return JSONResponse(
             {
@@ -1402,14 +2093,21 @@ def add_voiceover(job_id: str, req: Optional[VoiceoverReq] = None):
         return JSONResponse({"ok": False, "error": "Unknown job_id"}, status_code=404)
 
     script_text = (req.script_text or "").strip()
+    chat_context = (req.chat_context or "").strip()
     if script_text:
         text = script_text
     else:
         text = _srt_to_plain_text(paths.job_dir / "captions.srt")
         if not text:
             text = _voiceover_text_from_plan(paths)
+        if req.use_gemini_script and gemini_key:
+            text = _voiceover_script_with_gemini(
+                paths=paths,
+                api_key=gemini_key,
+                model=gemini_model,
+                chat_context=chat_context if req.include_chat_context else "",
+            ) or text
 
-    chat_context = (req.chat_context or "").strip()
     if req.include_chat_context and chat_context:
         context_block = f"Context cues:\n{chat_context[:1800]}"
         text = f"{context_block}\n\n{text}"
@@ -1436,6 +2134,193 @@ def add_voiceover(job_id: str, req: Optional[VoiceoverReq] = None):
         "model_id": model_id or "",
         "job_files": _job_files(paths),
     }
+
+
+@app.post("/api/jobs/{job_id}/script-packs")
+def build_script_packs(job_id: str, req: Optional[ScriptPackReq] = None):
+    req = req or ScriptPackReq()
+    paths = job_paths(JOBS, job_id)
+    if not paths.job_dir.exists():
+        return JSONResponse({"ok": False, "error": "Unknown job_id"}, status_code=404)
+    if not paths.plan_path.exists():
+        return JSONResponse({"ok": False, "error": "Plan not found for this job."}, status_code=400)
+    try:
+        plan = json.loads(paths.plan_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": f"Invalid plan JSON: {exc}"}, status_code=400)
+
+    settings = load_settings()
+    api_key = settings.get("api_key")
+    model = req.model or settings.get("text_model")
+    languages = [str(x).strip().lower() for x in (req.languages or []) if str(x).strip()]
+    packs_data = _multilingual_script_packs(
+        plan=plan,
+        languages=languages,
+        api_key=api_key,
+        model=model,
+    )
+
+    scripts_dir = paths.job_dir / "scripts"
+    scripts_dir.mkdir(parents=True, exist_ok=True)
+    out: list[Dict[str, Any]] = []
+    for p in packs_data.get("packs", []):
+        code = str(p.get("language") or "").strip().lower()
+        if not code:
+            continue
+        script_txt = str(p.get("voice_script") or "").strip()
+        captions_srt = str(p.get("captions_srt") or "").strip() + "\n"
+        script_path = scripts_dir / f"narration-{code}.txt"
+        srt_path = scripts_dir / f"captions-{code}.srt"
+        script_path.write_text(script_txt + "\n", encoding="utf-8")
+        srt_path.write_text(captions_srt, encoding="utf-8")
+        out.append(
+            {
+                "language": code,
+                "language_label": p.get("language_label") or _language_label(code),
+                "script_path": str(script_path.relative_to(ROOT)),
+                "captions_path": str(srt_path.relative_to(ROOT)),
+                "preview": script_txt[:220],
+            }
+        )
+
+    return {
+        "ok": True,
+        "job_id": job_id,
+        "packs": out,
+        "job_files": _job_files(paths),
+    }
+
+
+@app.post("/api/crazy-run")
+def crazy_run(req: CrazyRunReq):
+    try:
+        idea = _bounded_text("idea", req.idea, max_len=6000, required=True)
+        _ = _bounded_text("director_brief", req.director_brief, max_len=1800, required=False)
+        _ = _bounded_text("image_prompt", req.image_prompt, max_len=1200, required=False)
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    reason = _policy_block_reason(idea, req.director_brief, req.image_prompt)
+    if reason:
+        return JSONResponse({"ok": False, "error": reason}, status_code=400)
+
+    settings = load_settings()
+    preflight = _preflight_payload(settings)
+    if not preflight.get("ok"):
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Preflight failed. Open Settings and run Get started.",
+                "preflight": preflight,
+            },
+            status_code=400,
+        )
+
+    api_key = settings.get("api_key")
+    text_model = req.model or settings.get("text_model")
+    image_model = req.image_model or settings.get("image_model")
+    manim_py = settings.get("manim_py")
+    if manim_py:
+        import shutil
+        from pathlib import Path as _Path
+
+        try:
+            p = _Path(str(manim_py))
+            exists = (p.exists() if (p.is_absolute() or "/" in str(manim_py)) else False) or (shutil.which(str(manim_py)) is not None)
+        except Exception:
+            exists = False
+        if not exists:
+            manim_py = None
+
+    count = max(1, min(5, int(req.variants or 3)))
+    variant_briefs = [
+        "Variant focus: hook-first, energetic pacing, minimal equations.",
+        "Variant focus: visual analogy-first, smooth pacing, strong intuition.",
+        "Variant focus: equation + graph-first, rigorous but concise.",
+        "Variant focus: story-first with cinematic transitions and minimal text.",
+        "Variant focus: exam-ready structure with clear definitions and checkpoints.",
+    ]
+
+    jobs: list[Dict[str, Any]] = []
+    errors: list[str] = []
+    for i in range(count):
+        job_id = new_job_id()
+        paths = job_paths(JOBS, job_id)
+        paths.job_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            brief = _build_director_brief(req) + "\n" + variant_briefs[i % len(variant_briefs)]
+            plan_text = generate_content(
+                scene_plan_user_prompt(idea, director_brief=brief),
+                system_text=SCENE_PLAN_SYSTEM,
+                generation_config={
+                    "response_mime_type": "application/json",
+                    "response_schema": SCENE_PLAN_SCHEMA,
+                },
+                api_key=api_key,
+                model=text_model,
+            )
+            plan_obj = _parse_json(plan_text)
+            paths.plan_path.write_text(json.dumps(plan_obj, indent=2), encoding="utf-8")
+
+            assets_description = ""
+            if req.include_images and req.image_prompt and req.image_prompt.strip():
+                bg_rel, fg_rel, _warning, desc = _generate_assets(
+                    job_dir=paths.job_dir,
+                    image_prompt=req.image_prompt,
+                    image_mode=req.image_mode,
+                    api_key=api_key,
+                    image_model=image_model,
+                    variants=max(1, int(req.image_variants or 1)),
+                )
+                assets_description = desc or ""
+                _ = (bg_rel, fg_rel)
+
+            st = JobState(
+                job_id=job_id,
+                status="running",
+                step="code",
+                message="Queued…",
+                updated_at=__import__("time").time(),
+                plan_path=str(paths.plan_path),
+                scene_path=str(paths.scene_path),
+                logs_path=str(paths.logs_path),
+            )
+            write_state(paths.job_dir, st)
+            append_event(
+                paths.job_dir,
+                type_="state",
+                payload={"status": st.status, "step": st.step, "message": st.message},
+            )
+            job_manager.start_approve(
+                job_id=job_id,
+                job_dir=paths.job_dir,
+                plan_obj=plan_obj,
+                plan_text=json.dumps(plan_obj, indent=2),
+                assets_description=assets_description,
+                render_settings=_render_settings_ratio(req.aspect_ratio),
+                quality=req.quality,
+                manim_py=manim_py,
+                api_key=api_key,
+                text_model=text_model,
+            )
+            jobs.append(
+                {
+                    "job_id": job_id,
+                    "variant_index": i + 1,
+                    "variant_label": f"Variant {i + 1}",
+                    "plan": plan_obj,
+                    "plan_text": json.dumps(plan_obj, indent=2),
+                    "job_files": _job_files(paths),
+                }
+            )
+        except Exception as exc:
+            errors.append(f"Variant {i + 1}: {exc}")
+
+    if not jobs:
+        return JSONResponse(
+            {"ok": False, "error": "Crazy mode failed.", "errors": errors},
+            status_code=500,
+        )
+    return {"ok": True, "jobs": jobs, "errors": errors}
 
 
 @app.post("/api/jobs/append")
@@ -1501,6 +2386,16 @@ def append_job_video(req: AppendReq):
 
 @app.post("/api/animate")
 def animate(req: AnimateReq):
+    try:
+        idea = _bounded_text("idea", req.idea, max_len=6000, required=True)
+        _ = _bounded_text("director_brief", req.director_brief, max_len=1800, required=False)
+        _ = _bounded_text("image_prompt", req.image_prompt, max_len=1200, required=False)
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    reason = _policy_block_reason(idea, req.director_brief, req.image_prompt)
+    if reason:
+        return JSONResponse({"ok": False, "error": reason}, status_code=400)
+
     job_id = new_job_id()
     paths = job_paths(JOBS, job_id)
     paths.job_dir.mkdir(parents=True, exist_ok=True)
@@ -1514,7 +2409,7 @@ def animate(req: AnimateReq):
     # 1) Plan
     try:
         plan_text = generate_content(
-            scene_plan_user_prompt(req.idea, director_brief=_build_director_brief(req)),
+            scene_plan_user_prompt(idea, director_brief=_build_director_brief(req)),
             system_text=SCENE_PLAN_SYSTEM,
             generation_config={
                 "response_mime_type": "application/json",
@@ -1537,8 +2432,8 @@ def animate(req: AnimateReq):
 
     # 2) Optional image generation
     assets_description = ""
-    bg_rel = None
-    fg_rel = None
+    bg_rel: list[str] = []
+    fg_rel: list[str] = []
     if req.include_images and req.image_prompt and req.image_prompt.strip():
         try:
             bg_rel, fg_rel, image_warning, assets_description = _generate_assets(
@@ -1547,6 +2442,7 @@ def animate(req: AnimateReq):
                 image_mode=req.image_mode,
                 api_key=api_key,
                 image_model=image_model,
+                variants=max(1, int(req.image_variants or 1)),
             )
         except ValueError as exc:
             return JSONResponse(
@@ -1643,7 +2539,12 @@ def animate(req: AnimateReq):
     if image_warning:
         response["image_warning"] = image_warning
     if bg_rel or fg_rel:
-        response["assets"] = {"background": bg_rel, "foreground": fg_rel}
+        response["assets"] = {
+            "background": bg_rel[0] if bg_rel else None,
+            "foreground": fg_rel[0] if fg_rel else None,
+            "backgrounds": bg_rel,
+            "foregrounds": fg_rel,
+        }
     return response
 
 

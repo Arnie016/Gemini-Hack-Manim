@@ -62,6 +62,15 @@
         display: inline-flex;
         align-items: center;
         gap: 10px;
+        flex-wrap: wrap;
+      }
+      .topbar-credit {
+        font-size: 11px;
+        color: #8fb4ff;
+        border: 1px solid rgba(143, 180, 255, 0.35);
+        border-radius: 999px;
+        padding: 4px 8px;
+        background: rgba(40, 71, 130, 0.2);
       }
       .badge {
         font-size: 11px;
@@ -269,6 +278,10 @@
       .tree-row.selected {
         background: rgba(106,169,255,0.14);
         border: 1px solid rgba(106,169,255,0.35);
+      }
+      .tree-row.drop-target {
+        border: 1px dashed rgba(106,169,255,0.6);
+        background: rgba(59, 130, 246, 0.12);
       }
       .tree-row-name {
         overflow: hidden;
@@ -568,14 +581,29 @@
       }
       .asset-title { font-size: 11px; color: var(--muted); }
       .asset-meta { font-size: 11px; color: var(--muted); }
+      .asset-meta.selected {
+        color: #bfe4ff;
+        font-weight: 700;
+      }
       .asset-actions {
         display: flex;
         gap: 6px;
+        flex-wrap: wrap;
       }
       .asset-actions button {
         width: auto;
         padding: 6px 8px;
         font-size: 11px;
+      }
+      .scene-target-input {
+        width: 74px;
+        padding: 6px 7px;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.14);
+        background: rgba(15, 20, 29, 0.9);
+        color: var(--text);
+        font-size: 11px;
+        font-family: 'IBM Plex Mono', monospace;
       }
       .asset-thumb {
         height: 64px;
@@ -591,6 +619,75 @@
       }
       .asset-thumb img { width: 100%; height: 100%; object-fit: cover; }
       .asset-thumb.draggable { cursor: grab; }
+      .asset-grid {
+        width: 100%;
+        height: 100%;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+        padding: 6px;
+      }
+      .asset-item {
+        position: relative;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.08);
+        background: #0f172a;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: grab;
+      }
+      .asset-item img { width: 100%; height: 100%; object-fit: cover; }
+      .asset-item.selected {
+        outline: 2px solid rgba(106,169,255,0.8);
+        box-shadow: 0 0 0 1px rgba(106,169,255,0.4);
+      }
+      .asset-item-label {
+        position: absolute;
+        bottom: 4px;
+        right: 6px;
+        font-size: 9px;
+        color: #e2e8f0;
+        background: rgba(15,23,42,0.8);
+        padding: 2px 4px;
+        border-radius: 6px;
+      }
+      .prompt-chip-row {
+        margin-top: 8px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .prompt-chip {
+        width: auto;
+        padding: 5px 9px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.14);
+        background: rgba(11, 13, 18, 0.7);
+        color: #cfd6e5;
+        font-size: 11px;
+        cursor: pointer;
+      }
+      .prompt-chip:hover {
+        border-color: rgba(106,169,255,0.55);
+        color: #dbeafe;
+      }
+      .slider-label-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .slider-readout {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 11px;
+        color: #c7d2e3;
+        border: 1px solid rgba(255,255,255,0.14);
+        border-radius: 999px;
+        padding: 2px 7px;
+        background: rgba(15, 20, 29, 0.65);
+      }
 
       .timeline-wrap {
         margin-top: 12px;
@@ -660,7 +757,7 @@
         overflow-x: auto;
         overflow-y: hidden;
         padding-bottom: 6px;
-        min-height: 140px;
+        min-height: 120px;
         flex: 1 1 auto;
       }
       .timeline-block {
@@ -671,8 +768,20 @@
         border-radius: 10px;
         padding: 7px 8px;
         display: grid;
-        gap: 4px;
+        gap: 6px;
         position: relative;
+      }
+      .timeline-block.has-bg {
+        border-color: rgba(34, 197, 94, 0.6);
+        box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.12) inset;
+      }
+      .timeline-block.has-fg {
+        border-color: rgba(59, 130, 246, 0.65);
+        box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.16) inset;
+      }
+      .timeline-block.has-bg.has-fg {
+        border-color: rgba(250, 204, 21, 0.65);
+        box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.16) inset;
       }
       .timeline-edit-row {
         display: grid;
@@ -687,8 +796,14 @@
         border: 1px solid rgba(255,255,255,0.12);
         background: rgba(15, 20, 29, 0.9);
         color: var(--text);
-        font-size: 11px;
+        font-size: 13px;
+        font-weight: 600;
         min-height: 28px;
+      }
+      .timeline-goal-input {
+        font-size: 15px;
+        line-height: 1.25;
+        font-weight: 700;
       }
       .timeline-edit-note {
         width: 100%;
@@ -702,7 +817,6 @@
         font-size: 11px;
         line-height: 1.25;
         padding: 6px 7px;
-        display: none;
       }
       .timeline-edit-note::placeholder,
       .timeline-edit-input::placeholder {
@@ -724,8 +838,15 @@
         border-color: rgba(106,169,255,0.7);
         box-shadow: 0 0 0 2px rgba(106,169,255,0.16) inset;
       }
-      .timeline-block.active .timeline-edit-note,
-      .timeline-block:hover .timeline-edit-note { display: block; }
+      .timeline-details {
+        border-top: 1px dashed rgba(255,255,255,0.1);
+        padding-top: 4px;
+      }
+      .timeline-details summary {
+        cursor: pointer;
+        font-size: 11px;
+        color: var(--muted);
+      }
       .timeline-handle {
         position: absolute;
         right: 3px;
@@ -739,6 +860,10 @@
       }
       .timeline-block:hover .timeline-handle { opacity: 1; }
       .timeline-block-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
         font-size: 11px;
         color: var(--muted);
         line-height: 1.2;
@@ -746,6 +871,22 @@
         overflow: hidden;
         text-overflow: ellipsis;
       }
+      .timeline-block-meta {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        flex-shrink: 0;
+      }
+      .timeline-asset-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.3);
+        border: 1px solid rgba(0,0,0,0.4);
+        box-shadow: 0 0 8px rgba(255,255,255,0.12);
+      }
+      .timeline-asset-dot.bg { background: #22c55e; }
+      .timeline-asset-dot.fg { background: #60a5fa; }
       .timeline-block-title {
         font-size: 12px;
         font-weight: 700;
@@ -964,28 +1105,58 @@
         height: 100%;
         gap: 10px;
       }
+      .chat-carousel {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 8px;
+        align-items: center;
+      }
+      .chat-carousel-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        background: rgba(15, 23, 42, 0.7);
+        color: #e2e8f0;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .chat-carousel-btn:hover { border-color: rgba(59, 130, 246, 0.6); }
       .chat-sessions {
         display: flex;
-        align-items: center;
-        gap: 6px;
-        overflow: auto;
-        padding-bottom: 4px;
+        gap: 10px;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        padding: 6px 2px;
       }
-      .chat-session-tab {
-        width: auto;
-        display: inline-flex;
-        align-items: center;
+      .chat-session-card {
+        min-width: 180px;
+        scroll-snap-align: center;
+        background: rgba(15, 23, 42, 0.7);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        color: #e2e8f0;
+        padding: 8px 10px;
+        border-radius: 14px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: grid;
         gap: 6px;
-        padding: 6px 9px;
-        border-radius: 999px;
-        border: 1px solid rgba(255,255,255,0.14);
-        background: rgba(11, 13, 18, 0.66);
-        color: var(--muted);
-        font-size: 11px;
       }
-      .chat-session-tab.active {
-        border-color: rgba(106,169,255,0.65);
-        color: #dbeafe;
+      .chat-session-card.active {
+        border-color: rgba(59, 130, 246, 0.7);
+        box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.4);
+      }
+      .chat-session-card-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .chat-session-name {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
       }
       .chat-session-swatch {
         width: 9px;
@@ -993,8 +1164,14 @@
         border-radius: 999px;
         display: inline-block;
       }
+      .chat-session-phase {
+        font-size: 11px;
+        color: #93c5fd;
+        background: rgba(59, 130, 246, 0.12);
+        border-radius: 999px;
+        padding: 2px 6px;
+      }
       .chat-session-close {
-        margin-left: 2px;
         border: none;
         background: transparent;
         color: inherit;
@@ -1005,12 +1182,13 @@
       }
       .chat-session-add {
         width: auto;
-        padding: 6px 9px;
+        padding: 6px 10px;
         border-radius: 999px;
         border: 1px dashed rgba(255,255,255,0.26);
         background: rgba(11, 13, 18, 0.42);
         color: var(--muted);
         font-size: 12px;
+        scroll-snap-align: center;
       }
       .chat-messages {
         flex: 1;
@@ -1024,6 +1202,103 @@
         display: flex;
         align-items: center;
         gap: 8px;
+      }
+      .first60-panel {
+        margin-top: 8px;
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 10px;
+        background: rgba(11, 13, 18, 0.52);
+        padding: 8px;
+      }
+      .first60-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .first60-title {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.2px;
+      }
+      .first60-sub {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .first60-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .first60-mini {
+        width: auto;
+        padding: 4px 8px;
+        border-radius: 8px;
+        font-size: 11px;
+      }
+      .first60-progress {
+        margin-top: 7px;
+        width: 100%;
+        height: 6px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.08);
+        overflow: hidden;
+      }
+      .first60-progress-fill {
+        height: 100%;
+        width: 0%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #6aa9ff, #22c55e);
+        transition: width 180ms ease;
+      }
+      .first60-list {
+        margin-top: 8px;
+        display: grid;
+        gap: 6px;
+      }
+      .first60-item {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .first60-dot {
+        width: 16px;
+        height: 16px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.24);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        color: var(--muted);
+        background: rgba(15, 20, 29, 0.8);
+      }
+      .first60-state {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 10px;
+        color: var(--muted);
+      }
+      .first60-item.done { color: #d1fae5; }
+      .first60-item.done .first60-dot {
+        border-color: rgba(34,197,94,0.7);
+        color: #22c55e;
+        background: rgba(34,197,94,0.16);
+      }
+      .first60-item.active { color: #dbeafe; }
+      .first60-item.active .first60-dot {
+        border-color: rgba(106,169,255,0.8);
+        color: #6aa9ff;
+        background: rgba(59,130,246,0.16);
+      }
+      .first60-show {
+        margin-top: 6px;
+        width: auto;
+        padding: 4px 8px;
+        border-radius: 8px;
+        font-size: 11px;
       }
       .mention-bar {
         display: flex;
@@ -1589,6 +1864,143 @@
         border-radius: 8px;
         background: rgba(11,13,18,0.6);
       }
+      .tour-shell {
+        display: grid;
+        gap: 12px;
+      }
+      .tour-headline {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .tour-progress-row {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        align-items: center;
+        gap: 10px;
+      }
+      .tour-step-count {
+        font-size: 12px;
+        color: #dbeafe;
+        font-family: 'IBM Plex Mono', monospace;
+      }
+      .tour-progress {
+        height: 7px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(255,255,255,0.1);
+      }
+      .tour-progress-fill {
+        width: 0%;
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #6aa9ff, #22c55e);
+        transition: width 180ms ease;
+      }
+      .tour-card {
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 14px;
+        background: rgba(12, 16, 22, 0.72);
+        padding: 10px;
+        display: grid;
+        grid-template-columns: 74px 1fr;
+        gap: 10px;
+        align-items: start;
+      }
+      .tour-icon-wrap {
+        width: 74px;
+        height: 74px;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.12);
+        background: rgba(11,13,18,0.76);
+        overflow: hidden;
+        position: relative;
+      }
+      .tour-icon-wrap img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .tour-icon-fallback {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--muted);
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 12px;
+        letter-spacing: 0.3px;
+      }
+      .tour-step-title {
+        font-size: 18px;
+        font-weight: 700;
+        line-height: 1.25;
+      }
+      .tour-step-body {
+        margin-top: 6px;
+        color: var(--text);
+        line-height: 1.45;
+      }
+      .tour-step-hint {
+        margin-top: 8px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(106, 169, 255, 0.45);
+        background: rgba(37, 99, 235, 0.16);
+        color: #dbeafe;
+        font-size: 11px;
+      }
+      .tour-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .tour-nav {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .tour-hurray {
+        border: 1px solid rgba(34, 197, 94, 0.45);
+        border-radius: 12px;
+        background: radial-gradient(circle at center, rgba(16,185,129,0.22), rgba(11,13,18,0.8));
+        padding: 10px 12px;
+        font-weight: 700;
+        color: #d1fae5;
+        animation: hurrayPop 600ms ease;
+      }
+      @keyframes hurrayPop {
+        0% { transform: scale(0.95); opacity: 0; }
+        60% { transform: scale(1.02); opacity: 1; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+      .tour-highlight {
+        position: fixed;
+        border-radius: 14px;
+        border: 2px solid rgba(106, 169, 255, 0.95);
+        box-shadow: 0 0 0 6px rgba(106, 169, 255, 0.16), 0 0 34px rgba(34, 197, 94, 0.16);
+        pointer-events: none;
+        z-index: 51;
+        transition: left 180ms ease, top 180ms ease, width 180ms ease, height 180ms ease, opacity 180ms ease;
+      }
+      .tour-highlight.hidden {
+        opacity: 0;
+      }
+      @media (max-width: 700px) {
+        .tour-card {
+          grid-template-columns: 1fr;
+        }
+        .tour-icon-wrap {
+          width: 56px;
+          height: 56px;
+        }
+      }
       .welcome-grid {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1696,6 +2108,7 @@
       <div class="topbar-title">
         NorthStar
         <span class="badge">NorthStar • Gemini Hackathon 2026</span>
+        <span class="topbar-credit">Built by Arnav Salkade</span>
       </div>
       <div class="topbar-actions">
         <button id="backBtn" class="icon-btn" title="Back" aria-label="Back" data-tip="Back">
@@ -1755,22 +2168,50 @@
           <div class="muted" id="outputPaths" style="margin-bottom:8px;">Current output: work/jobs/&lt;job_id&gt;/out.mp4</div>
           <div class="row" style="margin-top:8px;">
             <div>
-              <label for="creativeMotion">Camera motion</label>
-              <input id="creativeMotion" type="range" min="0" max="100" value="58" />
+              <div class="slider-label-row">
+                <label for="creativeMotion">Camera motion</label>
+                <span id="creativeMotionReadout" class="slider-readout">58 / 100</span>
+              </div>
+              <input id="creativeMotion" type="range" min="0" max="100" step="1" value="58" />
             </div>
             <div>
-              <label for="creativeDensity">Label density</label>
-              <input id="creativeDensity" type="range" min="0" max="100" value="62" />
+              <div class="slider-label-row">
+                <label for="creativeDensity">Label density</label>
+                <span id="creativeDensityReadout" class="slider-readout">62 / 100</span>
+              </div>
+              <input id="creativeDensity" type="range" min="0" max="100" step="1" value="62" />
             </div>
           </div>
           <div class="row" style="margin-top:8px;">
             <div>
-              <label for="creativeEnergy">Animation energy</label>
-              <input id="creativeEnergy" type="range" min="0" max="100" value="68" />
+              <div class="slider-label-row">
+                <label for="creativeEnergy">Animation energy</label>
+                <span id="creativeEnergyReadout" class="slider-readout">68 / 100</span>
+              </div>
+              <input id="creativeEnergy" type="range" min="0" max="100" step="1" value="68" />
             </div>
             <div>
-              <label for="creativeComplexity">Scene complexity</label>
-              <input id="creativeComplexity" type="range" min="0" max="100" value="54" />
+              <div class="slider-label-row">
+                <label for="creativeComplexity">Scene complexity</label>
+                <span id="creativeComplexityReadout" class="slider-readout">54 / 100</span>
+              </div>
+              <input id="creativeComplexity" type="range" min="0" max="100" step="1" value="54" />
+            </div>
+          </div>
+          <div class="row" style="margin-top:8px;">
+            <div>
+              <div class="slider-label-row">
+                <label for="creativePolish">Refinement polish</label>
+                <span id="creativePolishReadout" class="slider-readout">72 / 100</span>
+              </div>
+              <input id="creativePolish" type="range" min="0" max="100" step="1" value="72" />
+            </div>
+            <div>
+              <div class="slider-label-row">
+                <label for="creativePrecision">Precision focus</label>
+                <span id="creativePrecisionReadout" class="slider-readout">66 / 100</span>
+              </div>
+              <input id="creativePrecision" type="range" min="0" max="100" step="1" value="66" />
             </div>
           </div>
           <div class="section-title" style="margin-top:10px;">Vibe Motion</div>
@@ -1897,6 +2338,18 @@
             <div class="muted" style="margin-top:6px;">Last 3 actions</div>
             <div class="tree" id="historyList"></div>
           </details>
+          <details id="sidebarHealthPanel" style="margin-top:10px;">
+            <summary>Backend Health</summary>
+            <div class="muted" style="margin-top:6px;">Live runtime checks from the API.</div>
+            <div class="health-badges" style="margin-top:8px;">
+              <span class="badge-pill" id="sidebarBadgeApi">API: Unknown</span>
+              <span class="badge-pill" id="sidebarBadgeManim">Manim: Unknown</span>
+              <span class="badge-pill" id="sidebarBadgeFfmpeg">ffmpeg: Unknown</span>
+              <span class="badge-pill" id="sidebarBadgeOutput">Output: Unknown</span>
+            </div>
+            <pre id="sidebarHealthText" class="muted" style="margin-top:8px; white-space:pre-wrap;">No checks yet.</pre>
+            <button id="refreshSidebarHealth" class="ghost" style="margin-top:8px;">Refresh health</button>
+          </details>
         </div>
       </aside>
 
@@ -1916,9 +2369,31 @@
                   <summary>Image generation</summary>
                   <div class="row" style="margin-top:8px;">
                     <div>
+                      <label for="imagePreset">Physics preset</label>
+                      <select id="imagePreset"></select>
+                    </div>
+                    <div>
+                      <label for="imageAssetType">Asset type</label>
+                      <select id="imageAssetType">
+                        <option value="cinematic_background">Cinematic background</option>
+                        <option value="explanation_avatar">Explanation avatar</option>
+                        <option value="equation_card">Equation card</option>
+                        <option value="tdx_card">TDX card (term-definition-example)</option>
+                        <option value="concept_diagram">Concept diagram panel</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="row" style="margin-top:8px;">
+                    <div>
                       <label for="imagePrompt">Image prompt</label>
                       <input id="imagePrompt" value="Matte black cinematic background, soft vignette, subtle texture, no text, no objects" placeholder="Scientist walking in a park" />
                     </div>
+                    <div>
+                      <label for="imageMinorEdit">Minor edits</label>
+                      <input id="imageMinorEdit" placeholder="e.g. add subtle blue rim light, cleaner equation typography" />
+                    </div>
+                  </div>
+                  <div class="row" style="margin-top:8px;">
                     <div>
                       <label for="imageMode">Image placement</label>
                       <select id="imageMode">
@@ -1926,6 +2401,17 @@
                         <option value="foreground">Foreground</option>
                         <option value="both">Both</option>
                       </select>
+                      <label for="imageVariants" style="margin-top:6px;">Variations</label>
+                      <select id="imageVariants">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="4">4</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label>Physics prompt pack</label>
+                      <div class="muted">Click once to replace prompt.</div>
+                      <div class="prompt-chip-row" id="imagePromptPack"></div>
                     </div>
                   </div>
                   <div class="row" style="margin-top:8px;">
@@ -1933,7 +2419,7 @@
                       Generate images
                     </button>
                     <div class="muted" style="display:flex; align-items:center;">
-                      Tip: click “Generate images” after “Create plan” (job created), then drag BG/FG into scenes.
+                      Nano Banana Pro flow: pick preset -> (optional) minor edits -> generate -> click best variant -> drag into scenes.
                     </div>
                   </div>
 
@@ -1941,8 +2427,11 @@
                     <div class="asset-slot">
                       <div class="asset-title">Background preview (drag into a scene)</div>
                       <div class="asset-thumb" id="bgThumb">No image yet</div>
+                      <div class="asset-meta selected" id="bgVariantStatus">Selected variant: none</div>
                       <div class="asset-meta" id="bgAppliedInfo">Applied to: none</div>
                       <div class="asset-actions">
+                        <input id="bgSceneTarget" class="scene-target-input" placeholder="Scene #" title="Scene number (example: 2)" />
+                        <button id="applyBgScene" class="ghost">BG -> scene</button>
                         <button id="applyBgAll" class="ghost">BG -> all scenes</button>
                         <button id="clearBgAll" class="ghost">Clear BG</button>
                       </div>
@@ -1950,8 +2439,11 @@
                     <div class="asset-slot">
                       <div class="asset-title">Foreground preview (drag into a scene)</div>
                       <div class="asset-thumb" id="fgThumb">No image yet</div>
+                      <div class="asset-meta selected" id="fgVariantStatus">Selected variant: none</div>
                       <div class="asset-meta" id="fgAppliedInfo">Applied to: none</div>
                       <div class="asset-actions">
+                        <input id="fgSceneTarget" class="scene-target-input" placeholder="Scene #" title="Scene number (example: 2)" />
+                        <button id="applyFgScene" class="ghost">FG -> scene</button>
                         <button id="applyFgAll" class="ghost">FG -> all scenes</button>
                         <button id="clearFgAll" class="ghost">Clear FG</button>
                       </div>
@@ -2099,7 +2591,7 @@
                       <label for="imageModelOverride">Image model override</label>
                       <select id="imageModelOverride">
                         <option value="">Default</option>
-                        <option value="gemini-2.5-flash-image">gemini-2.5-flash-image (Nano Banana)</option>
+                        <option value="gemini-2.5-flash-image">nano banana pro (gemini-2.5-flash-image)</option>
                         <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
                       </select>
                     </div>
@@ -2146,6 +2638,9 @@
                     <button id="ccBtn" class="overlay-btn" title="Download captions (.srt)" aria-label="Download captions" disabled>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 5H3v14h18V5z"/><path d="M7 10h1"/><path d="M7 14h1"/><path d="M11 10h1"/><path d="M11 14h1"/><path d="M15 10h2"/><path d="M15 14h2"/></svg>
                     </button>
+                    <button id="scriptPackOverlayBtn" class="overlay-btn" title="Generate multilingual script packs" aria-label="Generate multilingual script packs" disabled>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                    </button>
                   </div>
                   <div id="voiceoverPanel" class="voiceover-panel hidden" aria-hidden="true">
                     <div class="voiceover-head">
@@ -2169,9 +2664,19 @@
                       <option value="eleven_turbo_v2_5">eleven_turbo_v2_5</option>
                     </select>
                     <label for="voiceoverScript">Optional script override</label>
-                    <textarea id="voiceoverScript" placeholder="Leave blank to auto-build from captions + scene plan."></textarea>
+                    <textarea id="voiceoverScript" placeholder="Leave blank to auto-generate a natural script (Gemini)."></textarea>
+                    <label><input id="voiceoverUseGemini" type="checkbox" checked /> Use Gemini to draft a more natural voiceover</label>
                     <label><input id="voiceoverUseContext" type="checkbox" checked /> Include chat context for narration cues</label>
                     <button id="voiceoverApply" class="secondary">Apply voiceover</button>
+                    <hr style="border:none; border-top:1px solid var(--line); margin:10px 0;" />
+                    <label>Multilingual script packs</label>
+                    <div class="row">
+                      <label style="display:flex; align-items:center; gap:6px;"><input id="langEn" type="checkbox" checked /> EN</label>
+                      <label style="display:flex; align-items:center; gap:6px;"><input id="langHi" type="checkbox" checked /> HI</label>
+                      <label style="display:flex; align-items:center; gap:6px;"><input id="langEs" type="checkbox" checked /> ES</label>
+                    </div>
+                    <button id="scriptPackBtn" class="secondary">Generate script packs</button>
+                    <div id="scriptPackStatus" class="muted" style="margin-top:6px;">Generates natural narration text + timing-ready captions per scene.</div>
                   </div>
                 </div>
                 <div class="preview-transport">
@@ -2435,7 +2940,11 @@
       <aside class="panel" id="rightPanel">
         <div class="panel-header">Chat & Agent</div>
         <div class="panel-body chat">
-          <div class="chat-sessions" id="chatSessions"></div>
+          <div class="chat-carousel" id="chatCarousel">
+            <button id="sessionPrev" class="chat-carousel-btn" title="Previous session">◀</button>
+            <div class="chat-sessions" id="chatSessions"></div>
+            <button id="sessionNext" class="chat-carousel-btn" title="Next session">▶</button>
+          </div>
           <div class="agent-steps" id="agentSteps">
             <div class="agent-step" data-step="plan">Plan</div>
             <div class="agent-step" data-step="approve">Approve</div>
@@ -2530,8 +3039,58 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
             </button>
           </div>
+          <div class="muted" style="display:flex; align-items:center; gap:10px; margin-top:6px;">
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input id="crazyMode" type="checkbox" />
+              Crazy mode: generate 3 parallel plans + renders
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input id="geminiAssist" type="checkbox" checked />
+              Gemini assist: auto-polish prompt before planning
+            </label>
+            <button id="polishPromptBtn" class="ghost" title="Use Gemini to polish prompt + brief">Polish with Gemini</button>
+          </div>
+          <div id="first60Panel" class="first60-panel">
+            <div class="first60-head">
+              <div>
+                <div class="first60-title">First 60 seconds</div>
+                <div id="first60Sub" class="first60-sub">0/4 complete</div>
+              </div>
+              <div class="first60-actions">
+                <button id="first60Demo" class="ghost first60-mini" title="Load demo prompt">Demo</button>
+                <button id="first60Health" class="ghost first60-mini" title="Run environment checks">Health</button>
+                <button id="first60Hide" class="ghost first60-mini" title="Hide checklist" aria-label="Hide checklist">Hide</button>
+              </div>
+            </div>
+            <div class="first60-progress" aria-hidden="true">
+              <div id="first60Progress" class="first60-progress-fill"></div>
+            </div>
+            <div class="first60-list">
+              <div id="first60ItemPrompt" class="first60-item">
+                <span class="first60-dot">1</span>
+                <span>Write prompt</span>
+                <span class="first60-state">pending</span>
+              </div>
+              <div id="first60ItemPlan" class="first60-item">
+                <span class="first60-dot">2</span>
+                <span>Create plan</span>
+                <span class="first60-state">pending</span>
+              </div>
+              <div id="first60ItemImage" class="first60-item">
+                <span class="first60-dot">3</span>
+                <span>Generate/select image</span>
+                <span class="first60-state">pending</span>
+              </div>
+              <div id="first60ItemRender" class="first60-item">
+                <span class="first60-dot">4</span>
+                <span>Approve & render</span>
+                <span class="first60-state">pending</span>
+              </div>
+            </div>
+          </div>
+          <button id="first60Show" class="ghost first60-show hidden" title="Show checklist">Show checklist</button>
           <div class="mention-toolbar">
-            <button id="toggleMentions" class="mention-toggle">Hide refs</button>
+            <button id="toggleMentions" class="mention-toggle">Show refs</button>
             <div class="muted" id="mentionInfo">Skills & agents references</div>
           </div>
           <div id="mentionBar" class="mention-bar"></div>
@@ -2553,17 +3112,37 @@
           </button>
         </div>
         <div class="modal-body">
-          <div style="margin-bottom:10px;">
-            Fast path:
-            <code>Create plan → Generate images → (optional drag into scenes) → Approve & Render</code>
+          <div id="tourIntroLine" class="tour-headline">
+            Fast path: Create plan -> Generate images -> Approve & Render.
           </div>
-          <div class="muted" style="margin-bottom:10px;">
-            Tips: use <kbd>/health</kbd> if rendering fails; drag a file from Explorer into the prompt to attach it; select code + press <kbd>@</kbd> to reference it.
-          </div>
-          <div style="display:grid; gap:8px;">
-            <div><strong>Create plan</strong>: Gemini writes a strict JSON scene plan (timings + actions).</div>
-            <div><strong>Generate images</strong>: Nano Banana generates BG/FG thumbnails you can drag into scene blocks.</div>
-            <div><strong>Approve & Render</strong>: Gemini generates Manim code, then the backend renders an MP4 (with one auto-repair attempt).</div>
+          <div class="tour-shell">
+            <div class="tour-progress-row">
+              <div id="tourStepCount" class="tour-step-count">1 / 6</div>
+              <div class="tour-progress" aria-hidden="true">
+                <div id="tourProgressFill" class="tour-progress-fill"></div>
+              </div>
+            </div>
+            <div class="tour-card">
+              <div class="tour-icon-wrap">
+                <img id="tourStepIcon" alt="Tour step icon" class="hidden" />
+                <div id="tourIconFallback" class="tour-icon-fallback">icon</div>
+              </div>
+              <div>
+                <div id="tourStepTitle" class="tour-step-title">Step</div>
+                <div id="tourStepBody" class="tour-step-body">Description</div>
+                <div id="tourStepHint" class="tour-step-hint">Hint</div>
+              </div>
+            </div>
+            <div id="tourHurray" class="tour-hurray hidden">Hurray. You are ready to create.</div>
+            <div class="tour-actions">
+              <button id="tourRefreshBtn" class="ghost" title="Regenerate guide with Gemini + Nano Banana">
+                Refresh with Gemini + Nano Banana
+              </button>
+              <div class="tour-nav">
+                <button id="tourPrevBtn" class="ghost" title="Previous step">Back</button>
+                <button id="tourNextBtn" title="Next step">Next</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -2603,6 +3182,11 @@
               <div><strong>Approve & Render</strong></div>
               <div class="muted">Gemini writes Manim code and renders MP4 end-to-end.</div>
             </div>
+            <div class="welcome-card">
+              <div class="welcome-kicker">Agentic edits</div>
+              <div><strong>Type natural commands</strong></div>
+              <div class="muted">Examples: “cut last 15s”, “extend to 60s”, or “redo”. NorthStar updates the plan and re-renders.</div>
+            </div>
           </div>
           <div class="welcome-actions">
             <button id="welcomeTourBtn" class="ghost">View quick guide</button>
@@ -2612,6 +3196,8 @@
         </div>
       </div>
     </div>
+
+    <div id="tourHighlight" class="tour-highlight hidden" aria-hidden="true"></div>
 
     <script>
       const jobFileListEl = document.getElementById('jobFileList');
@@ -2629,9 +3215,17 @@
       const resetToTemplateBtn = document.getElementById('resetToTemplate');
       const templateOutputPathEl = document.getElementById('templateOutputPath');
       const creativeMotionEl = document.getElementById('creativeMotion');
+      const creativeMotionReadoutEl = document.getElementById('creativeMotionReadout');
       const creativeDensityEl = document.getElementById('creativeDensity');
+      const creativeDensityReadoutEl = document.getElementById('creativeDensityReadout');
       const creativeEnergyEl = document.getElementById('creativeEnergy');
+      const creativeEnergyReadoutEl = document.getElementById('creativeEnergyReadout');
       const creativeComplexityEl = document.getElementById('creativeComplexity');
+      const creativeComplexityReadoutEl = document.getElementById('creativeComplexityReadout');
+      const creativePolishEl = document.getElementById('creativePolish');
+      const creativePolishReadoutEl = document.getElementById('creativePolishReadout');
+      const creativePrecisionEl = document.getElementById('creativePrecision');
+      const creativePrecisionReadoutEl = document.getElementById('creativePrecisionReadout');
       const vibeEnableEl = document.getElementById('vibeEnable');
       const vibePresetEl = document.getElementById('vibePreset');
       const orientationGuideEl = document.getElementById('orientationGuide');
@@ -2645,8 +3239,13 @@
       const vibeOverlayStrengthEl = document.getElementById('vibeOverlayStrength');
       const vibeTitleWeightEl = document.getElementById('vibeTitleWeight');
       const imageGenDetailsEl = document.getElementById('imageGenDetails');
+      const imagePresetEl = document.getElementById('imagePreset');
+      const imageAssetTypeEl = document.getElementById('imageAssetType');
       const imagePromptEl = document.getElementById('imagePrompt');
+      const imageMinorEditEl = document.getElementById('imageMinorEdit');
       const imageModeEl = document.getElementById('imageMode');
+      const imageVariantsEl = document.getElementById('imageVariants');
+      const imagePromptPackEl = document.getElementById('imagePromptPack');
       const genImagesBtn = document.getElementById('genImages');
       const includeImagesEl = document.getElementById('includeImages');
       const aspectEl = document.getElementById('aspect');
@@ -2683,8 +3282,14 @@
 
       const bgThumbEl = document.getElementById('bgThumb');
       const fgThumbEl = document.getElementById('fgThumb');
+      const bgVariantStatusEl = document.getElementById('bgVariantStatus');
+      const fgVariantStatusEl = document.getElementById('fgVariantStatus');
       const bgAppliedInfoEl = document.getElementById('bgAppliedInfo');
       const fgAppliedInfoEl = document.getElementById('fgAppliedInfo');
+      const bgSceneTargetEl = document.getElementById('bgSceneTarget');
+      const fgSceneTargetEl = document.getElementById('fgSceneTarget');
+      const applyBgSceneBtn = document.getElementById('applyBgScene');
+      const applyFgSceneBtn = document.getElementById('applyFgScene');
       const applyBgAllBtn = document.getElementById('applyBgAll');
       const clearBgAllBtn = document.getElementById('clearBgAll');
       const applyFgAllBtn = document.getElementById('applyFgAll');
@@ -2703,8 +3308,15 @@
       const voiceoverVoiceSelectEl = document.getElementById('voiceoverVoiceSelect');
       const voiceoverModelSelectEl = document.getElementById('voiceoverModelSelect');
       const voiceoverScriptEl = document.getElementById('voiceoverScript');
+      const voiceoverUseGeminiEl = document.getElementById('voiceoverUseGemini');
       const voiceoverUseContextEl = document.getElementById('voiceoverUseContext');
       const voiceoverApplyEl = document.getElementById('voiceoverApply');
+      const scriptPackOverlayBtnEl = document.getElementById('scriptPackOverlayBtn');
+      const scriptPackBtnEl = document.getElementById('scriptPackBtn');
+      const scriptPackStatusEl = document.getElementById('scriptPackStatus');
+      const langEnEl = document.getElementById('langEn');
+      const langHiEl = document.getElementById('langHi');
+      const langEsEl = document.getElementById('langEs');
       const exportBtnEl = document.getElementById('exportBtn');
       const ccBtnEl = document.getElementById('ccBtn');
       const deckCarouselEl = document.getElementById('deckCarousel');
@@ -2850,6 +3462,9 @@
       const mentionInfoEl = document.getElementById('mentionInfo');
       const toggleMentionsBtn = document.getElementById('toggleMentions');
       const chatSessionsEl = document.getElementById('chatSessions');
+      const chatCarouselEl = document.getElementById('chatCarousel');
+      const sessionPrevBtn = document.getElementById('sessionPrev');
+      const sessionNextBtn = document.getElementById('sessionNext');
       const statusEl = document.getElementById('status');
       const agentStepsEl = document.getElementById('agentSteps');
       const agentProgressFillEl = document.getElementById('agentProgressFill');
@@ -2919,6 +3534,39 @@
       const sourceCardsEl = document.getElementById('sourceCards');
       const sourceStatusEl = document.getElementById('sourceStatus');
       const historyListEl = document.getElementById('historyList');
+      const sidebarBadgeApiEl = document.getElementById('sidebarBadgeApi');
+      const sidebarBadgeManimEl = document.getElementById('sidebarBadgeManim');
+      const sidebarBadgeFfmpegEl = document.getElementById('sidebarBadgeFfmpeg');
+      const sidebarBadgeOutputEl = document.getElementById('sidebarBadgeOutput');
+      const sidebarHealthTextEl = document.getElementById('sidebarHealthText');
+      const refreshSidebarHealthBtn = document.getElementById('refreshSidebarHealth');
+      const crazyModeEl = document.getElementById('crazyMode');
+      const geminiAssistEl = document.getElementById('geminiAssist');
+      const polishPromptBtn = document.getElementById('polishPromptBtn');
+      const first60PanelEl = document.getElementById('first60Panel');
+      const first60ShowBtn = document.getElementById('first60Show');
+      const first60HideBtn = document.getElementById('first60Hide');
+      const first60DemoBtn = document.getElementById('first60Demo');
+      const first60HealthBtn = document.getElementById('first60Health');
+      const first60SubEl = document.getElementById('first60Sub');
+      const first60ProgressEl = document.getElementById('first60Progress');
+      const first60ItemPromptEl = document.getElementById('first60ItemPrompt');
+      const first60ItemPlanEl = document.getElementById('first60ItemPlan');
+      const first60ItemImageEl = document.getElementById('first60ItemImage');
+      const first60ItemRenderEl = document.getElementById('first60ItemRender');
+      const tourIntroLineEl = document.getElementById('tourIntroLine');
+      const tourStepCountEl = document.getElementById('tourStepCount');
+      const tourProgressFillEl = document.getElementById('tourProgressFill');
+      const tourStepIconEl = document.getElementById('tourStepIcon');
+      const tourIconFallbackEl = document.getElementById('tourIconFallback');
+      const tourStepTitleEl = document.getElementById('tourStepTitle');
+      const tourStepBodyEl = document.getElementById('tourStepBody');
+      const tourStepHintEl = document.getElementById('tourStepHint');
+      const tourHurrayEl = document.getElementById('tourHurray');
+      const tourRefreshBtn = document.getElementById('tourRefreshBtn');
+      const tourPrevBtn = document.getElementById('tourPrevBtn');
+      const tourNextBtn = document.getElementById('tourNextBtn');
+      const tourHighlightEl = document.getElementById('tourHighlight');
 
       const videoEl = document.createElement('video');
       videoEl.controls = true;
@@ -2934,9 +3582,11 @@
         if (appendBtnEl) appendBtnEl.disabled = !ok;
         if (snapshotBtnEl) snapshotBtnEl.disabled = !ok;
         if (voiceoverBtnEl) voiceoverBtnEl.disabled = !ok;
+        if (scriptPackOverlayBtnEl) scriptPackOverlayBtnEl.disabled = !ok;
         if (exportBtnEl) exportBtnEl.disabled = !ok || !currentJobId;
         if (ccBtnEl) ccBtnEl.disabled = !ok || !lastCaptionsUrl;
         if (previewEmptyEl) previewEmptyEl.classList.toggle('hidden', ok);
+        updateFirst60Checklist();
       }
 
       function setActiveDeckIndex(idx) {
@@ -3201,6 +3851,7 @@
               voice_id: voiceoverVoiceSelectEl ? (voiceoverVoiceSelectEl.value || null) : null,
               model_id: voiceoverModelSelectEl ? (voiceoverModelSelectEl.value || null) : null,
               script_text: voiceoverScriptEl ? (voiceoverScriptEl.value || null) : null,
+              use_gemini_script: !!(voiceoverUseGeminiEl && voiceoverUseGeminiEl.checked),
               include_chat_context: !!(voiceoverUseContextEl && voiceoverUseContextEl.checked),
               chat_context: buildNarrationContext(),
             }),
@@ -3231,6 +3882,71 @@
           if (voiceoverApplyEl) voiceoverApplyEl.disabled = false;
           if (voiceoverBtnEl) voiceoverBtnEl.disabled = false;
         }
+      });
+      function selectedPackLanguages() {
+        const langs = [];
+        if (langEnEl && langEnEl.checked) langs.push('en');
+        if (langHiEl && langHiEl.checked) langs.push('hi');
+        if (langEsEl && langEsEl.checked) langs.push('es');
+        if (!langs.length) langs.push('en');
+        return langs;
+      }
+      async function generateScriptPacks() {
+        if (!currentJobId) {
+          showToast('Render a video first.', 'err');
+          return;
+        }
+        if (scriptPackBtnEl) scriptPackBtnEl.disabled = true;
+        if (scriptPackOverlayBtnEl) scriptPackOverlayBtnEl.disabled = true;
+        if (scriptPackStatusEl) scriptPackStatusEl.textContent = 'Generating multilingual packs…';
+        setBusy(true, 'Generating script packs…', 'Narration');
+        try {
+          const resp = await fetch(`/api/jobs/${encodeURIComponent(currentJobId)}/script-packs`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              languages: selectedPackLanguages(),
+              model: chatModelEl ? (chatModelEl.value || null) : null,
+            }),
+          });
+          const data = await resp.json();
+          if (!data.ok) {
+            showToast(data.error || 'Script pack generation failed.', 'err');
+            if (scriptPackStatusEl) scriptPackStatusEl.textContent = data.error || 'Script pack generation failed.';
+            return;
+          }
+          const packs = Array.isArray(data.packs) ? data.packs : [];
+          if (scriptPackStatusEl) scriptPackStatusEl.textContent = `Ready: ${packs.length} language pack(s).`;
+          if (data.job_files) updateJobFiles(data.job_files);
+          const wrap = document.createElement('div');
+          const ul = document.createElement('ul');
+          ul.style.margin = '0';
+          ul.style.paddingLeft = '18px';
+          packs.forEach((p) => {
+            const li = document.createElement('li');
+            li.textContent = `${p.language_label || p.language}: ${p.script_path} + ${p.captions_path}`;
+            ul.appendChild(li);
+          });
+          wrap.appendChild(ul);
+          addChat('agent', 'Multilingual packs', 'Generated narration + captions.', wrap);
+          pushHistory(`Generated script packs for ${currentJobId}`);
+          showToast('Script packs ready.', 'ok');
+        } catch {
+          showToast('Script pack request failed.', 'err');
+          if (scriptPackStatusEl) scriptPackStatusEl.textContent = 'Script pack request failed.';
+        } finally {
+          setBusy(false);
+          if (scriptPackBtnEl) scriptPackBtnEl.disabled = false;
+          setVideoAvailable(!!lastVideoUrl);
+        }
+      }
+      safeOn(scriptPackBtnEl, 'click', generateScriptPacks);
+      safeOn(scriptPackOverlayBtnEl, 'click', () => {
+        if (voiceoverPanelEl && voiceoverPanelEl.classList.contains('hidden')) {
+          voiceoverPanelEl.classList.remove('hidden');
+          voiceoverPanelEl.setAttribute('aria-hidden', 'false');
+        }
+        generateScriptPacks();
       });
       if (appendBtnEl) {
         appendBtnEl.addEventListener('click', () => {
@@ -3279,6 +3995,7 @@
       let currentJobId = null;
       let appendFromJobId = null;
       let lastHealthData = null;
+      let lastPreflightData = null;
       let currentPlanText = null;
       let lastPlanBox = null;
       let timelineState = [];
@@ -3303,6 +4020,70 @@
       const renderNoticeByJob = new Set();
       let lastChatSignature = '';
       const SESSION_COLORS = ['#6aa9ff', '#22c55e', '#f59e0b', '#c084fc', '#fb7185', '#14b8a6'];
+      const PHYSICS_IMAGE_PRESETS = [
+        {
+          id: 'matte_black_stage',
+          name: 'Matte black explainer stage',
+          prompt: 'Matte black cinematic background, soft vignette, subtle texture, high contrast, no logo watermark',
+        },
+        {
+          id: 'photoelectric_lab',
+          name: 'Photoelectric lab',
+          prompt: 'Minimal quantum lab set, clean metal surface, incoming light beam setup, moody cinematic lighting',
+        },
+        {
+          id: 'red_blue_compare',
+          name: 'Red vs blue comparison',
+          prompt: 'Split-frame educational background: red light low-energy side versus blue light high-energy side, clean labels area',
+        },
+        {
+          id: 'wave_optics',
+          name: 'Wave optics',
+          prompt: 'Dark optical bench with lens, diffraction slits, and wavefront glow trails, scientific cinematic style',
+        },
+        {
+          id: 'relativity_spacetime',
+          name: 'Relativity spacetime',
+          prompt: 'Stylized spacetime grid curvature, starfield depth, elegant educational composition, high readability',
+        },
+        {
+          id: 'entropy_microstates',
+          name: 'Entropy and microstates',
+          prompt: 'Abstract particles transitioning from order to disorder, smooth gradient science backdrop, clear center space',
+        },
+        {
+          id: 'equation_card',
+          name: 'Equation card',
+          prompt: 'Clean high-contrast equation card with dark matte background and crisp white typography, centered card layout',
+        },
+        {
+          id: 'tdx_card',
+          name: 'TDX concept card',
+          prompt: 'Educational card layout showing term-definition-example blocks, minimal icons, readable typography, dark theme',
+        },
+        {
+          id: 'avatar_teacher',
+          name: 'Scientist explainer avatar',
+          prompt: 'Waist-up scientist explainer avatar, expressive but calm, looking toward camera, studio rim lighting',
+        },
+        {
+          id: 'graph_stage',
+          name: 'Graph stage',
+          prompt: 'Minimal coordinate graph stage with safe margins for overlays, clean technical look, subtle glow accents',
+        },
+      ];
+      const PHYSICS_PROMPT_PACK = [
+        'Photoelectric effect setup, matte black lab background, threshold frequency visual focus.',
+        'Red light vs blue light comparison frame, one side no emission, one side electron emission.',
+        'Einstein photon collision analogy, single electron release, elegant cinematic physics style.',
+        'K_max = h f - phi equation card with crisp typography and strong contrast.',
+        'Threshold frequency graph scene with f0 marker and linear K_max rise above threshold.',
+        'Wave optics lens + diffraction apparatus, clean rays and minimal clutter.',
+        'Relativity spacetime curvature visual with clear focal object and labels-safe center.',
+        'Entropy order-to-disorder particle transition backdrop for teaching thermodynamics.',
+        'Electromagnetic spectrum strip with UV-visible-IR emphasis and educational readability.',
+        'Quantum energy level ladder card with transitions and highlighted emitted photons.',
+      ];
       let chatSessions = [];
       let activeChatSessionId = '';
       const stepNotes = {
@@ -3311,11 +4092,167 @@
         code: 'Code has not started.',
         render: 'Render has not started.',
       };
+      const defaultStepNotes = {
+        plan: 'No plan yet.',
+        approve: 'Waiting for approval.',
+        code: 'Code has not started.',
+        render: 'Render has not started.',
+      };
 
       const AUTOSAVE_KEY = 'gmma_autosave_v1';
       const WELCOME_SEEN_KEY = 'northstar.welcome_seen.v1';
+      const FIRST60_HIDE_KEY = 'northstar.first60_hide.v1';
+      const TOUR_SEEN_KEY = 'northstar.tour_seen.v2';
+      const DEFAULT_ONBOARDING = {
+        intro_title: 'NorthStar quick tour',
+        intro_body: 'Follow these steps to go from prompt to cinematic explainer.',
+        outro_title: 'You are ready to create',
+        outro_body: 'Press Create plan, generate assets, approve, and render your first video.',
+        steps: [
+          {
+            title: 'Choose a starter template',
+            body: 'Pick a template in Explorer to load style and scene defaults quickly.',
+            hint: 'Left panel -> Template',
+            target: '#templateSelect',
+            icon_prompt: 'Template icon dark ui',
+            icon_url: '',
+          },
+          {
+            title: 'Write the core prompt',
+            body: 'Describe the concept in one line so Gemini can generate a precise scene plan.',
+            hint: 'Right panel -> Prompt',
+            target: '#chatInput',
+            icon_prompt: 'Prompt input icon dark ui',
+            icon_url: '',
+          },
+          {
+            title: 'Generate image assets',
+            body: 'Create Nano Banana variants, then drag chosen assets into scene cards on timeline.',
+            hint: 'Middle panel -> Images',
+            target: '#imageGenDetails',
+            icon_prompt: 'Image variation icon dark ui',
+            icon_url: '',
+          },
+          {
+            title: 'Refine scene timeline',
+            body: 'Keep each scene focused on one idea and tune durations before rendering.',
+            hint: 'Middle panel -> Timeline',
+            target: '#timelineTrack',
+            icon_prompt: 'Timeline scene card icon dark ui',
+            icon_url: '',
+          },
+          {
+            title: 'Approve and render',
+            body: 'Run plan, code, and render. Gemini can diagnose failures and retry once.',
+            hint: 'Middle panel -> Preview',
+            target: '#previewSlot',
+            icon_prompt: 'Render pipeline icon dark ui',
+            icon_url: '',
+          },
+          {
+            title: 'Track phases clearly',
+            body: 'Use step badges to inspect Plan, Approve, Code, and Render progress in order.',
+            hint: 'Right panel -> Step tracker',
+            target: '#agentSteps',
+            icon_prompt: 'Progress stage icon dark ui',
+            icon_url: '',
+          },
+        ],
+      };
       let autosaveTimer = null;
       let pendingRestore = null;
+      let onboardingData = JSON.parse(JSON.stringify(DEFAULT_ONBOARDING));
+      let onboardingIndex = 0;
+      let onboardingLoading = false;
+      let onboardingFetched = false;
+
+      function updateSliderReadout(inputEl, readoutEl) {
+        if (!inputEl || !readoutEl) return;
+        const v = Math.max(0, Math.min(100, Number(inputEl.value || 0)));
+        readoutEl.textContent = `${Math.round(v)} / 100`;
+      }
+
+      function refreshCreativeReadouts() {
+        updateSliderReadout(creativeMotionEl, creativeMotionReadoutEl);
+        updateSliderReadout(creativeDensityEl, creativeDensityReadoutEl);
+        updateSliderReadout(creativeEnergyEl, creativeEnergyReadoutEl);
+        updateSliderReadout(creativeComplexityEl, creativeComplexityReadoutEl);
+        updateSliderReadout(creativePolishEl, creativePolishReadoutEl);
+        updateSliderReadout(creativePrecisionEl, creativePrecisionReadoutEl);
+      }
+
+      function applyImagePreset(presetId, announce = false) {
+        if (!imagePresetEl || !imagePromptEl) return;
+        const preset = PHYSICS_IMAGE_PRESETS.find((p) => p.id === presetId);
+        if (!preset) return;
+        imagePresetEl.value = preset.id;
+        imagePromptEl.value = preset.prompt;
+        if (imageAssetTypeEl) {
+          if (preset.id === 'equation_card') imageAssetTypeEl.value = 'equation_card';
+          else if (preset.id === 'tdx_card') imageAssetTypeEl.value = 'tdx_card';
+          else if (preset.id === 'avatar_teacher') imageAssetTypeEl.value = 'explanation_avatar';
+          else imageAssetTypeEl.value = 'cinematic_background';
+        }
+        if (announce) showToast(`Loaded preset: ${preset.name}`, 'ok');
+        scheduleAutosave();
+      }
+
+      function initImagePresetControls() {
+        if (imagePresetEl) {
+          imagePresetEl.innerHTML = '';
+          PHYSICS_IMAGE_PRESETS.forEach((preset) => {
+            const opt = document.createElement('option');
+            opt.value = preset.id;
+            opt.textContent = preset.name;
+            imagePresetEl.appendChild(opt);
+          });
+          if (!imagePresetEl.value) imagePresetEl.value = PHYSICS_IMAGE_PRESETS[0].id;
+        }
+        if (imagePromptPackEl) {
+          imagePromptPackEl.innerHTML = '';
+          PHYSICS_PROMPT_PACK.forEach((prompt, idx) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'prompt-chip';
+            btn.textContent = `Physics ${idx + 1}`;
+            btn.title = prompt;
+            btn.addEventListener('click', () => {
+              if (imagePromptEl) imagePromptEl.value = prompt;
+              if (imagePresetEl) imagePresetEl.value = 'photoelectric_lab';
+              showToast(`Loaded physics prompt ${idx + 1}.`, 'ok');
+              scheduleAutosave();
+            });
+            imagePromptPackEl.appendChild(btn);
+          });
+        }
+      }
+
+      function buildImagePrompt() {
+        const presetId = imagePresetEl?.value || '';
+        const preset = PHYSICS_IMAGE_PRESETS.find((p) => p.id === presetId);
+        const basePrompt = String(imagePromptEl?.value || '').trim() || String(preset?.prompt || '').trim();
+        const minorEdit = String(imageMinorEditEl?.value || '').trim();
+        const assetType = String(imageAssetTypeEl?.value || 'cinematic_background').trim();
+        const styleHints = [
+          'Physics education visual style.',
+          'High readability, safe margins, no watermarks, no clutter.',
+          'Keep composition clean for timeline overlays and captions.',
+        ];
+        const typeHints = {
+          cinematic_background: 'Full-frame cinematic background plate. Keep center area clear for labels.',
+          explanation_avatar: 'Single explainer avatar asset, clear silhouette, expressive face, educational tone.',
+          equation_card: 'Render a crisp equation card with legible typography and strong contrast. Keep equation centered.',
+          tdx_card: 'Render a TDX card: clear term, short definition, and one example block with readable structure.',
+          concept_diagram: 'Render a concise concept diagram panel with one core mechanism and minimal text.',
+        };
+
+        const pieces = [];
+        if (basePrompt) pieces.push(basePrompt);
+        pieces.push(typeHints[assetType] || typeHints.cinematic_background);
+        if (minorEdit) pieces.push(`Minor edits: ${minorEdit}`);
+        pieces.push(styleHints.join(' '));
+        return pieces.join('\n');
+      }
 
       function snapshotProject() {
         return {
@@ -3325,10 +4262,17 @@
           prompt: chatInputEl?.value || '',
           chat_model: chatModelEl?.value || '',
           director_brief: directorBriefEl?.value || '',
+          rules_text: rulesTextEl?.value || '',
+          subagents_text: subagentsTextEl?.value || '',
           controls: {
+            gemini_assist: !!(geminiAssistEl && geminiAssistEl.checked),
             include_images: includeImagesEl?.value || 'true',
             image_prompt: imagePromptEl?.value || '',
+            image_preset: imagePresetEl?.value || '',
+            image_asset_type: imageAssetTypeEl?.value || 'cinematic_background',
+            image_minor_edit: imageMinorEditEl?.value || '',
             image_mode: imageModeEl?.value || 'background',
+            image_variants: imageVariantsEl?.value || '1',
             aspect: aspectEl?.value || '9:16',
             audience: audienceEl?.value || 'general',
             tone: toneEl?.value || 'epic',
@@ -3347,6 +4291,8 @@
             creative_density: creativeDensityEl?.value || '62',
             creative_energy: creativeEnergyEl?.value || '68',
             creative_complexity: creativeComplexityEl?.value || '54',
+            creative_polish: creativePolishEl?.value || '72',
+            creative_precision: creativePrecisionEl?.value || '66',
             vibe_enable: !!(vibeEnableEl && vibeEnableEl.checked),
             vibe_preset: vibePresetEl?.value || 'cinematic_science',
             orientation_guide: orientationGuideEl?.value || 'auto',
@@ -3394,10 +4340,17 @@
         if (snap.prompt && chatInputEl) chatInputEl.value = snap.prompt;
         if (snap.chat_model && chatModelEl) chatModelEl.value = snap.chat_model;
         if (snap.director_brief && directorBriefEl) directorBriefEl.value = snap.director_brief;
+        if (snap.rules_text && rulesTextEl) rulesTextEl.value = snap.rules_text;
+        if (snap.subagents_text && subagentsTextEl) subagentsTextEl.value = snap.subagents_text;
         const c = snap.controls || {};
+        if (geminiAssistEl && c.gemini_assist !== undefined) geminiAssistEl.checked = !!c.gemini_assist;
         if (includeImagesEl && c.include_images) includeImagesEl.value = c.include_images;
         if (imagePromptEl && c.image_prompt) imagePromptEl.value = c.image_prompt;
+        if (imagePresetEl && c.image_preset) imagePresetEl.value = c.image_preset;
+        if (imageAssetTypeEl && c.image_asset_type) imageAssetTypeEl.value = c.image_asset_type;
+        if (imageMinorEditEl && c.image_minor_edit !== undefined) imageMinorEditEl.value = c.image_minor_edit;
         if (imageModeEl && c.image_mode) imageModeEl.value = c.image_mode;
+        if (imageVariantsEl && c.image_variants) imageVariantsEl.value = c.image_variants;
         if (aspectEl && c.aspect) { aspectEl.value = c.aspect; setPreviewAspect(c.aspect); }
         if (audienceEl && c.audience) audienceEl.value = c.audience;
         if (toneEl && c.tone) toneEl.value = c.tone;
@@ -3416,6 +4369,8 @@
         if (creativeDensityEl && c.creative_density !== undefined) creativeDensityEl.value = c.creative_density;
         if (creativeEnergyEl && c.creative_energy !== undefined) creativeEnergyEl.value = c.creative_energy;
         if (creativeComplexityEl && c.creative_complexity !== undefined) creativeComplexityEl.value = c.creative_complexity;
+        if (creativePolishEl && c.creative_polish !== undefined) creativePolishEl.value = c.creative_polish;
+        if (creativePrecisionEl && c.creative_precision !== undefined) creativePrecisionEl.value = c.creative_precision;
         if (vibeEnableEl && c.vibe_enable !== undefined) vibeEnableEl.checked = !!c.vibe_enable;
         if (vibePresetEl && c.vibe_preset) vibePresetEl.value = c.vibe_preset;
         if (orientationGuideEl && c.orientation_guide) orientationGuideEl.value = c.orientation_guide;
@@ -3427,6 +4382,7 @@
         if (vibeCaptionDensityEl && c.vibe_caption_density) vibeCaptionDensityEl.value = c.vibe_caption_density;
         if (vibeOverlayStrengthEl && c.vibe_overlay_strength !== undefined) vibeOverlayStrengthEl.value = c.vibe_overlay_strength;
         if (vibeTitleWeightEl && c.vibe_title_weight) vibeTitleWeightEl.value = c.vibe_title_weight;
+        refreshCreativeReadouts();
 
         if (Array.isArray(snap.chat_sessions) && snap.chat_sessions.length) {
           chatSessions = snap.chat_sessions.map((s, i) => ({
@@ -3438,6 +4394,17 @@
             messages_html: String(s.messages_html || ''),
             last_sig: String(s.last_sig || ''),
             context_lock: !!s.context_lock,
+            job_id: String(s.job_id || ''),
+            plan_text: String(s.plan_text || ''),
+            timeline_state: Array.isArray(s.timeline_state) ? s.timeline_state : [],
+            timeline_meta: s.timeline_meta || { title: 'Scene Plan' },
+            video_url: String(s.video_url || ''),
+            logs_text: String(s.logs_text || ''),
+            job_files: Array.isArray(s.job_files) ? s.job_files : [],
+            code_text: String(s.code_text || ''),
+            step_states: s.step_states || { plan: '', approve: '', code: '', render: '' },
+            step_notes: s.step_notes || { ...defaultStepNotes },
+            phase: String(s.phase || 'idle'),
           }));
           activeChatSessionId = String(snap.active_chat_session_id || chatSessions[0].id);
           if (!chatSessions.some((s) => s.id === activeChatSessionId)) {
@@ -3980,15 +4947,209 @@
         });
       }
 
+      function cloneOnboardingDefaults() {
+        return JSON.parse(JSON.stringify(DEFAULT_ONBOARDING));
+      }
+
+      function normalizeOnboardingPayload(payload) {
+        const base = cloneOnboardingDefaults();
+        if (!payload || typeof payload !== 'object') return base;
+        const allowedTargets = new Set(base.steps.map((s) => s.target));
+        const next = { ...base };
+        if (payload.intro_title) next.intro_title = String(payload.intro_title).trim().slice(0, 140);
+        if (payload.intro_body) next.intro_body = String(payload.intro_body).trim().slice(0, 320);
+        if (payload.outro_title) next.outro_title = String(payload.outro_title).trim().slice(0, 140);
+        if (payload.outro_body) next.outro_body = String(payload.outro_body).trim().slice(0, 320);
+        const srcSteps = Array.isArray(payload.steps) ? payload.steps : [];
+        next.steps = base.steps.map((fallback, idx) => {
+          const src = srcSteps[idx];
+          if (!src || typeof src !== 'object') return fallback;
+          const item = { ...fallback };
+          const title = String(src.title || '').trim();
+          const body = String(src.body || '').trim();
+          const hint = String(src.hint || '').trim();
+          const iconPrompt = String(src.icon_prompt || '').trim();
+          const iconUrl = String(src.icon_url || '').trim();
+          const target = String(src.target || '').trim();
+          if (title) item.title = title.slice(0, 140);
+          if (body) item.body = body.slice(0, 360);
+          if (hint) item.hint = hint.slice(0, 140);
+          if (iconPrompt) item.icon_prompt = iconPrompt.slice(0, 320);
+          if (iconUrl) item.icon_url = iconUrl;
+          if (allowedTargets.has(target)) item.target = target;
+          return item;
+        });
+        return next;
+      }
+
+      function clearTourHighlight() {
+        if (!tourHighlightEl) return;
+        tourHighlightEl.classList.add('hidden');
+        tourHighlightEl.style.left = '-9999px';
+        tourHighlightEl.style.top = '-9999px';
+        tourHighlightEl.style.width = '0px';
+        tourHighlightEl.style.height = '0px';
+      }
+
+      function positionTourHighlight(targetSelector) {
+        if (!tourHighlightEl) return;
+        if (!targetSelector) {
+          clearTourHighlight();
+          return;
+        }
+        const target = document.querySelector(targetSelector);
+        if (!target) {
+          clearTourHighlight();
+          return;
+        }
+        const rect = target.getBoundingClientRect();
+        if (!Number.isFinite(rect.width) || !Number.isFinite(rect.height) || rect.width < 8 || rect.height < 8) {
+          clearTourHighlight();
+          return;
+        }
+        const pad = 8;
+        const left = Math.max(8, rect.left - pad);
+        const top = Math.max(8, rect.top - pad);
+        const maxW = Math.max(16, window.innerWidth - left - 8);
+        const maxH = Math.max(16, window.innerHeight - top - 8);
+        const width = Math.max(24, Math.min(maxW, rect.width + pad * 2));
+        const height = Math.max(24, Math.min(maxH, rect.height + pad * 2));
+        tourHighlightEl.style.left = `${left}px`;
+        tourHighlightEl.style.top = `${top}px`;
+        tourHighlightEl.style.width = `${width}px`;
+        tourHighlightEl.style.height = `${height}px`;
+        tourHighlightEl.classList.remove('hidden');
+      }
+
+      function setOnboardingLoading(on, msg = 'Preparing quick guide...') {
+        onboardingLoading = !!on;
+        if (tourRefreshBtn) tourRefreshBtn.disabled = onboardingLoading;
+        if (tourPrevBtn) tourPrevBtn.disabled = onboardingLoading || onboardingIndex <= 0;
+        if (tourNextBtn) tourNextBtn.disabled = onboardingLoading;
+        if (onboardingLoading) {
+          if (tourStepTitleEl) tourStepTitleEl.textContent = 'Building guide with Gemini...';
+          if (tourStepBodyEl) tourStepBodyEl.textContent = msg;
+          if (tourStepHintEl) tourStepHintEl.textContent = 'Generating step copy and icons';
+          if (tourStepCountEl) tourStepCountEl.textContent = '...';
+          if (tourProgressFillEl) tourProgressFillEl.style.width = '6%';
+          if (tourStepIconEl) tourStepIconEl.classList.add('hidden');
+          if (tourIconFallbackEl) {
+            tourIconFallbackEl.classList.remove('hidden');
+            tourIconFallbackEl.textContent = '...';
+          }
+        }
+      }
+
+      function getOnboardingSteps() {
+        const steps = Array.isArray(onboardingData?.steps) ? onboardingData.steps : [];
+        return steps.length ? steps : cloneOnboardingDefaults().steps;
+      }
+
+      function renderOnboardingStep() {
+        if (!infoModal || !infoModal.classList.contains('open')) {
+          clearTourHighlight();
+          return;
+        }
+        const steps = getOnboardingSteps();
+        if (!steps.length) return;
+        onboardingIndex = Math.max(0, Math.min(onboardingIndex, steps.length - 1));
+        const step = steps[onboardingIndex];
+        const total = steps.length;
+        const countLabel = `${onboardingIndex + 1} / ${total}`;
+        if (tourStepCountEl) tourStepCountEl.textContent = countLabel;
+        if (tourProgressFillEl) {
+          const pct = Math.round(((onboardingIndex + 1) / total) * 100);
+          tourProgressFillEl.style.width = `${pct}%`;
+        }
+        if (tourIntroLineEl) {
+          tourIntroLineEl.textContent = onboardingData?.intro_body || DEFAULT_ONBOARDING.intro_body;
+        }
+        if (tourStepTitleEl) tourStepTitleEl.textContent = step.title || `Step ${onboardingIndex + 1}`;
+        if (tourStepBodyEl) tourStepBodyEl.textContent = step.body || '';
+        if (tourStepHintEl) tourStepHintEl.textContent = step.hint || '';
+        if (tourPrevBtn) tourPrevBtn.disabled = onboardingLoading || onboardingIndex <= 0;
+        if (tourNextBtn) {
+          tourNextBtn.disabled = onboardingLoading;
+          tourNextBtn.textContent = onboardingIndex >= total - 1 ? 'Finish' : 'Next';
+        }
+        if (tourHurrayEl) tourHurrayEl.classList.add('hidden');
+        if (tourStepIconEl && tourIconFallbackEl) {
+          const iconUrl = String(step.icon_url || '').trim();
+          if (iconUrl) {
+            tourStepIconEl.src = iconUrl;
+            tourStepIconEl.classList.remove('hidden');
+            tourIconFallbackEl.classList.add('hidden');
+          } else {
+            tourStepIconEl.removeAttribute('src');
+            tourStepIconEl.classList.add('hidden');
+            tourIconFallbackEl.classList.remove('hidden');
+            tourIconFallbackEl.textContent = `${onboardingIndex + 1}`;
+          }
+        }
+        positionTourHighlight(step.target || '');
+      }
+
+      async function loadOnboardingGuide(force = false) {
+        if (onboardingLoading) return;
+        if (onboardingFetched && !force) {
+          renderOnboardingStep();
+          return;
+        }
+        setOnboardingLoading(true, 'Generating onboarding flow...');
+        const payload = {
+          prompt: chatInputEl ? String(chatInputEl.value || '').trim() : '',
+          audience: 'first-time creators',
+          model: chatModelEl ? chatModelEl.value : '',
+          image_model: settingsImageModelEl ? settingsImageModelEl.value : '',
+        };
+        try {
+          const resp = await fetch('/api/onboarding/quickstart', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const data = await resp.json();
+          if (!resp.ok || !data.ok) {
+            throw new Error(data?.error || 'Onboarding generation failed.');
+          }
+          onboardingData = normalizeOnboardingPayload(data);
+          onboardingFetched = true;
+          onboardingIndex = 0;
+          if (Array.isArray(data.warnings) && data.warnings.length) {
+            showToast(String(data.warnings[0]), 'err');
+          }
+        } catch (err) {
+          onboardingData = cloneOnboardingDefaults();
+          onboardingFetched = false;
+          showToast(err?.message || 'Using default onboarding guide.', 'err');
+        } finally {
+          setOnboardingLoading(false);
+          renderOnboardingStep();
+        }
+      }
+
+      function playTourHurray() {
+        if (!tourHurrayEl) return;
+        const title = String(onboardingData?.outro_title || DEFAULT_ONBOARDING.outro_title).trim();
+        const body = String(onboardingData?.outro_body || DEFAULT_ONBOARDING.outro_body).trim();
+        tourHurrayEl.textContent = `${title}: ${body}`;
+        tourHurrayEl.classList.remove('hidden');
+      }
+
       function openInfo() {
         if (!infoModal) return;
         infoModal.classList.add('open');
         infoModal.setAttribute('aria-hidden', 'false');
+        onboardingIndex = 0;
+        renderOnboardingStep();
+        void loadOnboardingGuide(false);
       }
       function closeInfo() {
         if (!infoModal) return;
         infoModal.classList.remove('open');
         infoModal.setAttribute('aria-hidden', 'true');
+        clearTourHighlight();
+        if (tourHurrayEl) tourHurrayEl.classList.add('hidden');
       }
       function openWelcome() {
         if (!welcomeModal) return;
@@ -4003,6 +5164,26 @@
           try { localStorage.setItem(WELCOME_SEEN_KEY, '1'); } catch {}
         }
       }
+      function stepTourBackward() {
+        if (onboardingLoading) return;
+        onboardingIndex = Math.max(0, onboardingIndex - 1);
+        renderOnboardingStep();
+      }
+      function stepTourForward() {
+        if (onboardingLoading) return;
+        const steps = getOnboardingSteps();
+        if (onboardingIndex < steps.length - 1) {
+          onboardingIndex += 1;
+          renderOnboardingStep();
+          return;
+        }
+        playTourHurray();
+        try { localStorage.setItem(TOUR_SEEN_KEY, '1'); } catch {}
+        setTimeout(() => {
+          closeInfo();
+          showToast('Quick guide complete. Start creating.', 'ok');
+        }, 900);
+      }
       function maybeOpenWelcome() {
         let seen = false;
         try { seen = localStorage.getItem(WELCOME_SEEN_KEY) === '1'; } catch { seen = false; }
@@ -4010,6 +5191,20 @@
       }
       if (openInfoBtn) openInfoBtn.addEventListener('click', openInfo);
       if (closeInfoBtn) closeInfoBtn.addEventListener('click', closeInfo);
+      safeOn(tourPrevBtn, 'click', stepTourBackward);
+      safeOn(tourNextBtn, 'click', stepTourForward);
+      safeOn(tourRefreshBtn, 'click', () => {
+        onboardingIndex = 0;
+        void loadOnboardingGuide(true);
+      });
+      if (tourStepIconEl && tourIconFallbackEl) {
+        tourStepIconEl.addEventListener('error', () => {
+          tourStepIconEl.classList.add('hidden');
+          tourStepIconEl.removeAttribute('src');
+          tourIconFallbackEl.classList.remove('hidden');
+          tourIconFallbackEl.textContent = `${onboardingIndex + 1}`;
+        });
+      }
       if (closeWelcomeBtn) closeWelcomeBtn.addEventListener('click', () => closeWelcome());
       if (welcomeTourBtn) {
         welcomeTourBtn.addEventListener('click', () => {
@@ -4035,6 +5230,12 @@
           if (e.target === welcomeModal) closeWelcome();
         });
       }
+      window.addEventListener('resize', () => {
+        if (infoModal && infoModal.classList.contains('open')) renderOnboardingStep();
+      });
+      window.addEventListener('scroll', () => {
+        if (infoModal && infoModal.classList.contains('open')) renderOnboardingStep();
+      }, true);
       window.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
           // Close the most "modal" thing first.
@@ -4064,6 +5265,28 @@
         settingsApiKeyEl.type = reveal ? 'text' : 'password';
         settingsElevenApiKeyEl.type = reveal ? 'text' : 'password';
       });
+      safeOn(sessionPrevBtn, 'click', () => cycleSession(-1));
+      safeOn(sessionNextBtn, 'click', () => cycleSession(1));
+      if (chatSessionsEl) {
+        let touchStartX = 0;
+        let touchActive = false;
+        chatSessionsEl.addEventListener('touchstart', (e) => {
+          const t = e.touches[0];
+          if (!t) return;
+          touchStartX = t.clientX;
+          touchActive = true;
+        }, { passive: true });
+        chatSessionsEl.addEventListener('touchend', (e) => {
+          if (!touchActive) return;
+          touchActive = false;
+          const t = e.changedTouches[0];
+          if (!t) return;
+          const dx = t.clientX - touchStartX;
+          if (Math.abs(dx) > 40) {
+            cycleSession(dx < 0 ? 1 : -1);
+          }
+        });
+      }
       let mentionsCollapsed = true;
       function updateMentionVisibility() {
         if (!mentionBarEl) return;
@@ -4079,6 +5302,72 @@
         updateMentionVisibility();
       });
 
+      function snapshotStepStates() {
+        const out = {};
+        ['plan', 'approve', 'code', 'render'].forEach((step) => {
+          const el = agentStepsEl?.querySelector(`[data-step="${step}"]`);
+          if (!el) return;
+          if (el.classList.contains('done')) out[step] = 'done';
+          else if (el.classList.contains('active')) out[step] = 'active';
+          else if (el.classList.contains('error')) out[step] = 'error';
+          else out[step] = '';
+        });
+        return out;
+      }
+
+      function applyStepStates(states = {}) {
+        ['plan', 'approve', 'code', 'render'].forEach((step) => {
+          const el = agentStepsEl?.querySelector(`[data-step="${step}"]`);
+          if (!el) return;
+          el.classList.remove('active', 'done', 'error');
+          const state = states[step] || '';
+          if (state) el.classList.add(state);
+        });
+        updateStepProgress();
+      }
+
+      function snapshotStepNotes() {
+        return {
+          plan: stepNotes.plan,
+          approve: stepNotes.approve,
+          code: stepNotes.code,
+          render: stepNotes.render,
+        };
+      }
+
+      function applyStepNotes(notes) {
+        const next = notes || {};
+        stepNotes.plan = next.plan || defaultStepNotes.plan;
+        stepNotes.approve = next.approve || defaultStepNotes.approve;
+        stepNotes.code = next.code || defaultStepNotes.code;
+        stepNotes.render = next.render || defaultStepNotes.render;
+        const selected = agentStepsEl?.querySelector('.agent-step.selected');
+        const key = selected?.dataset.step || 'plan';
+        if (stepDetailEl) stepDetailEl.textContent = stepNotes[key] || 'No details yet.';
+      }
+
+      function refreshPlanBoxFromChat() {
+        if (!chatMessagesEl) return;
+        const boxes = Array.from(chatMessagesEl.querySelectorAll('textarea.plan-editor'));
+        lastPlanBox = boxes.length ? boxes[boxes.length - 1] : null;
+      }
+
+      function updateSessionPhase(session) {
+        if (!session) return;
+        const states = session.step_states || {};
+        if (states.render === 'error' || states.code === 'error') {
+          session.phase = 'failed';
+          return;
+        }
+        if (states.render === 'done') session.phase = 'rendered';
+        else if (states.render === 'active') session.phase = 'rendering';
+        else if (states.code === 'active') session.phase = 'coding';
+        else if (states.approve === 'active') session.phase = 'approve';
+        else if (states.plan === 'active') session.phase = 'planning';
+        else if (states.plan === 'done') session.phase = 'planned';
+        else session.phase = 'idle';
+      }
+
       function getActiveChatSession() {
         return chatSessions.find((s) => s.id === activeChatSessionId) || null;
       }
@@ -4090,6 +5379,20 @@
         session.prompt = chatInputEl ? chatInputEl.value : '';
         session.model = chatModelEl ? chatModelEl.value : '';
         session.last_sig = lastChatSignature || '';
+        session.job_id = currentJobId || '';
+        session.plan_text = currentPlanText || '';
+        session.timeline_state = Array.isArray(timelineState) ? timelineState : [];
+        session.timeline_meta = { ...(timelineMeta || {}) };
+        session.video_url = lastVideoUrl || '';
+        session.logs_text = logsEl ? logsEl.textContent : '';
+        session.code_text = codeEl ? codeEl.value : '';
+        session.diagnosis = session.diagnosis || '';
+        session.code_diff = session.code_diff || '';
+        session.retry_result = session.retry_result || '';
+        session.step_states = snapshotStepStates();
+        session.step_notes = snapshotStepNotes();
+        session.job_files = session.job_files || [];
+        updateSessionPhase(session);
       }
 
       function restoreSessionState(session) {
@@ -4098,32 +5401,110 @@
         if (chatInputEl) chatInputEl.value = session.prompt || '';
         if (chatModelEl && session.model) chatModelEl.value = session.model;
         lastChatSignature = session.last_sig || '';
+        currentJobId = session.job_id || '';
+        currentPlanText = session.plan_text || '';
+        timelineState = Array.isArray(session.timeline_state) ? session.timeline_state : [];
+        timelineMeta = session.timeline_meta || { title: 'Scene Plan' };
+        renderTimeline();
+        lastVideoUrl = session.video_url || '';
+        if (videoEl && lastVideoUrl) {
+          videoEl.src = lastVideoUrl;
+          videoEl.load();
+          setVideoAvailable(true);
+        } else {
+          setVideoAvailable(false);
+        }
+        if (logsEl) logsEl.textContent = session.logs_text || '';
+        if (Array.isArray(session.job_files) && session.job_files.length) {
+          updateJobFiles(session.job_files);
+        } else {
+          updateJobFiles([]);
+        }
+        if (session.code_text) {
+          upsertGeneratedTab(session.code_text);
+          if (activeEditorTabId === 'generated') applyActiveEditorTab();
+        }
+        applyStepStates(session.step_states || {});
+        applyStepNotes(session.step_notes || {});
+        syncBusyFromSession(session);
+        updateOutputPaths();
+        refreshPlanBoxFromChat();
+      }
+
+      function syncBusyFromSession(session) {
+        if (!session) return;
+        const phase = session.phase || '';
+        if (phase === 'rendering') {
+          setBusy(true, 'Rendering…', 'Rendering');
+          return;
+        }
+        if (phase === 'coding') {
+          setBusy(true, 'Generating code…', 'Rendering');
+          return;
+        }
+        if (phase === 'planning') {
+          setBusy(true, 'Planning…', 'Planning');
+          return;
+        }
+        setBusy(false);
       }
 
       function makeSessionName(idx) {
         return `Session ${idx}`;
       }
 
+      function switchToSession(session) {
+        if (!session) return;
+        if (session.id === activeChatSessionId) return;
+        saveActiveSessionState();
+        try { if (jobEventSource) jobEventSource.close(); } catch {}
+        jobEventSource = null;
+        setBusy(false);
+        activeChatSessionId = session.id;
+        restoreSessionState(session);
+        renderChatSessions();
+      }
+
+      function sessionPhaseLabel(session) {
+        const phase = session?.phase || 'idle';
+        if (phase === 'rendered') return 'Rendered';
+        if (phase === 'rendering') return 'Rendering';
+        if (phase === 'coding') return 'Coding';
+        if (phase === 'approve') return 'Awaiting approval';
+        if (phase === 'planning') return 'Planning';
+        if (phase === 'planned') return 'Planned';
+        return 'Idle';
+      }
+
       function renderChatSessions() {
         if (!chatSessionsEl) return;
         chatSessionsEl.innerHTML = '';
         chatSessions.forEach((session) => {
-          const tab = document.createElement('button');
-          tab.type = 'button';
-          tab.className = `chat-session-tab ${session.id === activeChatSessionId ? 'active' : ''}`;
-          tab.title = session.context_lock
-            ? `${session.name} (context lock on)`
-            : `${session.name}`;
+          updateSessionPhase(session);
+          const card = document.createElement('div');
+          card.className = `chat-session-card ${session.id === activeChatSessionId ? 'active' : ''}`;
+          card.title = session.context_lock
+            ? `${session.name} (context locked). Memory + skills stay pinned. Double click to unlock.`
+            : `${session.name} (context unlocked). Double click to lock memory + skills to this session.`;
           const lockTag = session.context_lock ? ' *' : '';
-          tab.innerHTML = `<span class="chat-session-swatch" style="background:${session.color};"></span><span>${escapeHtml(session.name)}${lockTag}</span>`;
-          tab.addEventListener('click', () => {
-            if (session.id === activeChatSessionId) return;
-            saveActiveSessionState();
-            activeChatSessionId = session.id;
-            restoreSessionState(session);
-            renderChatSessions();
-          });
-          tab.addEventListener('dblclick', () => {
+          const head = document.createElement('div');
+          head.className = 'chat-session-card-head';
+          const name = document.createElement('div');
+          name.className = 'chat-session-name';
+          name.innerHTML = `<span class="chat-session-swatch" style="background:${session.color};"></span><span>${escapeHtml(session.name)}${lockTag}</span>`;
+          const phase = document.createElement('div');
+          phase.className = 'chat-session-phase';
+          phase.textContent = sessionPhaseLabel(session);
+          head.appendChild(name);
+          head.appendChild(phase);
+          card.appendChild(head);
+          const meta = document.createElement('div');
+          meta.className = 'muted';
+          meta.textContent = session.job_id ? `Job ${session.job_id}` : 'No job yet';
+          card.appendChild(meta);
+
+          card.addEventListener('click', () => switchToSession(session));
+          card.addEventListener('dblclick', () => {
             session.context_lock = !session.context_lock;
             renderChatSessions();
             showToast(session.context_lock ? `${session.name}: context lock on` : `${session.name}: context lock off`, 'ok');
@@ -4133,7 +5514,7 @@
             const close = document.createElement('button');
             close.type = 'button';
             close.className = 'chat-session-close';
-            close.textContent = 'x';
+            close.textContent = '×';
             close.title = `Close ${session.name}`;
             close.addEventListener('click', (e) => {
               e.preventDefault();
@@ -4152,6 +5533,18 @@
                   messages_html: '',
                   last_sig: '',
                   context_lock: false,
+                  job_id: '',
+                  plan_text: '',
+                  timeline_state: [],
+                  timeline_meta: { title: 'Scene Plan' },
+                  video_url: '',
+                  logs_text: '',
+                  diagnosis: '',
+                  code_diff: '',
+                  retry_result: '',
+                  step_states: {},
+                  step_notes: { ...defaultStepNotes },
+                  phase: 'idle',
                 };
                 chatSessions.push(fallback);
               }
@@ -4162,9 +5555,9 @@
               }
               renderChatSessions();
             });
-            tab.appendChild(close);
+            head.appendChild(close);
           }
-          chatSessionsEl.appendChild(tab);
+          chatSessionsEl.appendChild(card);
         });
 
         const addBtn = document.createElement('button');
@@ -4184,6 +5577,18 @@
             messages_html: '',
             last_sig: '',
             context_lock: false,
+            job_id: '',
+            plan_text: '',
+            timeline_state: [],
+            timeline_meta: { title: 'Scene Plan' },
+            video_url: '',
+            logs_text: '',
+            diagnosis: '',
+            code_diff: '',
+            retry_result: '',
+            step_states: {},
+            step_notes: { ...defaultStepNotes },
+            phase: 'idle',
           };
           chatSessions.push(s);
           activeChatSessionId = s.id;
@@ -4192,6 +5597,127 @@
           showToast(`Started ${s.name}.`, 'ok');
         });
         chatSessionsEl.appendChild(addBtn);
+
+        const activeIdx = chatSessions.findIndex((s) => s.id === activeChatSessionId);
+        const activeCard = chatSessionsEl.children[activeIdx];
+        if (activeCard && activeCard.scrollIntoView) {
+          activeCard.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+        }
+      }
+
+      function cycleSession(delta) {
+        if (!chatSessions.length) return;
+        const idx = Math.max(0, chatSessions.findIndex((s) => s.id === activeChatSessionId));
+        const next = (idx + delta + chatSessions.length) % chatSessions.length;
+        switchToSession(chatSessions[next]);
+      }
+
+      function applyJobStateToSession(session, st) {
+        if (!session || !st) return;
+        if (st.job_files) session.job_files = st.job_files;
+        if (st.plan && Array.isArray(st.plan.scenes)) {
+          session.timeline_meta = { title: st.plan.title || 'Scene Plan' };
+          session.timeline_state = st.plan.scenes.map((sc) => ({
+            seconds: sc.seconds || 3,
+            goal: sc.goal,
+            elements: sc.elements,
+            actions: sc.actions,
+            narration: sc.narration,
+            assets: sc.assets || {}
+          }));
+          session.plan_text = JSON.stringify(st.plan, null, 2);
+        }
+        if (st.code) {
+          session.code_text = st.code;
+        }
+        if (st.video_path) {
+          session.video_url = '/' + st.video_path + '?t=' + Date.now();
+        }
+        if (st.logs_tail) {
+          session.logs_text = st.logs_tail;
+        }
+        if (typeof st.diagnosis === 'string') session.diagnosis = st.diagnosis;
+        if (typeof st.code_diff === 'string') session.code_diff = st.code_diff;
+        if (typeof st.retry_result === 'string') session.retry_result = st.retry_result;
+        const states = { ...(session.step_states || {}) };
+        if (st.status === 'failed') {
+          states.code = states.code || 'done';
+          states.render = 'error';
+        } else if (st.status === 'done') {
+          states.code = 'done';
+          states.render = 'done';
+        } else if (st.step === 'code') {
+          states.code = 'active';
+          states.render = '';
+        } else if (st.step === 'render' || st.step === 'repair') {
+          states.code = 'done';
+          states.render = 'active';
+        }
+        if (!states.plan) states.plan = 'done';
+        if (!states.approve) states.approve = 'done';
+        session.step_states = states;
+        session.step_notes = {
+          plan: session.step_notes?.plan || defaultStepNotes.plan,
+          approve: session.step_notes?.approve || defaultStepNotes.approve,
+          code: st.step === 'code' ? (st.message || 'Generating code…') : (session.step_notes?.code || defaultStepNotes.code),
+          render: st.step === 'render' || st.step === 'repair' ? (st.message || 'Rendering…') : (session.step_notes?.render || defaultStepNotes.render),
+        };
+        updateSessionPhase(session);
+      }
+
+      function applySessionToUI(session) {
+        if (!session) return;
+        currentJobId = session.job_id || '';
+        currentPlanText = session.plan_text || '';
+        timelineMeta = session.timeline_meta || { title: 'Scene Plan' };
+        timelineState = Array.isArray(session.timeline_state) ? session.timeline_state : [];
+        renderTimeline();
+        applyStepStates(session.step_states || {});
+        applyStepNotes(session.step_notes || {});
+        syncBusyFromSession(session);
+        if (logsEl) logsEl.textContent = session.logs_text || '';
+        if (session.diagnosis && logsEl && !logsEl.textContent.trim()) {
+          logsEl.textContent = session.diagnosis;
+        }
+        if (session.video_url) {
+          lastVideoUrl = session.video_url;
+          videoEl.src = session.video_url;
+          videoEl.load();
+          setVideoAvailable(true);
+        } else {
+          setVideoAvailable(false);
+        }
+        if (session.code_text) {
+          upsertGeneratedTab(session.code_text);
+        }
+        if (Array.isArray(session.job_files)) {
+          updateJobFiles(session.job_files);
+        }
+        updateOutputPaths();
+      }
+
+      let sessionPoller = null;
+      async function pollSessionStatuses() {
+        if (!chatSessions.length) return;
+        for (const session of chatSessions) {
+          if (!session.job_id) continue;
+          if (session.phase === 'rendered' || session.phase === 'failed') continue;
+          try {
+            const resp = await fetch(`/api/jobs/${encodeURIComponent(session.job_id)}`);
+            const st = await resp.json();
+            if (!st.ok) continue;
+            applyJobStateToSession(session, st);
+            if (session.id === activeChatSessionId) {
+              applySessionToUI(session);
+            }
+          } catch {}
+        }
+        renderChatSessions();
+      }
+
+      function startSessionPoller() {
+        if (sessionPoller) return;
+        sessionPoller = setInterval(pollSessionStatuses, 3500);
       }
 
       function initChatSessions() {
@@ -4205,6 +5731,15 @@
             messages_html: '',
             last_sig: '',
             context_lock: false,
+            job_id: '',
+            plan_text: '',
+            timeline_state: [],
+            timeline_meta: { title: 'Scene Plan' },
+            video_url: '',
+            logs_text: '',
+            step_states: { plan: '', approve: '', code: '', render: '' },
+            step_notes: { ...defaultStepNotes },
+            phase: 'idle',
           });
         }
         if (!activeChatSessionId) activeChatSessionId = chatSessions[0].id;
@@ -4420,10 +5955,21 @@
         el.classList.remove('active','done','error');
         if (state) el.classList.add(state);
         updateStepProgress();
+        const session = getActiveChatSession();
+        if (session) {
+          session.step_states = session.step_states || {};
+          session.step_states[step] = state || '';
+          updateSessionPhase(session);
+        }
       }
       function setStepNote(step, message) {
         if (!step || !message) return;
         stepNotes[step] = String(message);
+        const session = getActiveChatSession();
+        if (session) {
+          session.step_notes = session.step_notes || {};
+          session.step_notes[step] = String(message);
+        }
         const active = agentStepsEl.querySelector('.agent-step.active');
         if (!active && stepDetailEl) {
           stepDetailEl.textContent = stepNotes[step] || '';
@@ -4443,6 +5989,12 @@
         stepNotes.approve = 'Waiting for approval.';
         stepNotes.code = 'Code has not started.';
         stepNotes.render = 'Render has not started.';
+        const session = getActiveChatSession();
+        if (session) {
+          session.step_notes = snapshotStepNotes();
+          session.step_states = snapshotStepStates();
+          updateSessionPhase(session);
+        }
         Array.from(agentStepsEl.querySelectorAll('.agent-step')).forEach((el) => el.classList.remove('selected'));
         const planEl = agentStepsEl.querySelector('[data-step="plan"]');
         if (planEl) planEl.classList.add('selected');
@@ -4477,6 +6029,67 @@
           stepEl.classList.add('selected');
           showStepDetail(stepEl.dataset.step || 'plan');
         });
+      }
+
+      function setFirst60Visible(visible, persist = false) {
+        if (!first60PanelEl || !first60ShowBtn) return;
+        first60PanelEl.classList.toggle('hidden', !visible);
+        first60ShowBtn.classList.toggle('hidden', visible);
+        if (persist) {
+          try {
+            localStorage.setItem(FIRST60_HIDE_KEY, visible ? '0' : '1');
+          } catch {}
+        }
+      }
+
+      function setFirst60Item(el, state, label) {
+        if (!el) return;
+        el.classList.remove('done', 'active');
+        if (state === 'done' || state === 'active') el.classList.add(state);
+        const stateEl = el.querySelector('.first60-state');
+        if (stateEl) stateEl.textContent = label || 'pending';
+      }
+
+      function updateFirst60Checklist() {
+        if (!first60PanelEl) return;
+        const hasPrompt = !!(chatInputEl && String(chatInputEl.value || '').trim());
+        const hasPlan = !!(currentJobId && currentPlanText);
+        const needsImages = !!(includeImagesEl && includeImagesEl.value === 'true');
+        const hasImages = !!(getThumbAsset('background') || getThumbAsset('foreground'));
+        const hasRender = !!(lastVideoUrl || (videoEl && videoEl.src));
+
+        setFirst60Item(first60ItemPromptEl, hasPrompt ? 'done' : 'active', hasPrompt ? 'done' : 'type');
+        setFirst60Item(
+          first60ItemPlanEl,
+          hasPlan ? 'done' : (hasPrompt ? 'active' : ''),
+          hasPlan ? 'done' : (hasPrompt ? 'click plan' : 'pending')
+        );
+        if (!needsImages) {
+          setFirst60Item(first60ItemImageEl, 'done', 'optional off');
+        } else {
+          setFirst60Item(
+            first60ItemImageEl,
+            hasImages ? 'done' : (hasPlan ? 'active' : ''),
+            hasImages ? 'done' : (hasPlan ? 'generate' : 'wait')
+          );
+        }
+        const renderReady = hasPlan && (!needsImages || hasImages);
+        setFirst60Item(
+          first60ItemRenderEl,
+          hasRender ? 'done' : (renderReady ? 'active' : ''),
+          hasRender ? 'done' : (renderReady ? 'approve' : 'pending')
+        );
+
+        const total = needsImages ? 4 : 3;
+        let done = 0;
+        if (hasPrompt) done += 1;
+        if (hasPlan) done += 1;
+        if (needsImages && hasImages) done += 1;
+        if (hasRender) done += 1;
+        done = Math.min(done, total);
+        const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+        if (first60ProgressEl) first60ProgressEl.style.width = `${pct}%`;
+        if (first60SubEl) first60SubEl.textContent = `${done}/${total} complete`;
       }
 
       function addChat(role, title, content, extraNode) {
@@ -4587,6 +6200,8 @@
 
       function updateJobFiles(files) {
         jobFileListEl.innerHTML = '';
+        const session = getActiveChatSession();
+        if (session) session.job_files = Array.isArray(files) ? files : [];
         if (!files || !files.length) {
           jobFileListEl.innerHTML = '<div class="muted">No files yet.</div>';
           return;
@@ -4607,12 +6222,14 @@
           if (templateOutputPathEl) templateOutputPathEl.innerHTML = 'Output: <code>work/jobs/&lt;job_id&gt;/out.mp4</code>';
           if (settingsOutputVideoPathEl) settingsOutputVideoPathEl.textContent = 'work/jobs/<job_id>/out.mp4';
           if (settingsOutputCodePathEl) settingsOutputCodePathEl.textContent = codePath;
+          updateFirst60Checklist();
           return;
         }
         outputPathsEl.innerHTML = `Current output: <code>work/jobs/${currentJobId}/out.mp4</code><br><span class="muted">Scene code: <code>${codePath}</code></span>`;
         if (templateOutputPathEl) templateOutputPathEl.innerHTML = `Output: <code>work/jobs/${currentJobId}/out.mp4</code>`;
         if (settingsOutputVideoPathEl) settingsOutputVideoPathEl.textContent = `work/jobs/${currentJobId}/out.mp4`;
         if (settingsOutputCodePathEl) settingsOutputCodePathEl.textContent = codePath;
+        updateFirst60Checklist();
       }
 
       function markTreeSelection() {
@@ -4656,6 +6273,25 @@
               e.preventDefault();
               e.stopPropagation();
               startInlineRename(row, node.path, 'dir');
+            });
+            row.addEventListener('dragover', (e) => {
+              const kind = e.dataTransfer.getData('text/path-kind');
+              if (kind === 'file' || kind === 'folder') {
+                e.preventDefault();
+                row.classList.add('drop-target');
+              }
+            });
+            row.addEventListener('dragleave', () => {
+              row.classList.remove('drop-target');
+            });
+            row.addEventListener('drop', async (e) => {
+              e.preventDefault();
+              row.classList.remove('drop-target');
+              const kind = e.dataTransfer.getData('text/path-kind');
+              const src = e.dataTransfer.getData('text/plain');
+              if (!src || !node.path) return;
+              if (kind !== 'file' && kind !== 'folder') return;
+              await moveWorkspacePath(src, node.path);
             });
           }
           const name = document.createElement('div');
@@ -4795,6 +6431,35 @@
         }
       }
 
+      async function moveWorkspacePath(srcPath, destDir) {
+        if (!srcPath || !destDir) return;
+        if (srcPath === destDir || destDir.startsWith(`${srcPath}/`)) return;
+        const base = srcPath.split('/').pop() || srcPath;
+        const target = `${destDir}/${base}`;
+        fileStatusEl.textContent = `Moving ${srcPath} → ${target}...`;
+        try {
+          const resp = await fetch('/api/files/rename', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ from_path: srcPath, to_path: target, overwrite: false })
+          });
+          const data = await resp.json();
+          if (!data.ok) {
+            fileStatusEl.textContent = data.error || 'Move failed.';
+            return;
+          }
+          await loadWorkspaceFiles();
+          if (openFilePath === srcPath) {
+            openFilePath = target;
+            updateEditorMode();
+          }
+          pushHistory(`Moved ${srcPath} → ${target}`);
+          fileStatusEl.textContent = `Moved: ${target}`;
+        } catch {
+          fileStatusEl.textContent = 'Failed to reach backend.';
+        }
+      }
+
       function armInlineDelete(actionsEl, path, kind) {
         if (!actionsEl || !path) return;
         actionsEl.innerHTML = '';
@@ -4851,19 +6516,28 @@
       }
       bindAutosave(chatInputEl, 'input');
       bindAutosave(chatModelEl, 'change');
+      bindAutosave(geminiAssistEl, 'change');
       safeOn(chatInputEl, 'input', () => {
         const session = getActiveChatSession();
         if (session) session.prompt = chatInputEl.value || '';
+        updateFirst60Checklist();
       });
       safeOn(chatModelEl, 'change', () => {
         const session = getActiveChatSession();
         if (session) session.model = chatModelEl.value || '';
       });
       bindAutosave(directorBriefEl, 'input');
+      bindAutosave(rulesTextEl, 'input');
+      bindAutosave(subagentsTextEl, 'input');
       bindAutosave(templateSelectEl, 'change');
+      bindAutosave(imagePresetEl, 'change');
+      bindAutosave(imageAssetTypeEl, 'change');
       bindAutosave(imagePromptEl, 'input');
+      bindAutosave(imageMinorEditEl, 'input');
       bindAutosave(imageModeEl, 'change');
+      bindAutosave(imageVariantsEl, 'change');
       bindAutosave(includeImagesEl, 'change');
+      safeOn(includeImagesEl, 'change', updateFirst60Checklist);
       bindAutosave(aspectEl, 'change');
       bindAutosave(audienceEl, 'change');
       bindAutosave(toneEl, 'change');
@@ -4882,6 +6556,8 @@
       bindAutosave(creativeDensityEl, 'input');
       bindAutosave(creativeEnergyEl, 'input');
       bindAutosave(creativeComplexityEl, 'input');
+      bindAutosave(creativePolishEl, 'input');
+      bindAutosave(creativePrecisionEl, 'input');
       bindAutosave(vibeEnableEl, 'change');
       bindAutosave(vibePresetEl, 'change');
       bindAutosave(orientationGuideEl, 'change');
@@ -4893,6 +6569,8 @@
       bindAutosave(vibeCaptionDensityEl, 'change');
       bindAutosave(vibeOverlayStrengthEl, 'input');
       bindAutosave(vibeTitleWeightEl, 'change');
+      [creativeMotionEl, creativeDensityEl, creativeEnergyEl, creativeComplexityEl, creativePolishEl, creativePrecisionEl]
+        .forEach((el) => safeOn(el, 'input', refreshCreativeReadouts));
 
       function updateEditorMode() {
         if (!openFilePath) {
@@ -5067,26 +6745,40 @@
         return data.asset_path || null;
       }
 
+      // Override attach handler to support image uploads as assets.
       async function attachFilesFromPicker(files) {
         const list = Array.from(files || []);
         if (!list.length) return;
         for (const f of list) {
+          const isImage = (f.type || '').startsWith('image/');
           if (f.size > 800_000) {
             showToast(`Skipped ${f.name}: file too large for inline attach.`, 'err');
             continue;
           }
+          if (isImage) {
+            const role = imageModeEl.value === 'foreground' ? 'foreground' : 'background';
+            const rel = await uploadImageToCurrentJob(f, role);
+            if (rel) {
+              chatInputEl.value += `\\n\\n[Image asset]\\nPath: ${rel}\\nUse as ${role}.\\n`;
+              showToast(`Attached image: ${f.name}`, 'ok');
+              if (role === 'foreground') {
+                setThumb(fgThumbEl, { url: `/work/jobs/${currentJobId}/${rel}?t=${Date.now()}`, type: 'foreground', relPath: rel });
+              } else {
+                setThumb(bgThumbEl, { url: `/work/jobs/${currentJobId}/${rel}?t=${Date.now()}`, type: 'background', relPath: rel });
+              }
+            }
+            continue;
+          }
           const isText = /^text\//.test(f.type) || /\.(md|txt|py|json|yaml|yml|csv)$/i.test(f.name);
           if (!isText) {
-            showToast(`Skipped ${f.name}: only text files are supported right now.`, 'err');
+            showToast(`Skipped ${f.name}: only text/image files are supported.`, 'err');
             continue;
           }
           const text = await f.text();
           chatInputEl.value += `\\n\\n[File: ${f.name}]\\n${text}\\n`;
-          // Also save into workspace for later re-use.
           const base = `notes/uploads/${f.name}`;
           let saved = await tryWriteWorkspaceFile(base, text);
           if (!saved) {
-            // If name collides, try suffixes.
             for (let i = 2; i < 20 && !saved; i++) {
               const cand = `notes/uploads/${f.name.replace(/(\.[^.]*)?$/, `-${i}$1`)}`;
               saved = await tryWriteWorkspaceFile(cand, text);
@@ -5106,6 +6798,23 @@
         filePickerEl.addEventListener('change', (e) => {
           attachFilesFromPicker(e.target.files);
           e.target.value = '';
+        });
+      }
+
+      if (chatInputEl) {
+        chatInputEl.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          chatInputEl.classList.add('drop-target');
+        });
+        chatInputEl.addEventListener('dragleave', () => {
+          chatInputEl.classList.remove('drop-target');
+        });
+        chatInputEl.addEventListener('drop', (e) => {
+          e.preventDefault();
+          chatInputEl.classList.remove('drop-target');
+          if (e.dataTransfer?.files?.length) {
+            attachFilesFromPicker(e.dataTransfer.files);
+          }
         });
       }
 
@@ -5269,10 +6978,62 @@
         return String(el.dataset.assetPath || '').trim();
       }
 
+      function parseSceneTargetIndex(raw) {
+        const text = String(raw || '').trim();
+        if (!text) return -1;
+        const m = text.match(/\d+/);
+        if (!m) return -1;
+        const idx = Number(m[0]) - 1;
+        if (!Number.isFinite(idx)) return -1;
+        if (idx < 0 || idx >= timelineState.length) return -1;
+        return idx;
+      }
+
+      function refreshSceneTargetPlaceholders() {
+        const hint = timelineState.length > 0 ? `1-${timelineState.length}` : 'Scene #';
+        if (bgSceneTargetEl && !String(bgSceneTargetEl.value || '').trim()) bgSceneTargetEl.placeholder = hint;
+        if (fgSceneTargetEl && !String(fgSceneTargetEl.value || '').trim()) fgSceneTargetEl.placeholder = hint;
+      }
+
       function notifyImageChangeNeedsRerender() {
         if (!lastVideoUrl) return;
         statusEl.textContent = 'Image mapping updated. Re-render to apply changes to the MP4.';
-        showToast('Image mapping changed. Click Approve & Render to update video.', 'ok');
+        showToast('Image mapping changed. Approve & Render to update the video.', 'ok');
+      }
+
+      function applyAssetToScene(role, idx) {
+        const assetPath = getThumbAsset(role);
+        if (!assetPath) {
+          showToast(`Generate a ${role} image first.`, 'err');
+          return;
+        }
+        if (!timelineState.length) {
+          showToast('Create plan first.', 'err');
+          return;
+        }
+        if (idx < 0 || idx >= timelineState.length) {
+          showToast(`Pick a valid scene number (1-${timelineState.length}).`, 'err');
+          return;
+        }
+        const sc = timelineState[idx];
+        sc.assets = sc.assets || {};
+        sc.assets[role] = assetPath;
+        renderTimeline();
+        showToast(`${role === 'background' ? 'BG' : 'FG'} applied to scene ${idx + 1}.`, 'ok');
+        notifyImageChangeNeedsRerender();
+      }
+
+      function applyAssetToSceneFromInput(role, inputEl) {
+        if (!timelineState.length) {
+          showToast('Create plan first.', 'err');
+          return;
+        }
+        const idx = parseSceneTargetIndex(inputEl ? inputEl.value : '');
+        if (idx < 0) {
+          showToast(`Enter a valid scene number (1-${timelineState.length}).`, 'err');
+          return;
+        }
+        applyAssetToScene(role, idx);
       }
 
       function applyAssetToAllScenes(role) {
@@ -5324,29 +7085,58 @@
         const url = opts?.url || '';
         const type = opts?.type || '';
         const relPath = opts?.relPath || '';
+        const items = Array.isArray(opts?.items) ? opts.items : [];
+        const list = items.length ? items : (url ? [{ url, relPath }] : []);
+        const statusEl = type === 'foreground' ? fgVariantStatusEl : bgVariantStatusEl;
         el.innerHTML = '';
         el.dataset.assetType = type;
-        el.dataset.assetPath = relPath;
-        if (!url) {
+        el.dataset.assetPath = relPath || (list[0]?.relPath || '');
+        if (!list.length) {
           el.textContent = 'No image yet';
           el.classList.remove('draggable');
           el.removeAttribute('draggable');
+          if (statusEl) statusEl.textContent = 'Selected variant: none';
           refreshAppliedAssetInfo();
+          updateFirst60Checklist();
           return;
         }
-        const img = document.createElement('img');
-        img.src = url;
-        img.alt = type;
-        el.appendChild(img);
+        const grid = document.createElement('div');
+        grid.className = 'asset-grid';
+        list.forEach((item, idx) => {
+          const cell = document.createElement('div');
+          cell.className = 'asset-item';
+          if (idx === 0) cell.classList.add('selected');
+          cell.draggable = true;
+          cell.title = `Drag into a scene (${type})`;
+          const img = document.createElement('img');
+          img.src = item.url || '';
+          img.alt = type;
+          cell.appendChild(img);
+          const label = document.createElement('div');
+          label.className = 'asset-item-label';
+          label.textContent = `${idx + 1}`;
+          cell.appendChild(label);
+          cell.addEventListener('click', () => {
+            Array.from(grid.querySelectorAll('.asset-item')).forEach((el2) => el2.classList.remove('selected'));
+            cell.classList.add('selected');
+            el.dataset.assetPath = item.relPath || '';
+            if (type === 'background') lastAssets.background = item.relPath || '';
+            if (type === 'foreground') lastAssets.foreground = item.relPath || '';
+            if (statusEl) statusEl.textContent = `Selected variant: ${idx + 1} / ${list.length}`;
+            refreshAppliedAssetInfo();
+          });
+          cell.ondragstart = (e) => {
+            e.dataTransfer.setData('text/asset-type', type);
+            e.dataTransfer.setData('text/asset-path', item.relPath || '');
+            e.dataTransfer.effectAllowed = 'copy';
+          };
+          grid.appendChild(cell);
+        });
+        el.appendChild(grid);
         el.classList.add('draggable');
-        el.draggable = true;
-        el.title = `Drag into a scene (${type})`;
-        el.ondragstart = (e) => {
-          e.dataTransfer.setData('text/asset-type', type);
-          e.dataTransfer.setData('text/asset-path', relPath);
-          e.dataTransfer.effectAllowed = 'copy';
-        };
+        if (statusEl) statusEl.textContent = `Selected variant: 1 / ${list.length}`;
         refreshAppliedAssetInfo();
+        updateFirst60Checklist();
       }
 
       async function generateImages() {
@@ -5355,7 +7145,7 @@
           statusEl.textContent = 'Create plan first, then click Generate images.';
           return;
         }
-        const prompt = (imagePromptEl.value || '').trim();
+        const prompt = buildImagePrompt().trim();
         if (!prompt) {
           showToast('Add an image prompt first.', 'err');
           return;
@@ -5371,7 +7161,8 @@
               job_id: currentJobId,
               image_prompt: prompt,
               image_mode: imageModeEl.value,
-              image_model: imageModelOverrideEl.value || null
+              image_model: imageModelOverrideEl.value || null,
+              variants: imageVariantsEl ? Number(imageVariantsEl.value || 1) : 1
             })
           });
           const data = await resp.json();
@@ -5379,15 +7170,25 @@
             showToast(data.error || 'Image generation failed.', 'err');
             return;
           }
-          const bgRel = data.assets?.background || '';
-          const fgRel = data.assets?.foreground || '';
-          if (bgRel) {
-            setThumb(bgThumbEl, { url: `/work/jobs/${currentJobId}/${bgRel}?t=${Date.now()}`, type: 'background', relPath: bgRel });
+          const bgList = Array.isArray(data.assets?.backgrounds)
+            ? data.assets.backgrounds
+            : (data.assets?.background ? [data.assets.background] : []);
+          const fgList = Array.isArray(data.assets?.foregrounds)
+            ? data.assets.foregrounds
+            : (data.assets?.foreground ? [data.assets.foreground] : []);
+          if (bgList.length) {
+            setThumb(bgThumbEl, {
+              type: 'background',
+              items: bgList.map((rel) => ({ url: `/work/jobs/${currentJobId}/${rel}?t=${Date.now()}`, relPath: rel }))
+            });
           } else {
             setThumb(bgThumbEl, { url: '', type: 'background', relPath: '' });
           }
-          if (fgRel) {
-            setThumb(fgThumbEl, { url: `/work/jobs/${currentJobId}/${fgRel}?t=${Date.now()}`, type: 'foreground', relPath: fgRel });
+          if (fgList.length) {
+            setThumb(fgThumbEl, {
+              type: 'foreground',
+              items: fgList.map((rel) => ({ url: `/work/jobs/${currentJobId}/${rel}?t=${Date.now()}`, relPath: rel }))
+            });
           } else {
             setThumb(fgThumbEl, { url: '', type: 'foreground', relPath: '' });
           }
@@ -5399,6 +7200,8 @@
             pushHistory(`Generated images for ${currentJobId}`);
             if (lastVideoUrl) {
               statusEl.textContent = 'New images generated. Drop onto scenes, then re-render to apply.';
+            } else {
+              statusEl.textContent = 'Images ready. Apply to scenes before Approve & Render (or re-render later).';
             }
           }
           scheduleAutosave();
@@ -6042,6 +7845,55 @@
         }
       }
 
+      function setSidebarHealthBadge(el, label, ok) {
+        if (!el) return;
+        el.textContent = `${label}: ${ok ? 'OK' : 'Missing'}`;
+        el.classList.toggle('ok', !!ok);
+        el.classList.toggle('bad', !ok);
+      }
+
+      function renderSidebarHealth(healthData, preflightData) {
+        const checks = preflightData?.checks || {};
+        const apiOk = typeof checks.api_key === 'boolean' ? checks.api_key : !!(preflightData?.ok);
+        const outputOk = typeof checks.output_writable === 'boolean' ? checks.output_writable : !!(preflightData?.ok);
+        setSidebarHealthBadge(sidebarBadgeApiEl, 'API', apiOk);
+        setSidebarHealthBadge(sidebarBadgeManimEl, 'Manim', !!healthData?.manim_ok);
+        setSidebarHealthBadge(sidebarBadgeFfmpegEl, 'ffmpeg', !!healthData?.ffmpeg_ok);
+        setSidebarHealthBadge(sidebarBadgeOutputEl, 'Output', outputOk);
+
+        if (!sidebarHealthTextEl) return;
+        if (!healthData && !preflightData) {
+          sidebarHealthTextEl.textContent = 'No checks yet.';
+          return;
+        }
+        const lines = [];
+        if (healthData?.manim_version) lines.push(healthData.manim_version);
+        if (healthData?.ffmpeg_version) lines.push(healthData.ffmpeg_version);
+        if (preflightData?.output_root) lines.push(`Output root: ${preflightData.output_root}`);
+        if (Array.isArray(preflightData?.missing) && preflightData.missing.length) {
+          lines.push(`Missing: ${preflightData.missing.join(', ')}`);
+        } else {
+          lines.push('Preflight: all checks passed.');
+        }
+        sidebarHealthTextEl.textContent = lines.join('\n');
+      }
+
+      async function refreshSidebarHealth() {
+        let healthData = null;
+        let preflightData = null;
+        try {
+          const resp = await fetch('/api/health');
+          healthData = await resp.json();
+          lastHealthData = healthData;
+        } catch {}
+        try {
+          const resp = await fetch('/api/preflight');
+          preflightData = await resp.json();
+          lastPreflightData = preflightData;
+        } catch {}
+        renderSidebarHealth(healthData || lastHealthData, preflightData || lastPreflightData);
+      }
+
       async function runHealth() {
         healthEl.textContent = 'Checking...';
         let data = null;
@@ -6101,6 +7953,7 @@
         }
         healthEl.textContent = lines.join('\n');
         lastHealthData = data;
+        renderSidebarHealth(data, lastPreflightData);
         return data;
       }
 
@@ -6234,7 +8087,7 @@
         if (!mentionBarEl) return;
         mentionBarEl.innerHTML = '';
         const chips = [];
-        const maxMentionsVisible = 6;
+        const maxMentionsVisible = 4;
 
         function insertMentionToken(token) {
           const cur = chatInputEl.value || '';
@@ -6694,12 +8547,22 @@
         return badge;
       }
 
+      function buildTimelineAssetDot(role, relPath) {
+        const dot = document.createElement('span');
+        dot.className = `timeline-asset-dot ${role === 'background' ? 'bg' : 'fg'}`;
+        const name = role === 'background' ? 'Background' : 'Foreground';
+        dot.title = `${name} asset\n${relPath || ''}`.trim();
+        return dot;
+      }
+
       function renderTimeline() {
         timelineTrackEl.innerHTML = '';
         if (!timelineState.length) {
           timelineLabelEl.textContent = 'Timeline';
           if (timelineRulerEl) timelineRulerEl.innerHTML = '';
           refreshAppliedAssetInfo();
+          refreshSceneTargetPlaceholders();
+          updateFirst60Checklist();
           return;
         }
         const total = timelineState.reduce((s, sc) => s + sc.seconds, 0);
@@ -6716,6 +8579,8 @@
           block.draggable = true;
           block.dataset.index = idx;
           block.style.flex = `0 0 ${Math.max(120, Number(scene.seconds || 1) * 14)}px`;
+          block.classList.toggle('has-bg', !!scene.assets?.background);
+          block.classList.toggle('has-fg', !!scene.assets?.foreground);
           block.title = [
             `Scene ${idx + 1} • ${start}s–${end}s`,
             (scene.goal || 'Scene'),
@@ -6726,15 +8591,22 @@
 
           const header = document.createElement('div');
           header.className = 'timeline-block-header';
-          header.textContent = `Scene ${idx + 1} • ${start}s–${end}s`;
+          const headerLabel = document.createElement('div');
+          headerLabel.textContent = `Scene ${idx + 1} • ${start}s–${end}s`;
+          const headerMeta = document.createElement('div');
+          headerMeta.className = 'timeline-block-meta';
+          if (scene.assets?.background) headerMeta.appendChild(buildTimelineAssetDot('background', scene.assets.background));
+          if (scene.assets?.foreground) headerMeta.appendChild(buildTimelineAssetDot('foreground', scene.assets.foreground));
+          header.appendChild(headerLabel);
+          header.appendChild(headerMeta);
 
           const editRow = document.createElement('div');
           editRow.className = 'timeline-edit-row';
           const goalInput = document.createElement('input');
-          goalInput.className = 'timeline-edit-input';
+          goalInput.className = 'timeline-edit-input timeline-goal-input';
           goalInput.value = scene.goal || '';
-          goalInput.placeholder = 'Scene goal';
-          goalInput.title = 'Inline edit: scene goal';
+          goalInput.placeholder = 'Scene focus (one clear idea)';
+          goalInput.title = 'Inline edit: scene focus';
           goalInput.addEventListener('mousedown', (e) => e.stopPropagation());
           goalInput.addEventListener('keydown', (e) => e.stopPropagation());
           goalInput.addEventListener('input', () => {
@@ -6778,7 +8650,7 @@
 
           const noteInput = document.createElement('textarea');
           noteInput.className = 'timeline-edit-note';
-          noteInput.placeholder = 'Inline scene note (drag source/file/snippet here)';
+          noteInput.placeholder = 'Optional note (drag source/file/snippet here)';
           noteInput.value = scene.narration || '';
           noteInput.addEventListener('mousedown', (e) => e.stopPropagation());
           noteInput.addEventListener('keydown', (e) => e.stopPropagation());
@@ -6786,6 +8658,13 @@
             timelineState[idx].narration = noteInput.value;
             scheduleAutosave();
           });
+
+          const details = document.createElement('details');
+          details.className = 'timeline-details';
+          const summary = document.createElement('summary');
+          summary.textContent = 'Narration details';
+          details.appendChild(summary);
+          details.appendChild(noteInput);
 
           const handle = document.createElement('div');
           handle.className = 'timeline-handle';
@@ -6819,7 +8698,7 @@
           block.appendChild(header);
           block.appendChild(editRow);
           block.appendChild(badges);
-          block.appendChild(noteInput);
+          block.appendChild(details);
           block.appendChild(handle);
 
           block.addEventListener('dragstart', (e) => {
@@ -6862,7 +8741,9 @@
         highlightTimelineAt(videoEl.currentTime || 0);
         if (lastPlanBox) syncPlanFromTimeline();
         refreshAppliedAssetInfo();
+        refreshSceneTargetPlaceholders();
         scheduleAutosave();
+        updateFirst60Checklist();
       }
 
       if (timelineTrackEl) {
@@ -6943,6 +8824,140 @@
         currentPlanText = lastPlanBox.value;
       }
 
+      function parseDurationText(raw) {
+        const t = String(raw || '').trim().toLowerCase();
+        if (!t) return 0;
+        const mmss = t.match(/^(\d{1,2}):(\d{2})$/);
+        if (mmss) {
+          const m = Number(mmss[1] || 0);
+          const s = Number(mmss[2] || 0);
+          return Math.max(0, m * 60 + s);
+        }
+        const num = t.match(/^(\d+(?:\.\d+)?)/);
+        if (!num) return 0;
+        const v = Number(num[1] || 0);
+        if (/m(in)?/.test(t)) return Math.round(v * 60);
+        return Math.round(v);
+      }
+
+      function ensureTimelineLoadedFromPlan() {
+        if (Array.isArray(timelineState) && timelineState.length) return true;
+        const txt = (lastPlanBox && lastPlanBox.value) || currentPlanText || '';
+        if (!txt.trim()) return false;
+        try {
+          const obj = JSON.parse(txt);
+          if (!obj || !Array.isArray(obj.scenes)) return false;
+          timelineMeta.title = obj.title || 'Scene Plan';
+          timelineState = obj.scenes.map((sc) => ({
+            seconds: Math.max(1, Number(sc.seconds || 1)),
+            goal: sc.goal || 'Scene',
+            elements: sc.elements || [],
+            actions: sc.actions || [],
+            narration: sc.narration || '',
+            assets: sc.assets || {},
+          }));
+          renderTimeline();
+          return timelineState.length > 0;
+        } catch {
+          return false;
+        }
+      }
+
+      function trimTimelineBySeconds(cutSec) {
+        let remaining = Math.max(0, Math.round(Number(cutSec || 0)));
+        if (!remaining || !timelineState.length) return false;
+        const out = timelineState.map((s) => ({ ...s }));
+        while (remaining > 0 && out.length) {
+          const last = out[out.length - 1];
+          const dur = Math.max(1, Math.round(Number(last.seconds || 1)));
+          if (dur <= remaining) {
+            remaining -= dur;
+            out.pop();
+            continue;
+          }
+          last.seconds = Math.max(1, dur - remaining);
+          remaining = 0;
+        }
+        if (!out.length) {
+          out.push({
+            seconds: 3,
+            goal: 'Short recap',
+            elements: [],
+            actions: [],
+            narration: 'Quick recap and close.',
+            assets: {},
+          });
+        }
+        timelineState = out;
+        renderTimeline();
+        syncPlanFromTimeline();
+        return true;
+      }
+
+      function setTimelineTotalSeconds(targetSec) {
+        const target = Math.max(3, Math.round(Number(targetSec || 0)));
+        const current = timelineState.reduce((s, sc) => s + Math.max(1, Number(sc.seconds || 1)), 0);
+        if (!current) return false;
+        if (target === current) return true;
+        if (target < current) {
+          return trimTimelineBySeconds(current - target);
+        }
+        const delta = target - current;
+        const last = timelineState[timelineState.length - 1] || null;
+        const copy = last ? { ...last, assets: { ...(last.assets || {}) } } : null;
+        timelineState.push({
+          seconds: delta,
+          goal: copy?.goal ? `Extended: ${copy.goal}` : 'Extended segment',
+          elements: copy?.elements || [],
+          actions: copy?.actions || [],
+          narration: copy?.narration || `Extend the explanation with ${delta}s of additional clarity and examples.`,
+          assets: copy?.assets || {},
+        });
+        renderTimeline();
+        syncPlanFromTimeline();
+        return true;
+      }
+
+      async function handleAgenticEditCommand(raw) {
+        const text = String(raw || '').trim().toLowerCase();
+        if (!text) return false;
+        const isCut = text.match(/cut\s+last\s+([0-9:]+(?:\s*(?:s|sec|secs|seconds|min|m))?)/i);
+        const isExtendTo = text.match(/extend\s+to\s+([0-9:]+(?:\s*(?:s|sec|secs|seconds|min|m))?)/i);
+        const isExtendBy = text.match(/extend\s+by\s+([0-9:]+(?:\s*(?:s|sec|secs|seconds|min|m))?)/i);
+        const isRedo = /\bredo\b/.test(text);
+        if (!isCut && !isExtendTo && !isExtendBy && !isRedo) return false;
+        if (!currentJobId || !ensureTimelineLoadedFromPlan()) {
+          showToast('Create a plan first, then use cut/extend commands.', 'err');
+          return true;
+        }
+
+        let ok = false;
+        if (isCut) {
+          const sec = parseDurationText(isCut[1]);
+          ok = trimTimelineBySeconds(sec);
+          if (ok) addChat('agent', 'Agent edit', `Cut last ${sec}s and queued re-render.`);
+        } else if (isExtendTo) {
+          const sec = parseDurationText(isExtendTo[1]);
+          ok = setTimelineTotalSeconds(sec);
+          if (ok) addChat('agent', 'Agent edit', `Extended plan to ${sec}s and queued re-render.`);
+        } else if (isExtendBy) {
+          const delta = parseDurationText(isExtendBy[1]);
+          const cur = timelineState.reduce((s, sc) => s + Math.max(1, Number(sc.seconds || 1)), 0);
+          ok = setTimelineTotalSeconds(cur + delta);
+          if (ok) addChat('agent', 'Agent edit', `Extended by ${delta}s and queued re-render.`);
+        } else if (isRedo) {
+          syncPlanFromTimeline();
+          ok = true;
+          addChat('agent', 'Agent edit', 'Redo requested. Re-rendering current plan.');
+        }
+        if (!ok) {
+          showToast('Could not apply edit command.', 'err');
+          return true;
+        }
+        await approvePlan(lastPlanBox ? lastPlanBox.value : currentPlanText || '');
+        return true;
+      }
+
       function buildDirectorBrief() {
         const pieces = [];
         if (directorBriefEl.value.trim()) pieces.push(directorBriefEl.value.trim());
@@ -6951,7 +8966,17 @@
         if (creativeDensityEl) creativeLines.push(`On-screen label density: ${creativeDensityEl.value}/100`);
         if (creativeEnergyEl) creativeLines.push(`Animation energy: ${creativeEnergyEl.value}/100`);
         if (creativeComplexityEl) creativeLines.push(`Scene complexity: ${creativeComplexityEl.value}/100`);
+        if (creativePolishEl) creativeLines.push(`Refinement polish: ${creativePolishEl.value}/100`);
+        if (creativePrecisionEl) creativeLines.push(`Precision focus: ${creativePrecisionEl.value}/100`);
         if (creativeLines.length) pieces.push(`Creative controls:\n${creativeLines.join('\n')}`);
+        if (includeImagesEl && includeImagesEl.value === 'true') {
+          const imageSpec = [];
+          if (imageAssetTypeEl) imageSpec.push(`Primary asset type: ${imageAssetTypeEl.value}`);
+          if (imageModeEl) imageSpec.push(`Image placement mode: ${imageModeEl.value}`);
+          if (imageVariantsEl) imageSpec.push(`Image variation count: ${imageVariantsEl.value}`);
+          imageSpec.push(`Image prompt contract:\n${buildImagePrompt()}`);
+          pieces.push(`Image generation guidance:\n${imageSpec.join('\n')}`);
+        }
         const vibeLines = [];
         if (vibeEnableEl && vibeEnableEl.checked) {
           vibeLines.push('Enable vibe motion overlays and caption choreography.');
@@ -7002,6 +9027,78 @@
         return pieces.join('\n\n') || null;
       }
 
+      async function runGeminiPromptPolish(opts = {}) {
+        const silent = !!opts.silent;
+        const idea = (chatInputEl.value || '').trim();
+        if (!idea) {
+          if (!silent) showToast('Add a prompt first.', 'err');
+          return null;
+        }
+        if (!silent) {
+          statusEl.textContent = 'Gemini assist: polishing prompt and brief…';
+        }
+        let data = null;
+        try {
+          const resp = await fetch('/api/gemini/refine', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              idea,
+              director_brief: buildDirectorBrief(),
+              image_prompt: includeImagesEl.value === 'true' ? buildImagePrompt() : null,
+              audience: audienceEl.value,
+              tone: toneEl.value,
+              style: styleEl.value,
+              pace: paceEl.value,
+              color_palette: paletteEl.value,
+              model: chatModelEl.value || null
+            })
+          });
+          data = await resp.json();
+        } catch {
+          data = { ok: false, error: 'Gemini assist failed: backend not reachable.' };
+        }
+        if (!data?.ok) {
+          if (!silent) {
+            statusEl.textContent = data?.error || 'Gemini assist failed.';
+            showToast(data?.error || 'Gemini assist failed.', 'err');
+          }
+          return data;
+        }
+
+        if (data.refined_idea) chatInputEl.value = String(data.refined_idea);
+        if (directorBriefEl && data.refined_director_brief) {
+          directorBriefEl.value = String(data.refined_director_brief);
+        }
+        if (imagePromptEl && includeImagesEl.value === 'true' && data.refined_image_prompt) {
+          imagePromptEl.value = String(data.refined_image_prompt);
+        }
+        scheduleAutosave();
+
+        if (!silent) {
+          const checklist = Array.isArray(data.checklist) ? data.checklist : [];
+          const panel = document.createElement('div');
+          panel.className = 'drawer-section';
+          const intro = document.createElement('div');
+          intro.className = 'muted';
+          intro.textContent = 'Prompt, brief, and image prompt were refined with Gemini.';
+          panel.appendChild(intro);
+          if (checklist.length) {
+            const ul = document.createElement('ul');
+            checklist.forEach((item) => {
+              const li = document.createElement('li');
+              li.textContent = String(item);
+              ul.appendChild(li);
+            });
+            panel.appendChild(ul);
+          }
+          addChat('agent', 'Gemini Assist', 'Refinement complete.', panel);
+          statusEl.textContent = 'Gemini assist complete.';
+          showToast('Gemini assist applied.', 'ok');
+        }
+        return data;
+      }
+
       async function runSlashCommand(text) {
         const raw = text.trim();
         if (!raw.startsWith('/')) return false;
@@ -7040,14 +9137,27 @@
       }
 
       async function createPlan() {
+        if (crazyModeEl && crazyModeEl.checked) {
+          await createCrazyRun();
+          return;
+        }
         resetSteps();
         setStep('plan', 'active');
         setStepNote('plan', 'Sending prompt to Gemini for scene planning…');
 
-        const idea = chatInputEl.value.trim();
+        let idea = chatInputEl.value.trim();
         if (!idea) return;
 
+        if (await handleAgenticEditCommand(idea)) return;
         if (await runSlashCommand(idea)) return;
+
+        if (geminiAssistEl && geminiAssistEl.checked) {
+          const refined = await runGeminiPromptPolish({ silent: true });
+          if (refined?.ok) {
+            idea = chatInputEl.value.trim();
+            setStepNote('plan', 'Gemini assist refined prompt. Sending plan request…');
+          }
+        }
 
         addChat('user', 'You', idea);
         setBusy(true, 'Planning…', 'Planning');
@@ -7074,7 +9184,7 @@
               aspect_ratio: aspectEl.value,
               director_brief: buildDirectorBrief(),
               include_images: includeImagesEl.value === 'true',
-              image_prompt: imagePromptEl.value || null,
+              image_prompt: includeImagesEl.value === 'true' ? buildImagePrompt() : null,
               memory_ids: selectedMemoryIds(),
               skill_ids: selectedSkillIdsWithMentions(idea),
               model: chatModelEl.value || null
@@ -7166,6 +9276,171 @@
           }));
           renderTimeline();
         }
+
+        const session = getActiveChatSession();
+        if (session) {
+          session.job_id = currentJobId;
+          session.plan_text = currentPlanText || '';
+          session.timeline_state = Array.isArray(timelineState) ? timelineState : [];
+          session.timeline_meta = { ...(timelineMeta || {}) };
+          session.job_files = Array.isArray(data.job_files) ? data.job_files : [];
+          session.step_states = { plan: 'done', approve: 'active', code: '', render: '' };
+          session.step_notes = {
+            plan: `Plan ready: ${data.plan?.scenes?.length || 0} scenes.`,
+            approve: 'Review the plan JSON, then click Approve & Render.',
+            code: defaultStepNotes.code,
+            render: defaultStepNotes.render,
+          };
+          updateSessionPhase(session);
+          renderChatSessions();
+        }
+      }
+
+      function createSessionRecord(name) {
+        const nextIndex = chatSessions.length + 1;
+        return {
+          id: `chat-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+          name: name || makeSessionName(nextIndex),
+          color: SESSION_COLORS[(nextIndex - 1) % SESSION_COLORS.length],
+          prompt: '',
+          model: chatModelEl?.value || 'gemini-3-flash-preview',
+          messages_html: '',
+          last_sig: '',
+          context_lock: false,
+          job_id: '',
+          plan_text: '',
+          timeline_state: [],
+          timeline_meta: { title: 'Scene Plan' },
+          video_url: '',
+          logs_text: '',
+          code_text: '',
+          step_states: {},
+          step_notes: { ...defaultStepNotes },
+          phase: 'idle',
+          job_files: [],
+          diagnosis: '',
+          code_diff: '',
+          retry_result: '',
+        };
+      }
+
+      async function createCrazyRun() {
+        let idea = chatInputEl.value.trim();
+        if (!idea) return;
+        if (await runSlashCommand(idea)) return;
+        if (geminiAssistEl && geminiAssistEl.checked) {
+          const refined = await runGeminiPromptPolish({ silent: true });
+          if (refined?.ok) {
+            idea = chatInputEl.value.trim();
+          }
+        }
+        setBusy(true, 'Launching 3 parallel variants…', 'Crazy mode');
+        setStep('plan', 'active');
+        setStepNote('plan', 'Creating 3 parallel plans and renders…');
+        let data = null;
+        try {
+          const resp = await fetch('/api/crazy-run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              idea,
+              variants: 3,
+              audience: audienceEl.value,
+              tone: toneEl.value,
+              style: styleEl.value,
+              pace: paceEl.value,
+              color_palette: paletteEl.value,
+              include_equations: equationsEl.value === 'true',
+              include_graphs: graphsEl.value === 'true',
+              include_narration: narrationEl.value === 'true',
+              target_seconds: targetSecondsEl.value ? Number(targetSecondsEl.value) : null,
+              max_scenes: maxScenesEl.value ? Number(maxScenesEl.value) : null,
+              max_objects: maxObjectsEl.value ? Number(maxObjectsEl.value) : null,
+              aspect_ratio: aspectEl.value,
+              quality: qualityEl.value,
+              director_brief: buildDirectorBrief(),
+              include_images: includeImagesEl.value === 'true',
+              image_prompt: includeImagesEl.value === 'true' ? buildImagePrompt() : null,
+              image_mode: imageModeEl.value,
+              image_variants: imageVariantsEl ? Number(imageVariantsEl.value || 1) : 1,
+              memory_ids: selectedMemoryIds(),
+              skill_ids: selectedSkillIdsWithMentions(idea),
+              model: chatModelEl.value || null,
+              image_model: imageModelOverrideEl.value || null,
+            }),
+          });
+          data = await resp.json();
+        } catch {
+          data = { ok: false, error: 'Backend not reachable.' };
+        } finally {
+          setBusy(false);
+        }
+
+        if (!data || !data.ok) {
+          const msg = data?.error || 'Crazy mode failed.';
+          showToast(msg, 'err');
+          statusEl.textContent = msg;
+          setStep('plan', 'error');
+          setStepNote('plan', msg);
+          return;
+        }
+
+        const jobs = Array.isArray(data.jobs) ? data.jobs : [];
+        if (!jobs.length) {
+          showToast('No variants returned.', 'err');
+          return;
+        }
+        saveActiveSessionState();
+        const labels = ['Crazy A', 'Crazy B', 'Crazy C'];
+        const created = [];
+        jobs.forEach((j, idx) => {
+          const session = createSessionRecord(labels[idx] || `Crazy ${idx + 1}`);
+          session.job_id = j.job_id || '';
+          session.plan_text = j.plan_text || '';
+          if (j.plan && Array.isArray(j.plan.scenes)) {
+            session.timeline_meta = { title: j.plan.title || 'Scene Plan' };
+            session.timeline_state = j.plan.scenes.map((sc) => ({
+              seconds: sc.seconds || 3,
+              goal: sc.goal,
+              elements: sc.elements,
+              actions: sc.actions,
+              narration: sc.narration,
+              assets: sc.assets || {},
+            }));
+          }
+          session.step_states = { plan: 'done', approve: 'done', code: 'active', render: 'active' };
+          session.step_notes = {
+            plan: 'Plan ready (crazy mode).',
+            approve: 'Auto-approved in crazy mode.',
+            code: 'Generating code…',
+            render: 'Rendering…',
+          };
+          session.phase = 'planning';
+          session.job_files = Array.isArray(j.job_files) ? j.job_files : [];
+          chatSessions.push(session);
+          created.push(session);
+        });
+
+        const first = created[0];
+        if (first) {
+          activeChatSessionId = first.id;
+          restoreSessionState(first);
+          currentJobId = first.job_id;
+          jobIdEl.textContent = first.job_id || '—';
+          updateOutputPaths();
+          updateBackEnabled();
+        }
+        renderChatSessions();
+        startSessionPoller();
+        showToast('Crazy mode running: 3 parallel variants.', 'ok');
+        statusEl.textContent = 'Crazy mode started. Swipe session carousel to compare variants.';
+        setStep('plan', 'done');
+        setStep('approve', 'done');
+        setStep('code', 'active');
+        setStep('render', 'active');
+        setStepNote('code', 'Running parallel code generation across variants.');
+        setStepNote('render', 'Parallel renders in progress.');
+        scheduleAutosave();
       }
 
       async function approvePlan(planText) {
@@ -7302,9 +9577,68 @@
               retryBtn.textContent = 'Retry Render';
               retryBtn.className = 'secondary';
               retryBtn.addEventListener('click', () => approvePlan(lastPlanBox ? lastPlanBox.value : planText));
+              const reportBtn = document.createElement('button');
+              reportBtn.textContent = 'Report issue';
+              reportBtn.className = 'ghost';
+              reportBtn.style.marginLeft = '8px';
+              reportBtn.addEventListener('click', () => {
+                const subject = encodeURIComponent(`NorthStar render issue - ${runJobId}`);
+                const body = encodeURIComponent(
+                  [
+                    `Job: ${runJobId}`,
+                    `Error: ${st.error || 'Render failed'}`,
+                    `Retry: ${st.retry_result || 'n/a'}`,
+                    '',
+                    'Diagnosis:',
+                    String(st.diagnosis || '').slice(0, 1800),
+                    '',
+                    'Log tail:',
+                    String(st.logs_tail || errText || '').slice(0, 1800),
+                  ].join('\n')
+                );
+                window.location.href = `mailto:itsarnavsalkade@gmail.com?subject=${subject}&body=${body}`;
+              });
               const wrap = document.createElement('div');
+              const diagPanel = document.createElement('div');
+              diagPanel.className = 'drawer-section';
+              const errPre = document.createElement('pre');
+              errPre.style.whiteSpace = 'pre-wrap';
+              errPre.style.margin = '0';
+              errPre.textContent = (st.logs_tail || errText || 'Render failed.').slice(0, 6000);
+              const diag = document.createElement('details');
+              diag.open = true;
+              const diagSum = document.createElement('summary');
+              diagSum.textContent = 'Gemini diagnosis';
+              const diagBody = document.createElement('pre');
+              diagBody.style.whiteSpace = 'pre-wrap';
+              diagBody.textContent = (st.diagnosis || 'Diagnosis unavailable.').slice(0, 4000);
+              diag.appendChild(diagSum);
+              diag.appendChild(diagBody);
+              const diff = document.createElement('details');
+              const diffSum = document.createElement('summary');
+              diffSum.textContent = 'Code diff (repair)';
+              const diffPre = document.createElement('pre');
+              diffPre.style.whiteSpace = 'pre-wrap';
+              diffPre.textContent = (st.code_diff || 'No code diff available.').slice(0, 8000);
+              diff.appendChild(diffSum);
+              diff.appendChild(diffPre);
+              const retryInfo = document.createElement('div');
+              retryInfo.className = 'muted';
+              retryInfo.style.marginTop = '6px';
+              retryInfo.textContent = `Retry result: ${st.retry_result || 'not_attempted'}`;
+              const tip = document.createElement('div');
+              tip.className = 'muted';
+              tip.style.marginTop = '6px';
+              tip.textContent = 'Tip: Settings -> Health verifies Manim/ffmpeg and Python path.';
+              diagPanel.appendChild(errPre);
+              diagPanel.appendChild(diag);
+              diagPanel.appendChild(diff);
+              diagPanel.appendChild(retryInfo);
+              diagPanel.appendChild(tip);
+              wrap.appendChild(diagPanel);
               wrap.appendChild(retryBtn);
-              addChat('agent', 'Render failed', `<pre style="white-space:pre-wrap; margin:0;">${(st.logs_tail || errText || 'Render failed.').slice(0, 6000)}</pre><div class="muted" style="margin-top:6px;">Tip: Settings → Health to verify Manim/ffmpeg.</div>`, wrap);
+              wrap.appendChild(reportBtn);
+              addChat('agent', 'Render failed', 'Error -> diagnosis -> diff -> retry status', wrap);
               showToast('Render failed.', 'err');
               finish(st);
               return;
@@ -7396,9 +9730,10 @@
                 job_id: runJobId,
                 plan_text: planText,
                 include_images: includeImagesEl.value === 'true',
-                image_prompt: imagePromptEl.value || null,
+                image_prompt: includeImagesEl.value === 'true' ? buildImagePrompt() : null,
                 image_mode: imageModeEl.value,
                 image_model: imageModelOverrideEl.value || null,
+                image_variants: imageVariantsEl ? Number(imageVariantsEl.value || 1) : 1,
                 quality: qualityEl.value,
                 aspect_ratio: aspectEl.value,
                 model: chatModelEl.value || null
@@ -7656,6 +9991,19 @@
       }
 
       safeOn(planBtn, 'click', createPlan);
+      safeOn(polishPromptBtn, 'click', () => runGeminiPromptPolish({ silent: false }));
+      safeOn(first60DemoBtn, 'click', () => {
+        seedDemoDefaults();
+        updateFirst60Checklist();
+        showToast('Demo prompt loaded.', 'ok');
+      });
+      safeOn(first60HealthBtn, 'click', async () => {
+        openSettingsTab('render');
+        await runHealth();
+        await refreshSidebarHealth();
+      });
+      safeOn(first60HideBtn, 'click', () => setFirst60Visible(false, true));
+      safeOn(first60ShowBtn, 'click', () => setFirst60Visible(true, true));
       safeOn(saveSettingsBtn, 'click', saveSettings);
       safeOn(getStartedBtn, 'click', async () => {
         openSettingsTab('render');
@@ -7692,7 +10040,11 @@
           showToast('Copy request failed.', 'err');
         }
       });
-      safeOn(runHealthBtn, 'click', runHealth);
+      safeOn(runHealthBtn, 'click', async () => {
+        await runHealth();
+        await refreshSidebarHealth();
+      });
+      safeOn(refreshSidebarHealthBtn, 'click', refreshSidebarHealth);
       safeOn(resetLayoutBtn, 'click', resetLayout);
       safeOn(replayWelcomeBtn, 'click', () => {
         try { localStorage.removeItem(WELCOME_SEEN_KEY); } catch {}
@@ -7706,6 +10058,9 @@
         scheduleAutosave();
       });
       safeOn(aspectEl, 'change', () => setPreviewAspect(aspectEl.value));
+      safeOn(imagePresetEl, 'change', () => {
+        applyImagePreset(imagePresetEl.value, true);
+      });
       safeOn(vibePresetEl, 'change', () => {
         applyVibePreset(vibePresetEl.value, true);
       });
@@ -7723,11 +10078,23 @@
       });
       safeOn(applyRenameBtn, 'click', renamePending);
       safeOn(genImagesBtn, 'click', generateImages);
+      safeOn(applyBgSceneBtn, 'click', () => applyAssetToSceneFromInput('background', bgSceneTargetEl));
       safeOn(applyBgAllBtn, 'click', () => applyAssetToAllScenes('background'));
       safeOn(clearBgAllBtn, 'click', () => clearAssetFromAllScenes('background'));
+      safeOn(applyFgSceneBtn, 'click', () => applyAssetToSceneFromInput('foreground', fgSceneTargetEl));
       safeOn(applyFgAllBtn, 'click', () => applyAssetToAllScenes('foreground'));
       safeOn(clearFgAllBtn, 'click', () => clearAssetFromAllScenes('foreground'));
       safeOn(resetSceneAssetsBtn, 'click', resetSceneAssetAssignments);
+      safeOn(bgSceneTargetEl, 'keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        applyAssetToSceneFromInput('background', bgSceneTargetEl);
+      });
+      safeOn(fgSceneTargetEl, 'keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        applyAssetToSceneFromInput('foreground', fgSceneTargetEl);
+      });
       safeOn(createFolderBtn, 'click', createFolder);
       safeOn(createFileBtn, 'click', createFile);
       safeOn(newCodeTabBtn, 'click', createNewCodeTabFile);
@@ -7873,8 +10240,12 @@
         if (!imagePromptEl.value.trim()) {
           imagePromptEl.value = 'Matte black cinematic background, soft vignette, subtle texture, no text, no objects';
         }
+        if (imagePresetEl && !imagePresetEl.value) imagePresetEl.value = 'matte_black_stage';
+        if (imageAssetTypeEl && !imageAssetTypeEl.value) imageAssetTypeEl.value = 'cinematic_background';
+        if (imageMinorEditEl && !String(imageMinorEditEl.value || '').trim()) imageMinorEditEl.value = '';
         if (!includeImagesEl.value) includeImagesEl.value = 'true';
         if (!imageModeEl.value) imageModeEl.value = 'background';
+        if (imageVariantsEl && !imageVariantsEl.value) imageVariantsEl.value = '1';
 
         if (!aspectEl.value) aspectEl.value = '9:16';
         if (!audienceEl.value) audienceEl.value = 'high school';
@@ -7941,13 +10312,17 @@
       loadMemories();
       loadSkills();
       loadWorkspaceFiles();
+      initImagePresetControls();
       renderSources();
       setPreviewAspect(aspectEl.value);
       initChatSessions();
+      startSessionPoller();
       updateEditorMode();
       applyLayoutColumns();
       const didRestore = restoreProject();
       if (!didRestore) seedDemoDefaults();
+      refreshCreativeReadouts();
+      refreshSceneTargetPlaceholders();
       applyVibePreset(vibePresetEl ? vibePresetEl.value : 'cinematic_science', false);
       applyOrientationGuidePreset(orientationGuideEl ? orientationGuideEl.value : 'auto', false);
       ensurePhysicsSubagentsForDemo();
@@ -7963,6 +10338,15 @@
       updateOutputPaths();
       updateTopbarToggles();
       updateStepProgress();
+      refreshSidebarHealth();
+      setInterval(refreshSidebarHealth, 30000);
+      try {
+        const hidden = localStorage.getItem(FIRST60_HIDE_KEY) === '1';
+        setFirst60Visible(!hidden, false);
+      } catch {
+        setFirst60Visible(true, false);
+      }
+      updateFirst60Checklist();
       maybeOpenWelcome();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
