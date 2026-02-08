@@ -469,6 +469,34 @@
         gap: 8px;
         pointer-events: none;
       }
+      .preview-overlay-left {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        z-index: 12;
+      }
+      .preview-aspect-quick {
+        pointer-events: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 8px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.16);
+        background: rgba(12, 15, 20, 0.76);
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .preview-aspect-quick select {
+        margin: 0;
+        width: auto;
+        min-width: 76px;
+        padding: 4px 8px;
+        border-radius: 8px;
+      }
       .overlay-btn {
         pointer-events: auto;
         width: auto;
@@ -534,6 +562,23 @@
       }
       .preview-transport .timeline-controls {
         margin-top: 8px;
+      }
+      .split-controls {
+        margin-top: 8px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .split-controls .ghost,
+      .split-controls .secondary {
+        width: auto;
+        padding: 6px 10px;
+        border-radius: 8px;
+      }
+      #cutRangeLabel {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 11px;
       }
       .preview-empty {
         position: absolute;
@@ -695,6 +740,18 @@
         height: 100%;
         display: flex;
         flex-direction: column;
+      }
+      .timeline-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .timeline-hide-btn {
+        width: auto;
+        padding: 4px 8px;
+        border-radius: 8px;
+        font-size: 11px;
       }
       .timeline-ruler {
         position: relative;
@@ -977,6 +1034,13 @@
         font-size: 11px;
         color: var(--muted);
       }
+      .canvas-grid.timeline-hidden {
+        grid-template-rows: minmax(220px, var(--canvas-top)) 0 minmax(0, 0) minmax(180px, 1fr);
+      }
+      .canvas-grid.timeline-hidden .canvas-splitter,
+      .canvas-grid.timeline-hidden .timeline-card {
+        display: none;
+      }
       .deck-btn {
         width: auto;
         min-width: 34px;
@@ -1152,11 +1216,33 @@
         justify-content: space-between;
         gap: 8px;
       }
+      .chat-session-head-right {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
       .chat-session-name {
         display: flex;
         align-items: center;
         gap: 8px;
         font-size: 12px;
+        min-width: 0;
+      }
+      .chat-session-name-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 120px;
+      }
+      .chat-session-name-input {
+        width: 124px;
+        border-radius: 8px;
+        border: 1px solid rgba(106, 169, 255, 0.55);
+        background: rgba(8, 12, 20, 0.88);
+        color: var(--text);
+        font-size: 11px;
+        padding: 4px 7px;
+        outline: none;
       }
       .chat-session-swatch {
         width: 9px;
@@ -1170,6 +1256,39 @@
         background: rgba(59, 130, 246, 0.12);
         border-radius: 999px;
         padding: 2px 6px;
+      }
+      .chat-session-lock {
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        background: rgba(15, 20, 29, 0.75);
+        color: var(--muted);
+        border-radius: 8px;
+        width: 24px;
+        height: 24px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+      }
+      .chat-session-lock.on {
+        border-color: rgba(34, 197, 94, 0.5);
+        color: #bbf7d0;
+        background: rgba(22, 101, 52, 0.35);
+      }
+      .chat-session-edit {
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        background: rgba(15, 20, 29, 0.75);
+        color: var(--muted);
+        border-radius: 8px;
+        width: 24px;
+        height: 24px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+      }
+      .chat-session-edit:hover {
+        border-color: rgba(106, 169, 255, 0.6);
+        color: var(--text);
       }
       .chat-session-close {
         border: none;
@@ -1202,6 +1321,62 @@
         display: flex;
         align-items: center;
         gap: 8px;
+      }
+      .compose-mode-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 6px;
+        flex-wrap: wrap;
+      }
+      .mode-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 6px 9px;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        border-radius: 999px;
+        background: rgba(15, 20, 29, 0.7);
+        color: var(--muted);
+        cursor: pointer;
+        font-size: 11px;
+        line-height: 1;
+        user-select: none;
+      }
+      .mode-chip input {
+        margin: 0;
+        width: 14px;
+        height: 14px;
+      }
+      .mode-chip .mode-icon {
+        width: 15px;
+        height: 15px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #93c5fd;
+        opacity: 0.95;
+      }
+      .mode-chip .mode-label {
+        font-weight: 700;
+        color: #dbeafe;
+      }
+      .mode-chip.checked {
+        border-color: rgba(106, 169, 255, 0.58);
+        background: linear-gradient(180deg, rgba(59,130,246,0.18), rgba(15,20,29,0.78));
+      }
+      .compose-polish {
+        width: 36px;
+        height: 32px;
+        padding: 0;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .compose-polish svg {
+        width: 16px;
+        height: 16px;
       }
       .first60-panel {
         margin-top: 8px;
@@ -1593,7 +1768,12 @@
         text-transform: uppercase;
         letter-spacing: 1px;
       }
-      .context-tabs { display: flex; gap: 8px; margin-top: 10px; }
+      .context-tabs {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+        flex-wrap: wrap;
+      }
       .ctx-tab {
         width: auto;
         padding: 8px 10px;
@@ -1609,9 +1789,137 @@
         border-color: rgba(106,169,255,0.55);
         background: rgba(106,169,255,0.12);
       }
-      .context-panel { display: none; margin-top: 10px; }
+      .context-panel-shell {
+        margin-top: 10px;
+        min-height: 324px;
+        max-height: 324px;
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 12px;
+        background: rgba(11, 13, 18, 0.42);
+        overflow: hidden;
+        position: relative;
+      }
+      .context-panel {
+        display: none;
+        height: 100%;
+        overflow: auto;
+        padding: 10px;
+      }
       .context-panel.active { display: block; }
       .context-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+      .context-memory-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .context-memory-grid .field {
+        display: grid;
+        gap: 6px;
+      }
+      .context-doc-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .context-actions-row {
+        display: flex;
+        align-items: end;
+        gap: 8px;
+      }
+      .context-skill-help {
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+      .skill-rail-shell {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 8px;
+        align-items: center;
+      }
+      .skill-rail-btn {
+        width: 28px;
+        height: 72px;
+        border-radius: 10px;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        background: rgba(15, 23, 42, 0.7);
+        color: #cbd5e1;
+        cursor: pointer;
+        transition: border-color 0.2s ease;
+      }
+      .skill-rail-btn:hover {
+        border-color: rgba(106, 169, 255, 0.6);
+      }
+      .skill-rail {
+        display: flex;
+        gap: 10px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 4px 2px;
+        scroll-snap-type: x proximity;
+      }
+      .skill-pill {
+        flex: 0 0 74px;
+        width: 74px;
+        border-radius: 14px;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        background: rgba(11, 13, 18, 0.68);
+        color: var(--muted);
+        padding: 8px 6px;
+        display: grid;
+        justify-items: center;
+        gap: 6px;
+        cursor: pointer;
+        transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+        scroll-snap-align: center;
+        animation: skillIn 220ms ease both;
+      }
+      @keyframes skillIn {
+        from { opacity: 0; transform: translateY(4px) scale(0.98); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+      }
+      .skill-pill:hover {
+        transform: translateY(-1px);
+        border-color: rgba(106, 169, 255, 0.5);
+      }
+      .skill-pill.is-selected {
+        color: #dbeafe;
+        border-color: rgba(106, 169, 255, 0.72);
+        background: linear-gradient(180deg, rgba(59,130,246,0.2), rgba(11,13,18,0.7));
+        box-shadow: 0 0 0 1px rgba(106,169,255,0.35) inset, 0 8px 20px rgba(5,10,20,0.45);
+      }
+      .skill-pill-icon {
+        width: 30px;
+        height: 30px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.16);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 800;
+        background: rgba(106, 169, 255, 0.16);
+        color: #cfe3ff;
+      }
+      .skill-pill.is-selected .skill-pill-icon {
+        background: rgba(34, 197, 94, 0.22);
+        color: #dcfce7;
+        border-color: rgba(34, 197, 94, 0.45);
+      }
+      .skill-pill-name {
+        width: 100%;
+        font-size: 11px;
+        line-height: 1.15;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .skill-rail-meta {
+        margin-top: 8px;
+        font-size: 12px;
+        color: var(--muted);
+      }
 
       .drop-target { outline: 2px dashed var(--accent); }
       .context-drop {
@@ -2095,6 +2403,13 @@
         .context-grid { grid-template-columns: 1fr; }
         .settings-shell { grid-template-columns: 1fr; }
         .welcome-grid { grid-template-columns: 1fr; }
+        .preview-overlay-left {
+          top: 8px;
+          left: 8px;
+        }
+        .split-controls {
+          gap: 6px;
+        }
       }
     </style>
   </head>
@@ -2469,6 +2784,12 @@
                       <option value="9:16">9:16</option>
                       <option value="16:9">16:9</option>
                       <option value="1:1">1:1</option>
+                      <option value="4:5">4:5</option>
+                      <option value="3:4">3:4</option>
+                      <option value="2:3">2:3</option>
+                      <option value="3:2">3:2</option>
+                      <option value="4:3">4:3</option>
+                      <option value="21:9">21:9</option>
                     </select>
                   </div>
                 </div>
@@ -2605,6 +2926,25 @@
                   <div class="preview-area">
                     <div class="preview-shell" id="previewSlot"></div>
                   </div>
+                  <div class="preview-overlay-left">
+                    <label class="preview-aspect-quick" title="Quick aspect ratio switch">
+                      <span>Aspect</span>
+                      <select id="aspectQuick" aria-label="Quick aspect ratio">
+                        <option value="9:16">9:16</option>
+                        <option value="16:9">16:9</option>
+                        <option value="1:1">1:1</option>
+                        <option value="4:5">4:5</option>
+                        <option value="3:4">3:4</option>
+                        <option value="2:3">2:3</option>
+                        <option value="3:2">3:2</option>
+                        <option value="4:3">4:3</option>
+                        <option value="21:9">21:9</option>
+                      </select>
+                    </label>
+                    <button id="toggleTimelineBtn" class="overlay-btn" title="Hide or show timeline" aria-label="Toggle timeline">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg>
+                    </button>
+                  </div>
                   <div class="preview-empty" id="previewEmpty">Create a plan, approve it, and your rendered video will appear here.</div>
                   <div class="preview-busy hidden" id="busyOverlay" aria-hidden="true">
                     <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
@@ -2704,6 +3044,13 @@
                     </button>
                     <div class="muted" id="timeReadout">0:00</div>
                   </div>
+                  <div class="split-controls">
+                    <button id="setCutStart" class="ghost">IN</button>
+                    <button id="setCutEnd" class="ghost">OUT</button>
+                    <button id="applyCutRange" class="secondary">Split & remove</button>
+                    <button id="clearCutRange" class="ghost">Clear</button>
+                    <div class="muted" id="cutRangeLabel">Cut range: not set</div>
+                  </div>
                   <div id="deckCarousel" class="deck-inline hidden" aria-label="Render history">
                     <button id="deckPrev" class="deck-btn" title="Previous render">◀</button>
                     <div id="deckTrack" class="deck-inline-track"></div>
@@ -2716,7 +3063,10 @@
 
               <div class="card timeline-card">
                 <div class="timeline-wrap">
-                  <div class="muted" id="timelineLabel">Timeline</div>
+                  <div class="timeline-head">
+                    <div class="muted" id="timelineLabel">Timeline</div>
+                    <button id="timelineHideBtn" class="ghost timeline-hide-btn" title="Hide timeline">Hide</button>
+                  </div>
                   <div class="timeline-ruler" id="timelineRuler" style="margin-top:6px;"></div>
                   <div class="timeline-track" id="timelineTrack"></div>
                   <div class="timeline-hint">Tip: drag scene cards to reorder, drag right-edge to resize, and drop BG/FG assets on a scene.</div>
@@ -2963,56 +3313,62 @@
               <button class="ctx-tab" data-ctx="docs" role="tab" aria-selected="false">Docs</button>
               <button class="ctx-tab" data-ctx="skills" role="tab" aria-selected="false">Skills</button>
             </div>
-
-            <div class="context-panel active" data-ctx="memory" role="tabpanel">
-              <div class="muted" style="margin-bottom:6px;">Save key facts you want Gemini to remember for this run.</div>
-              <div class="row">
-                <div>
-                  <label for="memoryTitle">Title</label>
-                  <input id="memoryTitle" placeholder="Key idea" />
+            <div class="context-panel-shell">
+              <div class="context-panel active" data-ctx="memory" role="tabpanel">
+                <div class="muted" style="margin-bottom:6px;">Save key facts you want Gemini to remember for this run.</div>
+                <div class="context-memory-grid">
+                  <div class="field">
+                    <label for="memoryTitle">Title</label>
+                    <input id="memoryTitle" placeholder="Key idea" />
+                  </div>
+                  <div class="field">
+                    <label for="memoryContent">Content</label>
+                    <input id="memoryContent" placeholder="Threshold frequency depends on work function" />
+                  </div>
                 </div>
-                <div>
-                  <label for="memoryContent">Content</label>
-                  <input id="memoryContent" placeholder="Threshold frequency depends on work function" />
-                </div>
+                <button id="addMemory" style="margin-top:8px;">Add memory</button>
+                <div class="tree" id="memoryList" style="margin-top:8px;"></div>
               </div>
-              <button id="addMemory" style="margin-top:8px;">Add memory</button>
-              <div class="tree" id="memoryList" style="margin-top:8px;"></div>
-            </div>
 
-            <div class="context-panel" data-ctx="docs" role="tabpanel">
-              <div class="muted" style="margin-bottom:6px;">Paste a YouTube/web link + notes. Indexing creates a short source summary you can drag into prompt or timeline.</div>
-              <div class="row">
-                <div>
-                  <label for="sourceUrl">Link</label>
-                  <input id="sourceUrl" placeholder="https://..." />
+              <div class="context-panel" data-ctx="docs" role="tabpanel">
+                <div class="muted" style="margin-bottom:6px;">Paste a YouTube/web link + notes. Indexing creates a short source summary you can drag into prompt or timeline.</div>
+                <div class="context-doc-grid">
+                  <div>
+                    <label for="sourceUrl">Link</label>
+                    <input id="sourceUrl" placeholder="https://..." />
+                  </div>
+                  <div>
+                    <label for="sourceNotes">Notes / transcript</label>
+                    <textarea id="sourceNotes" placeholder="Paste transcript or key points here"></textarea>
+                  </div>
                 </div>
-                <div>
-                  <label for="sourceNotes">Notes / transcript</label>
-                  <textarea id="sourceNotes" placeholder="Paste transcript or key points here"></textarea>
+                <div class="context-doc-grid" style="margin-top:8px;">
+                  <div>
+                    <label for="sourceType">Source type</label>
+                    <select id="sourceType">
+                      <option value="auto">Auto detect</option>
+                      <option value="youtube">YouTube link</option>
+                      <option value="web">Web article/page</option>
+                    </select>
+                  </div>
+                  <div class="context-actions-row">
+                    <button id="indexSource" class="secondary">Index source</button>
+                    <button id="saveSource" class="ghost">Save source</button>
+                  </div>
                 </div>
+                <div id="sourceCards" class="saved-grid" style="margin-top:10px;"></div>
+                <pre id="sourceStatus" class="muted" style="margin-top:10px; white-space:pre-wrap;">No sources yet.</pre>
               </div>
-              <div class="row" style="margin-top:8px;">
-                <div>
-                  <label for="sourceType">Source type</label>
-                  <select id="sourceType">
-                    <option value="auto">Auto detect</option>
-                    <option value="youtube">YouTube link</option>
-                    <option value="web">Web article/page</option>
-                  </select>
-                </div>
-                <div style="display:flex; align-items:end; gap:8px;">
-                  <button id="indexSource" class="secondary">Index source</button>
-                  <button id="saveSource" class="ghost">Save source</button>
-                </div>
-              </div>
-              <div id="sourceCards" class="saved-grid" style="margin-top:10px;"></div>
-              <pre id="sourceStatus" class="muted" style="margin-top:10px; white-space:pre-wrap;">No sources yet.</pre>
-            </div>
 
-            <div class="context-panel" data-ctx="skills" role="tabpanel">
-              <div class="muted" style="margin-bottom:6px;">Select skills to apply to this run (manage in Settings → Skills).</div>
-              <div class="tree" id="skillList" style="margin-top:6px;"></div>
+              <div class="context-panel" data-ctx="skills" role="tabpanel">
+                <div class="context-skill-help">Tap to enable per run. Hover to preview instruction; drag references into prompt.</div>
+                <div class="skill-rail-shell">
+                  <button id="skillRailPrev" class="skill-rail-btn" title="Scroll skills left">◀</button>
+                  <div id="skillList" class="skill-rail"></div>
+                  <button id="skillRailNext" class="skill-rail-btn" title="Scroll skills right">▶</button>
+                </div>
+                <div id="skillRailMeta" class="skill-rail-meta">0 selected</div>
+              </div>
             </div>
           </details>
 
@@ -3039,16 +3395,20 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
             </button>
           </div>
-          <div class="muted" style="display:flex; align-items:center; gap:10px; margin-top:6px;">
-            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+          <div class="compose-mode-row">
+            <label class="mode-chip" title="Crazy mode: run 3 parallel plan+render variants from one prompt.">
               <input id="crazyMode" type="checkbox" />
-              Crazy mode: generate 3 parallel plans + renders
+              <span class="mode-icon" aria-hidden="true">⚡</span>
+              <span class="mode-label">Crazy</span>
             </label>
-            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+            <label class="mode-chip" title="Gemini assist: auto-polish prompt before planning.">
               <input id="geminiAssist" type="checkbox" checked />
-              Gemini assist: auto-polish prompt before planning
+              <span class="mode-icon" aria-hidden="true">✦</span>
+              <span class="mode-label">Assist</span>
             </label>
-            <button id="polishPromptBtn" class="ghost" title="Use Gemini to polish prompt + brief">Polish with Gemini</button>
+            <button id="polishPromptBtn" class="ghost compose-polish" title="Polish prompt + brief with Gemini" aria-label="Polish prompt + brief with Gemini">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.2 4.5L19 10l-4.8 2.5L12 17l-2.2-4.5L5 10l4.8-2.5L12 3z"/><path d="M4 19l1.5-3L9 14.5 7.5 18 4 19z"/><path d="M16.5 18 15 14.5 18.5 16 20 19.5 16.5 18z"/></svg>
+            </button>
           </div>
           <div id="first60Panel" class="first60-panel">
             <div class="first60-head">
@@ -3249,6 +3609,7 @@
       const genImagesBtn = document.getElementById('genImages');
       const includeImagesEl = document.getElementById('includeImages');
       const aspectEl = document.getElementById('aspect');
+      const aspectQuickEl = document.getElementById('aspectQuick');
       const audienceEl = document.getElementById('audience');
       const toneEl = document.getElementById('tone');
       const styleEl = document.getElementById('style');
@@ -3278,6 +3639,9 @@
       const skillGenerateNameEl = document.getElementById('skillGenerateName');
       const generateSkillBtn = document.getElementById('generateSkill');
       const skillListEl = document.getElementById('skillList');
+      const skillRailPrevEl = document.getElementById('skillRailPrev');
+      const skillRailNextEl = document.getElementById('skillRailNext');
+      const skillRailMetaEl = document.getElementById('skillRailMeta');
       const savedSkillCardsEl = document.getElementById('savedSkillCards');
 
       const bgThumbEl = document.getElementById('bgThumb');
@@ -3326,6 +3690,8 @@
       const timelineRulerEl = document.getElementById('timelineRuler');
       const timelineTrackEl = document.getElementById('timelineTrack');
       const timelineLabelEl = document.getElementById('timelineLabel');
+      const timelineHideBtnEl = document.getElementById('timelineHideBtn');
+      const toggleTimelineBtnEl = document.getElementById('toggleTimelineBtn');
       const timelineScrubEl = document.getElementById('timelineScrub');
       const canvasGridEl = document.querySelector('.canvas-grid');
       const canvasSplitterEl = document.getElementById('canvasSplitter');
@@ -3338,6 +3704,11 @@
       const ff5Btn = document.getElementById('ff5');
       const ff10Btn = document.getElementById('ff10');
       const timeReadoutEl = document.getElementById('timeReadout');
+      const setCutStartBtn = document.getElementById('setCutStart');
+      const setCutEndBtn = document.getElementById('setCutEnd');
+      const applyCutRangeBtn = document.getElementById('applyCutRange');
+      const clearCutRangeBtn = document.getElementById('clearCutRange');
+      const cutRangeLabelEl = document.getElementById('cutRangeLabel');
       const codeEl = document.getElementById('code');
       const codeEditorEl = document.getElementById('codeEditor');
       const codeGutterEl = document.getElementById('codeGutter');
@@ -3374,6 +3745,40 @@
         toastTimer = setTimeout(() => {
           toastEl.classList.add('hidden');
         }, 2600);
+      }
+
+      function formatValidationDetails(details) {
+        if (!Array.isArray(details) || !details.length) return '';
+        const first = details[0] || {};
+        const loc = Array.isArray(first.loc) ? first.loc.filter(Boolean).join('.') : '';
+        const msg = String(first.msg || '').trim();
+        if (!loc && !msg) return '';
+        if (!loc) return msg;
+        if (!msg) return loc;
+        return `${loc}: ${msg}`;
+      }
+
+      function normalizeApiError(data, fallback = 'Request failed.') {
+        if (!data) return fallback;
+        if (typeof data === 'string') return data || fallback;
+        const direct = String(data.error || data.message || '').trim();
+        if (direct && direct.toLowerCase() !== 'validation error') return direct;
+        const detail = formatValidationDetails(data.details || data.detail);
+        if (detail) return detail;
+        if (direct) return direct;
+        return fallback;
+      }
+
+      async function parseApiResponse(resp, fallback = 'Request failed.') {
+        let data = null;
+        try {
+          data = await resp.json();
+        } catch {
+          data = null;
+        }
+        if (resp.ok && data && data.ok !== false) return data;
+        const err = normalizeApiError(data, fallback);
+        return { ...(data && typeof data === 'object' ? data : {}), ok: false, error: err };
       }
 
       let isBusy = false;
@@ -3543,6 +3948,7 @@
       const crazyModeEl = document.getElementById('crazyMode');
       const geminiAssistEl = document.getElementById('geminiAssist');
       const polishPromptBtn = document.getElementById('polishPromptBtn');
+      const composeModeChips = Array.from(document.querySelectorAll('.mode-chip'));
       const first60PanelEl = document.getElementById('first60Panel');
       const first60ShowBtn = document.getElementById('first60Show');
       const first60HideBtn = document.getElementById('first60Hide');
@@ -3700,6 +4106,72 @@
         updateTransportUI();
       }
 
+      async function applyVideoCutRange() {
+        if (!currentJobId) {
+          showToast('Render a video first.', 'err');
+          return;
+        }
+        const start = Number(cutStartSec);
+        const end = Number(cutEndSec);
+        if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+          showToast('Set IN and OUT marks first.', 'err');
+          return;
+        }
+        setBusy(true, `Cutting ${fmtTime(start)} -> ${fmtTime(end)}…`, 'Editing');
+        if (applyCutRangeBtn) applyCutRangeBtn.disabled = true;
+        try {
+          const resp = await fetch(`/api/jobs/${encodeURIComponent(currentJobId)}/cut-range`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ start_sec: start, end_sec: end }),
+          });
+          const data = await parseApiResponse(resp, 'Cut range failed.');
+          if (!data.ok) {
+            showToast(data.error || 'Cut range failed.', 'err');
+            if (data.logs) logsEl.textContent = String(data.logs);
+            return;
+          }
+          if (data.video_path) {
+            const src = '/' + data.video_path + '?t=' + Date.now();
+            lastVideoUrl = src;
+            videoEl.src = src;
+            videoEl.load();
+            setVideoAvailable(true);
+            addRenderToDeck({
+              job_id: currentJobId,
+              video_path: data.video_path,
+              appended_from: currentJobId,
+            });
+          }
+          if (data.plan && Array.isArray(data.plan.scenes)) {
+            timelineMeta.title = data.plan.title || timelineMeta.title || 'Scene Plan';
+            timelineState = data.plan.scenes.map((sc) => ({
+              seconds: Math.max(1, Number(sc.seconds || 1)),
+              goal: sc.goal || 'Scene',
+              elements: Array.isArray(sc.elements) ? sc.elements : [],
+              actions: Array.isArray(sc.actions) ? sc.actions : [],
+              narration: sc.narration || '',
+              assets: sc.assets || {},
+            }));
+            renderTimeline();
+            currentPlanText = JSON.stringify(data.plan, null, 2);
+            if (lastPlanBox) lastPlanBox.value = currentPlanText;
+          }
+          if (data.job_files) updateJobFiles(data.job_files);
+          cutStartSec = null;
+          cutEndSec = null;
+          updateCutRangeLabel();
+          updateOutputPaths();
+          pushHistory(`Removed ${fmtTime(start)}-${fmtTime(end)} from ${currentJobId}`);
+          showToast('Range removed.', 'ok');
+        } catch {
+          showToast('Cut request failed.', 'err');
+        } finally {
+          setBusy(false);
+          if (applyCutRangeBtn) applyCutRangeBtn.disabled = false;
+        }
+      }
+
       if (playPauseBtn) {
         playPauseBtn.addEventListener('click', async () => {
           if (!videoEl.src) return;
@@ -3714,6 +4186,28 @@
       if (ff5Btn) ff5Btn.addEventListener('click', () => nudgeVideo(5));
       if (rew10Btn) rew10Btn.addEventListener('click', () => nudgeVideo(-10));
       if (ff10Btn) ff10Btn.addEventListener('click', () => nudgeVideo(10));
+      safeOn(setCutStartBtn, 'click', () => {
+        cutStartSec = Number(videoEl.currentTime || 0);
+        if (cutEndSec != null && cutEndSec < cutStartSec) cutEndSec = null;
+        updateCutRangeLabel();
+      });
+      safeOn(setCutEndBtn, 'click', () => {
+        cutEndSec = Number(videoEl.currentTime || 0);
+        if (cutStartSec != null && cutEndSec < cutStartSec) {
+          const tmp = cutStartSec;
+          cutStartSec = cutEndSec;
+          cutEndSec = tmp;
+        }
+        updateCutRangeLabel();
+      });
+      safeOn(clearCutRangeBtn, 'click', () => {
+        cutStartSec = null;
+        cutEndSec = null;
+        updateCutRangeLabel();
+      });
+      safeOn(applyCutRangeBtn, 'click', applyVideoCutRange);
+      safeOn(timelineHideBtnEl, 'click', () => setTimelineHidden(!timelineHidden));
+      safeOn(toggleTimelineBtnEl, 'click', () => setTimelineHidden(!timelineHidden));
       videoEl.addEventListener('loadedmetadata', updateTransportUI);
       videoEl.addEventListener('play', updateTransportUI);
       videoEl.addEventListener('pause', updateTransportUI);
@@ -4000,6 +4494,9 @@
       let lastPlanBox = null;
       let timelineState = [];
       let timelineMeta = { title: 'Scene Plan' };
+      let timelineHidden = false;
+      let cutStartSec = null;
+      let cutEndSec = null;
       let openFilePath = null;
       let openFileContent = '';
       let pendingRenameFrom = null;
@@ -4017,6 +4514,8 @@
       let selectedTreePath = '';
       let selectedTreeKind = '';
       let skillsCache = [];
+      let selectedSkillIdSet = new Set();
+      let directorBriefTrimAt = 0;
       const renderNoticeByJob = new Set();
       let lastChatSignature = '';
       const SESSION_COLORS = ['#6aa9ff', '#22c55e', '#f59e0b', '#c084fc', '#fb7185', '#14b8a6'];
@@ -4266,6 +4765,8 @@
           subagents_text: subagentsTextEl?.value || '',
           controls: {
             gemini_assist: !!(geminiAssistEl && geminiAssistEl.checked),
+            crazy_mode: !!(crazyModeEl && crazyModeEl.checked),
+            timeline_hidden: !!timelineHidden,
             include_images: includeImagesEl?.value || 'true',
             image_prompt: imagePromptEl?.value || '',
             image_preset: imagePresetEl?.value || '',
@@ -4344,6 +4845,8 @@
         if (snap.subagents_text && subagentsTextEl) subagentsTextEl.value = snap.subagents_text;
         const c = snap.controls || {};
         if (geminiAssistEl && c.gemini_assist !== undefined) geminiAssistEl.checked = !!c.gemini_assist;
+        if (crazyModeEl && c.crazy_mode !== undefined) crazyModeEl.checked = !!c.crazy_mode;
+        if (c.timeline_hidden !== undefined) setTimelineHidden(!!c.timeline_hidden, false);
         if (includeImagesEl && c.include_images) includeImagesEl.value = c.include_images;
         if (imagePromptEl && c.image_prompt) imagePromptEl.value = c.image_prompt;
         if (imagePresetEl && c.image_preset) imagePresetEl.value = c.image_preset;
@@ -4417,6 +4920,7 @@
         if (snap.plan_text) currentPlanText = snap.plan_text;
         if (Array.isArray(snap.timeline)) { timelineState = snap.timeline; renderTimeline(); }
         if (typeof snap.code === 'string') { codeEl.value = snap.code; refreshGutter(); if (highlightOn) refreshHighlight(); }
+        syncComposeModeChips();
         return true;
       }
 
@@ -4671,6 +5175,33 @@
         return lines.join('\n').slice(0, 1200);
       }
 
+      function pickSceneIndexFromPlayback() {
+        if (!Array.isArray(timelineState) || !timelineState.length) return -1;
+        let t = 0;
+        if (videoEl && Number.isFinite(Number(videoEl.currentTime || 0))) {
+          t = Math.max(0, Number(videoEl.currentTime || 0));
+        }
+        let cursor = 0;
+        for (let i = 0; i < timelineState.length; i++) {
+          const dur = Math.max(1, Number(timelineState[i]?.seconds || 1));
+          if (t <= cursor + dur) return i;
+          cursor += dur;
+        }
+        return timelineState.length - 1;
+      }
+
+      function applySourceNoteToScene(sceneIdx, noteText) {
+        const idx = Number(sceneIdx);
+        if (!Number.isInteger(idx) || idx < 0 || idx >= timelineState.length) return false;
+        const note = String(noteText || '').trim();
+        if (!note) return false;
+        const scene = timelineState[idx];
+        scene.narration = [scene.narration || '', note].filter(Boolean).join('\n');
+        renderTimeline();
+        scheduleAutosave();
+        return true;
+      }
+
       async function persistSourceSummaryFile(indexed) {
         if (!indexed || !indexed.markdown) return '';
         let path = indexed.file_suggested_path || `notes/sources/source-${Date.now()}.md`;
@@ -4730,6 +5261,19 @@
             chatInputEl.focus();
             showToast('Indexed context inserted into prompt.', 'ok');
           });
+          const sceneBtn = document.createElement('button');
+          sceneBtn.className = 'ghost';
+          sceneBtn.textContent = 'Use in scene';
+          sceneBtn.title = 'Adds this source summary into the scene at current playback time.';
+          sceneBtn.addEventListener('click', () => {
+            const idxScene = pickSceneIndexFromPlayback();
+            if (idxScene < 0) {
+              showToast('Create a plan first, then apply source to timeline scenes.', 'err');
+              return;
+            }
+            const ok = applySourceNoteToScene(idxScene, sourceTimelineNote(s));
+            if (ok) showToast(`Source applied to scene ${idxScene + 1}.`, 'ok');
+          });
           const delBtn = document.createElement('button');
           delBtn.className = 'ghost';
           delBtn.textContent = 'Remove';
@@ -4740,6 +5284,7 @@
             scheduleAutosave();
           });
           actions.appendChild(useBtn);
+          actions.appendChild(sceneBtn);
           actions.appendChild(delBtn);
           card.appendChild(actions);
           sourceCardsEl.appendChild(card);
@@ -5108,9 +5653,9 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
           });
-          const data = await resp.json();
-          if (!resp.ok || !data.ok) {
-            throw new Error(data?.error || 'Onboarding generation failed.');
+          const data = await parseApiResponse(resp, 'Onboarding generation failed.');
+          if (!data.ok) {
+            throw new Error(data.error || 'Onboarding generation failed.');
           }
           onboardingData = normalizeOnboardingPayload(data);
           onboardingFetched = true;
@@ -5453,6 +5998,53 @@
         return `Session ${idx}`;
       }
 
+      function normalizeSessionName(name, fallbackName) {
+        const raw = String(name || '').trim().replace(/\s+/g, ' ');
+        if (!raw) return String(fallbackName || '').trim() || 'Session';
+        return raw.slice(0, 48);
+      }
+
+      function startSessionRename(session, labelEl) {
+        if (!session || !labelEl) return;
+        if (labelEl.dataset.renaming === '1') return;
+        labelEl.dataset.renaming = '1';
+        const oldName = String(session.name || '');
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'chat-session-name-input';
+        input.value = oldName;
+        input.setAttribute('aria-label', 'Rename session');
+        labelEl.replaceWith(input);
+        input.focus();
+        input.select();
+
+        let done = false;
+        const finish = (commit) => {
+          if (done) return;
+          done = true;
+          if (commit) {
+            const nextName = normalizeSessionName(input.value, oldName);
+            if (nextName !== oldName) {
+              session.name = nextName;
+              scheduleAutosave();
+              showToast(`Renamed: ${nextName}`, 'ok');
+            }
+          }
+          renderChatSessions();
+        };
+
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            finish(true);
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            finish(false);
+          }
+        });
+        input.addEventListener('blur', () => finish(true));
+      }
+
       function switchToSession(session) {
         if (!session) return;
         if (session.id === activeChatSessionId) return;
@@ -5483,31 +6075,83 @@
           updateSessionPhase(session);
           const card = document.createElement('div');
           card.className = `chat-session-card ${session.id === activeChatSessionId ? 'active' : ''}`;
-          card.title = session.context_lock
-            ? `${session.name} (context locked). Memory + skills stay pinned. Double click to unlock.`
-            : `${session.name} (context unlocked). Double click to lock memory + skills to this session.`;
-          const lockTag = session.context_lock ? ' *' : '';
+          card.title = `${session.name}. Double tap name to rename. Use lock icon for pinned context.`;
           const head = document.createElement('div');
           head.className = 'chat-session-card-head';
           const name = document.createElement('div');
           name.className = 'chat-session-name';
-          name.innerHTML = `<span class="chat-session-swatch" style="background:${session.color};"></span><span>${escapeHtml(session.name)}${lockTag}</span>`;
+          name.innerHTML = `<span class="chat-session-swatch" style="background:${session.color};"></span>`;
+          const nameLabel = document.createElement('span');
+          nameLabel.className = 'chat-session-name-label';
+          nameLabel.textContent = session.name || 'Session';
+          nameLabel.title = 'Double click or double tap to rename session';
+          nameLabel.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            startSessionRename(session, nameLabel);
+          });
+          let lastNameTap = 0;
+          nameLabel.addEventListener('click', (e) => {
+            const now = Date.now();
+            if (now - lastNameTap < 320) {
+              e.preventDefault();
+              e.stopPropagation();
+              startSessionRename(session, nameLabel);
+              lastNameTap = 0;
+              return;
+            }
+            lastNameTap = now;
+          });
+          name.appendChild(nameLabel);
           const phase = document.createElement('div');
           phase.className = 'chat-session-phase';
           phase.textContent = sessionPhaseLabel(session);
+          const headRight = document.createElement('div');
+          headRight.className = 'chat-session-head-right';
+          const lockBtn = document.createElement('button');
+          lockBtn.type = 'button';
+          lockBtn.className = `chat-session-lock ${session.context_lock ? 'on' : ''}`;
+          lockBtn.innerHTML = session.context_lock
+            ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 1 1 8 0v4"/></svg>'
+            : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.6-1.8"/></svg>';
+          lockBtn.title = session.context_lock
+            ? 'Context lock on: memory + skills pinned to this session'
+            : 'Context lock off: session uses global context';
+          lockBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            session.context_lock = !session.context_lock;
+            renderChatSessions();
+            scheduleAutosave();
+            showToast(session.context_lock ? `${session.name}: context lock on` : `${session.name}: context lock off`, 'ok');
+          });
+          const editBtn = document.createElement('button');
+          editBtn.type = 'button';
+          editBtn.className = 'chat-session-edit';
+          editBtn.title = `Rename ${session.name}`;
+          editBtn.setAttribute('aria-label', `Rename ${session.name}`);
+          editBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>';
+          editBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            startSessionRename(session, nameLabel);
+          });
           head.appendChild(name);
-          head.appendChild(phase);
+          headRight.appendChild(phase);
+          headRight.appendChild(editBtn);
+          headRight.appendChild(lockBtn);
           card.appendChild(head);
+          head.appendChild(headRight);
           const meta = document.createElement('div');
           meta.className = 'muted';
           meta.textContent = session.job_id ? `Job ${session.job_id}` : 'No job yet';
           card.appendChild(meta);
 
           card.addEventListener('click', () => switchToSession(session));
-          card.addEventListener('dblclick', () => {
-            session.context_lock = !session.context_lock;
-            renderChatSessions();
-            showToast(session.context_lock ? `${session.name}: context lock on` : `${session.name}: context lock off`, 'ok');
+          card.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            startSessionRename(session, nameLabel);
           });
 
           if (chatSessions.length > 1) {
@@ -5555,7 +6199,7 @@
               }
               renderChatSessions();
             });
-            head.appendChild(close);
+            headRight.appendChild(close);
           }
           chatSessionsEl.appendChild(card);
         });
@@ -5857,11 +6501,53 @@
       }
       window.addEventListener('resize', applyLayoutColumns);
 
+      function parseAspectRatioValue(ratio) {
+        const m = String(ratio || '').trim().match(/^(\d+(?:\.\d+)?)\s*[:/]\s*(\d+(?:\.\d+)?)$/);
+        if (!m) return null;
+        const w = Number(m[1]);
+        const h = Number(m[2]);
+        if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return null;
+        return { w, h };
+      }
+
       function setPreviewAspect(ratio) {
-        let val = '9 / 16';
-        if (ratio === '16:9') val = '16 / 9';
-        if (ratio === '1:1') val = '1 / 1';
-        previewSlot.style.setProperty('--preview-aspect', val);
+        const parsed = parseAspectRatioValue(ratio);
+        const safe = parsed ? `${parsed.w} / ${parsed.h}` : '9 / 16';
+        previewSlot.style.setProperty('--preview-aspect', safe);
+        const val = parsed ? `${parsed.w}:${parsed.h}` : '9:16';
+        if (aspectEl && aspectEl.value !== val) aspectEl.value = val;
+        if (aspectQuickEl && aspectQuickEl.value !== val) aspectQuickEl.value = val;
+      }
+
+      function syncComposeModeChips() {
+        composeModeChips.forEach((chip) => {
+          const input = chip.querySelector('input[type="checkbox"]');
+          chip.classList.toggle('checked', !!(input && input.checked));
+        });
+      }
+
+      function refreshTimelineVisibility() {
+        if (!canvasGridEl) return;
+        canvasGridEl.classList.toggle('timeline-hidden', !!timelineHidden);
+        if (timelineHideBtnEl) timelineHideBtnEl.textContent = timelineHidden ? 'Show' : 'Hide';
+        if (toggleTimelineBtnEl) toggleTimelineBtnEl.title = timelineHidden ? 'Show timeline' : 'Hide timeline';
+      }
+
+      function setTimelineHidden(hidden, persist = true) {
+        timelineHidden = !!hidden;
+        refreshTimelineVisibility();
+        if (persist) scheduleAutosave();
+      }
+
+      function updateCutRangeLabel() {
+        if (!cutRangeLabelEl) return;
+        if (cutStartSec == null && cutEndSec == null) {
+          cutRangeLabelEl.textContent = 'Cut range: not set';
+          return;
+        }
+        const left = cutStartSec == null ? '--:--' : fmtTime(cutStartSec);
+        const right = cutEndSec == null ? '--:--' : fmtTime(cutEndSec);
+        cutRangeLabelEl.textContent = `Cut range: ${left} -> ${right}`;
       }
 
       function applyVibePreset(preset, announce = false) {
@@ -7165,7 +7851,7 @@
               variants: imageVariantsEl ? Number(imageVariantsEl.value || 1) : 1
             })
           });
-          const data = await resp.json();
+          const data = await parseApiResponse(resp, 'Image generation failed.');
           if (!data.ok) {
             showToast(data.error || 'Image generation failed.', 'err');
             return;
@@ -8174,7 +8860,20 @@
         renderSkills(skills);
       }
 
+      function updateSkillRailMeta() {
+        if (!skillRailMetaEl) return;
+        const selected = selectedSkillIdSet.size;
+        const total = (skillsCache || []).length;
+        skillRailMetaEl.textContent = `${selected} selected • ${total} total`;
+      }
+
+      function scrollSkillRail(deltaPx) {
+        if (!skillListEl) return;
+        skillListEl.scrollBy({ left: deltaPx, behavior: 'smooth' });
+      }
+
       function renderSkills(skills) {
+        const prevSelected = new Set(selectedSkillIdSet);
         skillsCache = (skills || []).map((skill, idx) => {
           const rawName = String(skill.name || '').replace(/\\n/g, '\n');
           const firstNameLine = cleanInline(rawName.split('\n')[0] || '');
@@ -8198,19 +8897,52 @@
             _nick: nick,
           };
         });
+        selectedSkillIdSet = new Set(
+          (skillsCache || [])
+            .map((s) => String(s.id || ''))
+            .filter((id) => id && prevSelected.has(id))
+        );
         skillListEl.innerHTML = '';
         if (savedSkillCardsEl) savedSkillCardsEl.innerHTML = '';
         (skillsCache || []).forEach(skill => {
           const displayName = skill._display || 'Skill';
-          const row = document.createElement('div');
-          row.className = 'tree-file';
-          row.innerHTML = `<label><input type="checkbox" data-id="${skill.id}" data-name="${displayName}" /> ${displayName}</label>`;
-          skillListEl.appendChild(row);
+          const nick = skill._nick || makeHandle(displayName, 'skill');
+          const icon = String(displayName || 'S').trim().charAt(0).toUpperCase() || 'S';
+          const desc = compactLabel((skill.content || '').replace(/\\n/g, ' '), 120) || 'Reusable instruction skill';
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'skill-pill';
+          btn.dataset.id = String(skill.id || '');
+          btn.dataset.nick = nick;
+          btn.dataset.name = displayName;
+          btn.title = `${displayName}\n@${nick}\n${desc}`;
+          if (selectedSkillIdSet.has(String(skill.id || ''))) {
+            btn.classList.add('is-selected');
+          }
+          btn.innerHTML = `<span class="skill-pill-icon">${icon}</span><span class="skill-pill-name">${displayName}</span>`;
+          btn.addEventListener('click', () => {
+            const sid = String(skill.id || '');
+            if (!sid) return;
+            if (selectedSkillIdSet.has(sid)) selectedSkillIdSet.delete(sid);
+            else selectedSkillIdSet.add(sid);
+            btn.classList.toggle('is-selected', selectedSkillIdSet.has(sid));
+            updateSkillRailMeta();
+            scheduleAutosave();
+          });
+          btn.draggable = true;
+          btn.addEventListener('dragstart', (e) => {
+            const token = `@${nick}`;
+            const snippet = `[Skill ${displayName}] ${skill.content || ''}`.slice(0, 600);
+            e.dataTransfer.setData('text/plain', `${token}\n${snippet}`);
+            e.dataTransfer.setData('text/skill-token', token);
+            e.dataTransfer.setData('text/skill-id', String(skill.id || ''));
+            e.dataTransfer.effectAllowed = 'copy';
+          });
+          skillListEl.appendChild(btn);
 
           if (savedSkillCardsEl) {
             const card = document.createElement('div');
             card.className = 'saved-card';
-            const nick = skill._nick || makeHandle(displayName, 'skill');
             card.innerHTML = `<div class="saved-card-title">S • ${displayName}</div><div class="saved-card-body">@${nick} ${(skill.content || '').replace(/\\n/g, ' ').slice(0, 140)}</div>`;
             card.title = `Insert @${nick} into prompt`;
             card.style.cursor = 'pointer';
@@ -8223,6 +8955,7 @@
             savedSkillCardsEl.appendChild(card);
           }
         });
+        updateSkillRailMeta();
         renderMentionBar();
       }
 
@@ -8371,7 +9104,7 @@
       }
 
       function selectedSkillIds() {
-        return Array.from(skillListEl.querySelectorAll('input[type="checkbox"]')).filter(cb => cb.checked).map(cb => cb.dataset.id);
+        return Array.from(selectedSkillIdSet);
       }
 
       function selectedSkillIdsWithMentions(promptText) {
@@ -8918,6 +9651,14 @@
         return true;
       }
 
+      const DIRECTOR_BRIEF_SOFT_LIMIT = 2200;
+      function clipDirectorBrief(text) {
+        const raw = String(text || '').trim();
+        if (!raw) return null;
+        if (raw.length <= DIRECTOR_BRIEF_SOFT_LIMIT) return raw;
+        return `${raw.slice(0, DIRECTOR_BRIEF_SOFT_LIMIT)}\n\n[Auto-trimmed for request size.]`;
+      }
+
       async function handleAgenticEditCommand(raw) {
         const text = String(raw || '').trim().toLowerCase();
         if (!text) return false;
@@ -9024,7 +9765,7 @@
           }).join('\n\n');
           pieces.push(`References:\n${block}`);
         }
-        return pieces.join('\n\n') || null;
+        return clipDirectorBrief(pieces.join('\n\n'));
       }
 
       async function runGeminiPromptPolish(opts = {}) {
@@ -9054,7 +9795,7 @@
               model: chatModelEl.value || null
             })
           });
-          data = await resp.json();
+          data = await parseApiResponse(resp, 'Gemini assist failed.');
         } catch {
           data = { ok: false, error: 'Gemini assist failed: backend not reachable.' };
         }
@@ -9190,7 +9931,7 @@
               model: chatModelEl.value || null
             })
           });
-          data = await resp.json();
+          data = await parseApiResponse(resp, 'Plan request failed.');
         } catch (e) {
           setBusy(false, 'Failed to reach backend.');
           showToast('Backend not reachable.', 'err');
@@ -9369,7 +10110,7 @@
               image_model: imageModelOverrideEl.value || null,
             }),
           });
-          data = await resp.json();
+          data = await parseApiResponse(resp, 'Crazy mode request failed.');
         } catch {
           data = { ok: false, error: 'Backend not reachable.' };
         } finally {
@@ -9739,7 +10480,7 @@
                 model: chatModelEl.value || null
               })
             });
-            const data = await resp.json();
+            const data = await parseApiResponse(resp, 'Approve & render failed.');
             if (!data.ok) {
               setBusy(false, 'Render failed.');
               showToast(data.error || 'Render failed.', 'err');
@@ -9882,7 +10623,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code: codeEl.value, quality: qualityEl.value })
         });
-        const data = await resp.json();
+        const data = await parseApiResponse(resp, 'Render code request failed.');
         if (!data.ok) {
           statusEl.textContent = data.error || 'Render failed.';
           showToast(data.error || 'Render failed.', 'err');
@@ -10051,6 +10792,8 @@
         openWelcome();
       });
       safeOn(addMemoryBtn, 'click', addMemory);
+      safeOn(skillRailPrevEl, 'click', () => scrollSkillRail(-240));
+      safeOn(skillRailNextEl, 'click', () => scrollSkillRail(240));
       safeOn(saveSkillBtn, 'click', saveSkill);
       safeOn(generateSkillBtn, 'click', generateSkill);
       safeOn(subagentsTextEl, 'input', () => {
@@ -10058,6 +10801,18 @@
         scheduleAutosave();
       });
       safeOn(aspectEl, 'change', () => setPreviewAspect(aspectEl.value));
+      safeOn(aspectQuickEl, 'change', () => {
+        setPreviewAspect(aspectQuickEl.value);
+        scheduleAutosave();
+      });
+      safeOn(crazyModeEl, 'change', () => {
+        syncComposeModeChips();
+        scheduleAutosave();
+      });
+      safeOn(geminiAssistEl, 'change', () => {
+        syncComposeModeChips();
+        scheduleAutosave();
+      });
       safeOn(imagePresetEl, 'change', () => {
         applyImagePreset(imagePresetEl.value, true);
       });
@@ -10321,6 +11076,8 @@
       applyLayoutColumns();
       const didRestore = restoreProject();
       if (!didRestore) seedDemoDefaults();
+      syncComposeModeChips();
+      refreshTimelineVisibility();
       refreshCreativeReadouts();
       refreshSceneTargetPlaceholders();
       applyVibePreset(vibePresetEl ? vibePresetEl.value : 'cinematic_science', false);

@@ -28,7 +28,7 @@ from .prompts import (
     manim_code_user_prompt,
     scene_plan_user_prompt,
 )
-from .renderer import concat_videos, render_with_manim
+from .renderer import concat_videos, cut_video_range, render_with_manim
 from .storage import job_paths, new_job_id
 from .templates import TEMPLATES
 from .code_format import CodeSanitizationError, sanitize_manim_code
@@ -197,6 +197,11 @@ class UploadJobAssetReq(BaseModel):
 class AppendReq(BaseModel):
     base_job_id: str
     next_job_id: str
+
+
+class CutRangeReq(BaseModel):
+    start_sec: float
+    end_sec: float
 
 
 class VoiceoverReq(BaseModel):
@@ -443,24 +448,47 @@ def _render_settings(req: AnimateReq) -> str:
     return _render_settings_ratio(req.aspect_ratio)
 
 
+def _parse_aspect_ratio(ratio: str) -> tuple[float, float] | None:
+    m = re.match(r"^\s*(\d+(?:\.\d+)?)\s*[:/]\s*(\d+(?:\.\d+)?)\s*$", str(ratio or ""))
+    if not m:
+        return None
+    w = float(m.group(1))
+    h = float(m.group(2))
+    if w <= 0 or h <= 0:
+        return None
+    return (w, h)
+
+
 def _render_settings_ratio(ratio: str) -> str:
-    ratio = ratio.strip()
-    if ratio == "9:16":
+    ratio = str(ratio or "").strip() or "9:16"
+    parsed = _parse_aspect_ratio(ratio)
+    if not parsed:
         return (
-            "Aspect ratio 9:16 (vertical). Set config.pixel_width=1080, "
-            "config.pixel_height=1920, config.frame_width=9, config.frame_height=16."
+            f"Aspect ratio {ratio}. "
+            "Use a ratio like 9:16, 16:9, 4:3, 3:2, 1:1 and set matching "
+            "config.pixel_width/pixel_height and frame_width/frame_height."
         )
-    if ratio == "16:9":
-        return (
-            "Aspect ratio 16:9 (horizontal). Set config.pixel_width=1920, "
-            "config.pixel_height=1080, config.frame_width=16, config.frame_height=9."
-        )
-    if ratio == "1:1":
-        return (
-            "Aspect ratio 1:1 (square). Set config.pixel_width=1080, "
-            "config.pixel_height=1080, config.frame_width=10, config.frame_height=10."
-        )
-    return f"Aspect ratio {ratio}. Choose appropriate config.pixel_width/pixel_height."
+
+    w, h = parsed
+    short_px = 1080
+    if w >= h:
+        pixel_height = short_px
+        pixel_width = int(round((w / h) * short_px / 2.0) * 2)
+        frame_height = 9.0 if abs((w / h) - 1.0) > 0.05 else 10.0
+        frame_width = round(frame_height * (w / h), 3)
+        orientation = "horizontal"
+    else:
+        pixel_width = short_px
+        pixel_height = int(round((h / w) * short_px / 2.0) * 2)
+        frame_width = 9.0 if abs((w / h) - 1.0) > 0.05 else 10.0
+        frame_height = round(frame_width * (h / w), 3)
+        orientation = "vertical"
+
+    return (
+        f"Aspect ratio {ratio} ({orientation}). "
+        f"Set config.pixel_width={pixel_width}, config.pixel_height={pixel_height}, "
+        f"config.frame_width={frame_width}, config.frame_height={frame_height}."
+    )
 
 
 def _job_files(paths) -> list[str]:
@@ -514,11 +542,20 @@ def _parse_json(text: str) -> Dict[str, Any]:
         raise
 
 
-def _bounded_text(field: str, value: Optional[str], *, max_len: int, required: bool = False) -> str:
+def _bounded_text(
+    field: str,
+    value: Optional[str],
+    *,
+    max_len: int,
+    required: bool = False,
+    truncate: bool = False,
+) -> str:
     txt = (value or "").strip()
     if required and not txt:
         raise ValueError(f"{field} is required")
     if len(txt) > max_len:
+        if truncate:
+            return txt[:max_len]
         raise ValueError(f"{field} is too long (max {max_len} chars)")
     return txt
 
@@ -666,6 +703,62 @@ def _merge_plans(base_plan: Dict[str, Any], next_plan: Dict[str, Any]) -> Dict[s
         "total_seconds": round(total, 2),
         "scenes": merged_scenes,
     }
+
+
+def _cut_plan_range(plan: Dict[str, Any], *, start_sec: float, end_sec: float) -> Dict[str, Any]:
+    """Remove [start_sec, end_sec] from plan timeline and keep scenes coherent."""
+    src_scenes = list(plan.get("scenes") or [])
+    if not src_scenes:
+        return plan
+    start_sec = max(0.0, float(start_sec))
+    end_sec = max(start_sec, float(end_sec))
+
+    out_scenes: list[Dict[str, Any]] = []
+    cursor = 0.0
+    for sc in src_scenes:
+        dur = max(1.0, float(sc.get("seconds") or 1.0))
+        seg_start = cursor
+        seg_end = cursor + dur
+        cursor = seg_end
+
+        # No overlap with cut range.
+        if seg_end <= start_sec or seg_start >= end_sec:
+            out_scenes.append(dict(sc))
+            continue
+
+        # Fully removed scene.
+        if seg_start >= start_sec and seg_end <= end_sec:
+            continue
+
+        # Partial overlap; keep remaining duration.
+        removed = max(0.0, min(seg_end, end_sec) - max(seg_start, start_sec))
+        remain = max(0.5, dur - removed)
+        keep = dict(sc)
+        keep["seconds"] = round(remain, 2)
+        out_scenes.append(keep)
+
+    if not out_scenes:
+        out_scenes = [
+            {
+                "seconds": 3,
+                "goal": "Quick outro",
+                "elements": [],
+                "actions": [],
+                "narration": "Quick outro after cut.",
+                "assets": {},
+            }
+        ]
+
+    total = 0.0
+    for sc in out_scenes:
+        try:
+            total += float(sc.get("seconds") or 0.0)
+        except Exception:
+            continue
+    merged = dict(plan)
+    merged["scenes"] = out_scenes
+    merged["total_seconds"] = round(total, 2)
+    return merged
 
 
 def _resolve_output_copy_dir(raw: Optional[str]) -> Optional[Path]:
@@ -1582,7 +1675,13 @@ def templates():
 def gemini_refine(req: GeminiRefineReq):
     try:
         idea = _bounded_text("idea", req.idea, max_len=6000, required=True)
-        director_brief = _bounded_text("director_brief", req.director_brief, max_len=24000, required=False)
+        director_brief = _bounded_text(
+            "director_brief",
+            req.director_brief,
+            max_len=24000,
+            required=False,
+            truncate=True,
+        )
         image_prompt = _bounded_text("image_prompt", req.image_prompt, max_len=1600, required=False)
     except ValueError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
@@ -1774,7 +1873,13 @@ def onboarding_quickstart(req: OnboardingReq):
 def plan(req: PlanReq):
     try:
         idea = _bounded_text("idea", req.idea, max_len=6000, required=True)
-        _ = _bounded_text("director_brief", req.director_brief, max_len=1800, required=False)
+        _ = _bounded_text(
+            "director_brief",
+            req.director_brief,
+            max_len=24000,
+            required=False,
+            truncate=True,
+        )
         _ = _bounded_text("image_prompt", req.image_prompt, max_len=1200, required=False)
     except ValueError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
@@ -2195,7 +2300,13 @@ def build_script_packs(job_id: str, req: Optional[ScriptPackReq] = None):
 def crazy_run(req: CrazyRunReq):
     try:
         idea = _bounded_text("idea", req.idea, max_len=6000, required=True)
-        _ = _bounded_text("director_brief", req.director_brief, max_len=1800, required=False)
+        _ = _bounded_text(
+            "director_brief",
+            req.director_brief,
+            max_len=24000,
+            required=False,
+            truncate=True,
+        )
         _ = _bounded_text("image_prompt", req.image_prompt, max_len=1200, required=False)
     except ValueError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
@@ -2384,11 +2495,67 @@ def append_job_video(req: AppendReq):
     }
 
 
+@app.post("/api/jobs/{job_id}/cut-range")
+def cut_job_video_range(job_id: str, req: CutRangeReq):
+    paths = job_paths(JOBS, job_id)
+    if not paths.job_dir.exists():
+        return JSONResponse({"ok": False, "error": "Unknown job_id"}, status_code=404)
+    if not paths.out_mp4.exists():
+        return JSONResponse({"ok": False, "error": "No rendered video to cut yet."}, status_code=400)
+
+    start_sec = float(req.start_sec)
+    end_sec = float(req.end_sec)
+    if start_sec < 0 or end_sec <= start_sec:
+        return JSONResponse({"ok": False, "error": "Invalid cut range."}, status_code=400)
+
+    tmp_out = paths.job_dir / "out-cut.mp4"
+    ok, logs = cut_video_range(
+        paths.out_mp4,
+        start_s=start_sec,
+        end_s=end_sec,
+        out_video=tmp_out,
+    )
+    (paths.job_dir / "cut_logs.txt").write_text(logs or "", encoding="utf-8")
+    if not ok or not tmp_out.exists():
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Video cut failed",
+                "logs": (logs or "")[-7000:],
+            },
+            status_code=500,
+        )
+
+    tmp_out.replace(paths.out_mp4)
+    plan_obj: Dict[str, Any] | None = None
+    if paths.plan_path.exists():
+        try:
+            existing = json.loads(paths.plan_path.read_text(encoding="utf-8"))
+            plan_obj = _cut_plan_range(existing, start_sec=start_sec, end_sec=end_sec)
+            paths.plan_path.write_text(json.dumps(plan_obj, indent=2), encoding="utf-8")
+        except Exception:
+            plan_obj = None
+
+    return {
+        "ok": True,
+        "job_id": job_id,
+        "video_path": str(paths.out_mp4.relative_to(ROOT)),
+        "plan": plan_obj,
+        "job_files": _job_files(paths),
+    }
+
+
 @app.post("/api/animate")
 def animate(req: AnimateReq):
     try:
         idea = _bounded_text("idea", req.idea, max_len=6000, required=True)
-        _ = _bounded_text("director_brief", req.director_brief, max_len=1800, required=False)
+        _ = _bounded_text(
+            "director_brief",
+            req.director_brief,
+            max_len=24000,
+            required=False,
+            truncate=True,
+        )
         _ = _bounded_text("image_prompt", req.image_prompt, max_len=1200, required=False)
     except ValueError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
