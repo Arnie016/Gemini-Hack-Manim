@@ -928,6 +928,25 @@
         overflow: hidden;
         text-overflow: ellipsis;
       }
+      .timeline-scene-delete {
+        width: 22px;
+        height: 22px;
+        border-radius: 8px;
+        border: 1px solid rgba(239, 68, 68, 0.35);
+        background: rgba(127, 29, 29, 0.28);
+        color: #fecaca;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        cursor: pointer;
+        padding: 0;
+        flex-shrink: 0;
+      }
+      .timeline-scene-delete:hover {
+        border-color: rgba(248, 113, 113, 0.65);
+        background: rgba(127, 29, 29, 0.44);
+      }
       .timeline-block-meta {
         display: inline-flex;
         align-items: center;
@@ -1329,6 +1348,27 @@
         margin-top: 6px;
         flex-wrap: nowrap;
         overflow-x: auto;
+      }
+      .crazy-countdown {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        border: 1px solid rgba(106, 169, 255, 0.36);
+        border-radius: 999px;
+        background: rgba(11, 13, 18, 0.75);
+        white-space: nowrap;
+        animation: pulseGlow 1.1s ease-in-out infinite;
+      }
+      .crazy-countdown-text {
+        font-size: 11px;
+        color: #dbeafe;
+        font-weight: 700;
+      }
+      @keyframes pulseGlow {
+        0% { box-shadow: 0 0 0 rgba(106,169,255,0); }
+        50% { box-shadow: 0 0 16px rgba(106,169,255,0.28); }
+        100% { box-shadow: 0 0 0 rgba(106,169,255,0); }
       }
       .mode-chip {
         display: inline-flex;
@@ -1798,10 +1838,10 @@
         background: rgba(106,169,255,0.12);
       }
       .context-panel-shell {
-        margin-top: 10px;
-        height: var(--context-panel-height, 236px);
-        min-height: 220px;
-        max-height: 280px;
+        margin-top: 8px;
+        height: var(--context-panel-height, 176px);
+        min-height: 176px;
+        max-height: 176px;
         border: 1px solid rgba(255,255,255,0.08);
         border-radius: 12px;
         background: rgba(11, 13, 18, 0.42);
@@ -1812,7 +1852,7 @@
         display: none;
         height: 100%;
         overflow: auto;
-        padding: 8px 10px;
+        padding: 8px 10px 10px;
       }
       .context-panel.active { display: block; }
       .context-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
@@ -1878,6 +1918,11 @@
         margin-top: 8px;
         font-size: 12px;
         color: var(--muted);
+      }
+      #memoryList {
+        margin-top: 8px;
+        max-height: 94px;
+        overflow: auto;
       }
       .context-actions-row {
         display: flex;
@@ -1976,8 +2021,8 @@
         white-space: nowrap;
       }
       .skill-rail-meta {
-        margin-top: 8px;
-        font-size: 12px;
+        margin-top: 6px;
+        font-size: 11px;
         color: var(--muted);
       }
       .skill-tooltip {
@@ -3433,7 +3478,7 @@
                   </div>
                 </div>
                 <button id="addMemory" style="margin-top:8px;">Add memory</button>
-                <div class="tree" id="memoryList" style="margin-top:8px;"></div>
+                <div class="tree" id="memoryList"></div>
               </div>
 
               <div class="context-panel" data-ctx="docs" role="tabpanel">
@@ -3505,7 +3550,7 @@
             <label class="mode-chip" title="Crazy mode (3 parallel plan+render variants)">
               <input id="crazyMode" type="checkbox" />
               <span class="mode-icon" aria-hidden="true">⚡</span>
-              <span class="mode-label">Crazy</span>
+              <span class="mode-label">Crazy mode</span>
             </label>
             <label class="mode-chip" title="Gemini assist (auto-polish prompt before planning)">
               <input id="geminiAssist" type="checkbox" checked />
@@ -3515,6 +3560,10 @@
             <button id="polishPromptBtn" class="ghost compose-polish" title="Polish prompt + brief with Gemini" aria-label="Polish prompt + brief with Gemini">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.2 4.5L19 10l-4.8 2.5L12 17l-2.2-4.5L5 10l4.8-2.5L12 3z"/><path d="M4 19l1.5-3L9 14.5 7.5 18 4 19z"/><path d="M16.5 18 15 14.5 18.5 16 20 19.5 16.5 18z"/></svg>
             </button>
+            <div id="crazyCountdown" class="crazy-countdown hidden" aria-live="polite">
+              <span id="crazyCountdownText" class="crazy-countdown-text">Crazy mode starts in 10s</span>
+              <button id="crazyUndoBtn" class="ghost" title="Undo crazy mode launch">Undo</button>
+            </div>
           </div>
           <div id="first60Panel" class="first60-panel">
             <div class="first60-head">
@@ -3891,6 +3940,8 @@
       }
 
       let isBusy = false;
+      let crazyCountdownTimer = null;
+      let crazyCountdownRemaining = 0;
       let busyThoughtTimer = null;
       let busyThoughtIndex = 0;
       function busyThoughtPool(phase) {
@@ -3954,6 +4005,62 @@
         if (renderCodeBtn) renderCodeBtn.disabled = !!isBusy;
         if (toggleHighlightBtn) toggleHighlightBtn.disabled = isBusy;
         if (!isBusy) updateEditorMode();
+      }
+
+      function updateCrazyCountdownText() {
+        if (!crazyCountdownTextEl) return;
+        const secs = Math.max(0, Number(crazyCountdownRemaining || 0));
+        crazyCountdownTextEl.textContent = `Crazy mode starts in ${secs}s`;
+      }
+
+      function hideCrazyCountdown() {
+        if (crazyCountdownEl) crazyCountdownEl.classList.add('hidden');
+        if (crazyUndoBtnEl) crazyUndoBtnEl.disabled = true;
+      }
+
+      function cancelCrazyCountdown(message = 'Crazy mode cancelled.') {
+        if (crazyCountdownTimer) {
+          clearInterval(crazyCountdownTimer);
+          crazyCountdownTimer = null;
+        }
+        crazyCountdownRemaining = 0;
+        hideCrazyCountdown();
+        if (!isBusy && planBtn) planBtn.disabled = false;
+        if (message) {
+          statusEl.textContent = message;
+          showToast(message, 'ok');
+          setStepNote('plan', 'Crazy mode cancelled.');
+        }
+      }
+
+      function startCrazyCountdown() {
+        if (crazyCountdownTimer) return;
+        const idea = String(chatInputEl?.value || '').trim();
+        if (!idea) {
+          statusEl.textContent = 'Type a prompt first.';
+          showToast('Type a prompt first.', 'err');
+          return;
+        }
+        crazyCountdownRemaining = 10;
+        updateCrazyCountdownText();
+        if (crazyCountdownEl) crazyCountdownEl.classList.remove('hidden');
+        if (crazyUndoBtnEl) crazyUndoBtnEl.disabled = false;
+        if (!isBusy && planBtn) planBtn.disabled = true;
+        setStep('plan', 'active');
+        setStepNote('plan', 'Crazy mode armed. Launching 3 parallel runs in 10s (Undo available).');
+        statusEl.textContent = 'Crazy mode armed: 3 parallel runs in 10 seconds.';
+        crazyCountdownTimer = setInterval(() => {
+          crazyCountdownRemaining -= 1;
+          if (crazyCountdownRemaining <= 0) {
+            clearInterval(crazyCountdownTimer);
+            crazyCountdownTimer = null;
+            hideCrazyCountdown();
+            if (!isBusy && planBtn) planBtn.disabled = false;
+            void createCrazyRun();
+            return;
+          }
+          updateCrazyCountdownText();
+        }, 1000);
       }
 
       window.addEventListener('error', (e) => {
@@ -4056,6 +4163,9 @@
       const refreshSidebarHealthBtn = document.getElementById('refreshSidebarHealth');
       const crazyModeEl = document.getElementById('crazyMode');
       const geminiAssistEl = document.getElementById('geminiAssist');
+      const crazyCountdownEl = document.getElementById('crazyCountdown');
+      const crazyCountdownTextEl = document.getElementById('crazyCountdownText');
+      const crazyUndoBtnEl = document.getElementById('crazyUndoBtn');
       const polishPromptBtn = document.getElementById('polishPromptBtn');
       const composeModeChips = Array.from(document.querySelectorAll('.mode-chip'));
       const first60PanelEl = document.getElementById('first60Panel');
@@ -5524,6 +5634,7 @@
       });
 
       document.getElementById('backBtn').addEventListener('click', () => {
+        cancelCrazyCountdown('');
         resetSteps();
         currentJobId = null;
         appendFromJobId = null;
@@ -7311,9 +7422,7 @@
       }
 
       function contextPanelHeightForTab(id) {
-        if (id === 'docs') return 250;
-        if (id === 'skills') return 214;
-        return 232; // memory
+        return 176;
       }
 
       function applyContextPanelHeight(id) {
@@ -9570,8 +9679,37 @@
           headerMeta.className = 'timeline-block-meta';
           if (scene.assets?.background) headerMeta.appendChild(buildTimelineAssetDot('background', scene.assets.background));
           if (scene.assets?.foreground) headerMeta.appendChild(buildTimelineAssetDot('foreground', scene.assets.foreground));
+          const delSceneBtn = document.createElement('button');
+          delSceneBtn.type = 'button';
+          delSceneBtn.className = 'timeline-scene-delete';
+          delSceneBtn.title = `Delete scene ${idx + 1}`;
+          delSceneBtn.setAttribute('aria-label', `Delete scene ${idx + 1}`);
+          delSceneBtn.innerHTML = '✕';
+          delSceneBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const removed = timelineState.splice(idx, 1);
+            if (!removed.length) return;
+            if (!timelineState.length) {
+              timelineState.push({
+                seconds: 4,
+                goal: 'New scene',
+                elements: [],
+                actions: [],
+                narration: '',
+                assets: {},
+              });
+            }
+            renderTimeline();
+            syncPlanFromTimeline();
+            setStepNote('approve', 'Plan updated after scene deletion. Approve & Render to apply.');
+            statusEl.textContent = `Deleted scene ${idx + 1}.`;
+            showToast(`Deleted scene ${idx + 1}.`, 'ok');
+            pushHistory(`Deleted scene ${idx + 1}`);
+          });
           header.appendChild(headerLabel);
           header.appendChild(headerMeta);
+          header.appendChild(delSceneBtn);
 
           const editRow = document.createElement('div');
           editRow.className = 'timeline-edit-row';
@@ -10126,7 +10264,7 @@
 
       async function createPlan() {
         if (crazyModeEl && crazyModeEl.checked) {
-          await createCrazyRun();
+          startCrazyCountdown();
           return;
         }
         resetSteps();
@@ -10313,6 +10451,7 @@
       }
 
       async function createCrazyRun() {
+        cancelCrazyCountdown('');
         let idea = chatInputEl.value.trim();
         if (!idea) return;
         if (await runSlashCommand(idea)) return;
@@ -10979,6 +11118,10 @@
       }
 
       safeOn(planBtn, 'click', createPlan);
+      safeOn(crazyUndoBtnEl, 'click', () => cancelCrazyCountdown('Crazy mode launch cancelled.'));
+      safeOn(crazyModeEl, 'change', () => {
+        if (!crazyModeEl.checked) cancelCrazyCountdown('');
+      });
       safeOn(polishPromptBtn, 'click', () => runGeminiPromptPolish({ silent: false }));
       safeOn(first60DemoBtn, 'click', () => {
         seedDemoDefaults();
@@ -11146,7 +11289,9 @@
           return;
         }
         setSourceStatus('Indexing source with Gemini…', 'loading');
+        const indexBtnLabel = indexSourceBtn.textContent || 'Index source';
         indexSourceBtn.disabled = true;
+        indexSourceBtn.textContent = 'Indexing…';
         try {
           const resp = await fetch('/api/docs/index', {
             method: 'POST',
@@ -11193,6 +11338,7 @@
           showToast('Failed to reach backend.', 'err');
         } finally {
           indexSourceBtn.disabled = false;
+          indexSourceBtn.textContent = indexBtnLabel;
         }
       });
 

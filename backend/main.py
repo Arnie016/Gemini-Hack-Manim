@@ -517,16 +517,24 @@ def _fetch_youtube_transcript(
         ).strip()
         or None
     )
+    fallback_description = str((player.get("videoDetails") or {}).get("shortDescription") or "").strip()
+
+    def _description_fallback(reason: str) -> tuple[Optional[str], str, Optional[str], Optional[str]]:
+        if fallback_description:
+            clipped = fallback_description[:6000]
+            return (title, clipped, None, f"{reason} Used video description fallback.")
+        return (title, "", None, reason)
+
     tracks = (
         ((player.get("captions") or {}).get("playerCaptionsTracklistRenderer") or {}).get("captionTracks")
         or []
     )
     if not tracks:
-        return (title, "", None, "No caption tracks available for this video.")
+        return _description_fallback("No caption tracks available for this video.")
 
     track = _pick_caption_track(tracks)
     if not track:
-        return (title, "", None, "No usable caption track found.")
+        return _description_fallback("No usable caption track found.")
 
     lang = str(track.get("languageCode") or "").strip() or None
     base_url = str(track.get("baseUrl") or "").strip()
@@ -541,6 +549,9 @@ def _fetch_youtube_transcript(
 
     transcript = _extract_transcript_text(cap.text or "")
     if not transcript:
+        desc_title, desc_text, _, desc_reason = _description_fallback("Transcript payload was empty.")
+        if desc_text:
+            return (desc_title, desc_text, lang, desc_reason)
         return (title, "", lang, "Transcript payload was empty.")
     return (title, transcript, lang, None)
 
