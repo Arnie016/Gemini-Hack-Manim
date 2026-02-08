@@ -1310,13 +1310,35 @@
         color: var(--text);
       }
       .chat-session-close {
-        border: none;
-        background: transparent;
-        color: inherit;
-        font-size: 12px;
-        line-height: 1;
-        width: auto;
+        border: 1px solid rgba(244, 63, 94, 0.28);
+        background: rgba(36, 10, 18, 0.55);
+        color: #fda4af;
+        border-radius: 8px;
+        width: 24px;
+        height: 24px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         padding: 0;
+        cursor: pointer;
+      }
+      .chat-session-close:hover {
+        border-color: rgba(244, 63, 94, 0.55);
+        background: rgba(64, 16, 30, 0.66);
+      }
+      .chat-session-close.confirm,
+      .chat-session-close.cancel {
+        border-color: rgba(148, 163, 184, 0.35);
+        background: rgba(15, 20, 29, 0.72);
+        color: var(--muted);
+      }
+      .chat-session-close.confirm {
+        border-color: rgba(34, 197, 94, 0.55);
+        color: #86efac;
+      }
+      .chat-session-close.cancel {
+        border-color: rgba(244, 63, 94, 0.45);
+        color: #fda4af;
       }
       .chat-session-add {
         width: auto;
@@ -1808,6 +1830,9 @@
         white-space: pre-wrap;
       }
 
+      .context-block {
+        margin: 4px 0 6px;
+      }
       .context-block summary {
         cursor: pointer;
         color: var(--muted);
@@ -1815,6 +1840,7 @@
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 1px;
+        margin-bottom: 4px;
       }
       .context-tabs {
         display: flex;
@@ -1839,9 +1865,9 @@
       }
       .context-panel-shell {
         margin-top: 8px;
-        height: var(--context-panel-height, 176px);
-        min-height: 176px;
-        max-height: 176px;
+        height: var(--context-panel-height, 126px);
+        min-height: 126px;
+        max-height: 126px;
         border: 1px solid rgba(255,255,255,0.08);
         border-radius: 12px;
         background: rgba(11, 13, 18, 0.42);
@@ -1852,14 +1878,20 @@
         display: none;
         height: 100%;
         overflow: auto;
-        padding: 8px 10px 10px;
+        padding: 6px 9px 7px;
+      }
+      .context-panel textarea {
+        min-height: 42px;
+      }
+      #sourceNotes {
+        min-height: 46px;
       }
       .context-panel.active { display: block; }
       .context-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
       .context-memory-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 8px;
+        gap: 6px;
       }
       .context-memory-grid .field {
         display: grid;
@@ -1868,7 +1900,7 @@
       .context-doc-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 8px;
+        gap: 6px;
       }
       .source-status {
         margin-top: 8px;
@@ -1896,6 +1928,21 @@
       .source-status.ok { color: #93c5fd; }
       .source-status.warn { color: #facc15; }
       .source-status.err { color: #fca5a5; }
+      .index-skeleton {
+        position: relative;
+        overflow: hidden;
+      }
+      .index-skeleton::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        transform: translateX(-100%);
+        background: linear-gradient(90deg, transparent, rgba(106,169,255,0.2), transparent);
+        animation: shimmer 1s ease-in-out infinite;
+      }
+      @keyframes shimmer {
+        100% { transform: translateX(100%); }
+      }
       .memory-entry {
         margin-top: 8px;
         border: 1px solid rgba(255,255,255,0.08);
@@ -1920,8 +1967,8 @@
         color: var(--muted);
       }
       #memoryList {
-        margin-top: 8px;
-        max-height: 94px;
+        margin-top: 6px;
+        max-height: 36px;
         overflow: auto;
       }
       .context-actions-row {
@@ -1930,9 +1977,9 @@
         gap: 8px;
       }
       .context-skill-help {
-        font-size: 12px;
+        font-size: 11px;
         color: var(--muted);
-        margin-bottom: 8px;
+        margin-bottom: 4px;
       }
       .skill-rail-shell {
         display: grid;
@@ -1941,8 +1988,8 @@
         align-items: center;
       }
       .skill-rail-btn {
-        width: 24px;
-        height: 58px;
+        width: 22px;
+        height: 46px;
         border-radius: 10px;
         border: 1px solid rgba(148, 163, 184, 0.2);
         background: rgba(15, 23, 42, 0.7);
@@ -1958,7 +2005,7 @@
         gap: 8px;
         overflow-x: auto;
         overflow-y: hidden;
-        padding: 4px 0 6px 0;
+        padding: 2px 0 4px 0;
         scroll-snap-type: x mandatory;
         scrollbar-width: thin;
       }
@@ -2021,9 +2068,29 @@
         white-space: nowrap;
       }
       .skill-rail-meta {
-        margin-top: 6px;
-        font-size: 11px;
+        margin-top: 4px;
+        font-size: 10px;
         color: var(--muted);
+      }
+      .context-panel .saved-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 6px;
+        margin-top: 8px;
+      }
+      #sourceCards {
+        max-height: 56px;
+        overflow: auto;
+      }
+      .context-panel .saved-card {
+        padding: 7px 8px;
+      }
+      .context-panel .saved-card .saved-card-body {
+        max-height: 40px;
+      }
+      .context-panel .saved-card .row.small {
+        gap: 6px;
+        flex-wrap: wrap;
       }
       .skill-tooltip {
         position: fixed;
@@ -3077,7 +3144,10 @@
                       <span>Aspect</span>
                       <select id="aspectQuick" aria-label="Quick aspect ratio">
                         <option value="9:16">9:16</option>
+                        <option value="9:19.5">9:19.5</option>
                         <option value="16:9">16:9</option>
+                        <option value="2:1">2:1</option>
+                        <option value="1:2">1:2</option>
                         <option value="1:1">1:1</option>
                         <option value="4:5">4:5</option>
                         <option value="3:4">3:4</option>
@@ -3460,9 +3530,9 @@
           <details class="context-block">
             <summary>Context</summary>
             <div class="context-tabs" role="tablist" aria-label="Context tabs">
-              <button class="ctx-tab active" data-ctx="memory" role="tab" aria-selected="true">Memory</button>
-              <button class="ctx-tab" data-ctx="docs" role="tab" aria-selected="false">Docs</button>
-              <button class="ctx-tab" data-ctx="skills" role="tab" aria-selected="false">Skills</button>
+              <button class="ctx-tab active" data-ctx="memory" role="tab" aria-selected="true" title="Memory facts for this run">Memory</button>
+              <button class="ctx-tab" data-ctx="docs" role="tab" aria-selected="false" title="Indexed links, transcripts, and source summaries">Docs</button>
+              <button class="ctx-tab" data-ctx="skills" role="tab" aria-selected="false" title="Skill icon rail with quick enable/disable">Skills</button>
             </div>
             <div class="context-panel-shell">
               <div class="context-panel active" data-ctx="memory" role="tabpanel">
@@ -3547,10 +3617,10 @@
             </button>
           </div>
           <div class="compose-mode-row">
-            <label class="mode-chip" title="Crazy mode (3 parallel plan+render variants)">
+            <label class="mode-chip" title="Crazy mode: run 3 parallel plan+render variants">
               <input id="crazyMode" type="checkbox" />
               <span class="mode-icon" aria-hidden="true">⚡</span>
-              <span class="mode-label">Crazy mode</span>
+              <span class="mode-label">Crazy</span>
             </label>
             <label class="mode-chip" title="Gemini assist (auto-polish prompt before planning)">
               <input id="geminiAssist" type="checkbox" checked />
@@ -3561,7 +3631,7 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.2 4.5L19 10l-4.8 2.5L12 17l-2.2-4.5L5 10l4.8-2.5L12 3z"/><path d="M4 19l1.5-3L9 14.5 7.5 18 4 19z"/><path d="M16.5 18 15 14.5 18.5 16 20 19.5 16.5 18z"/></svg>
             </button>
             <div id="crazyCountdown" class="crazy-countdown hidden" aria-live="polite">
-              <span id="crazyCountdownText" class="crazy-countdown-text">Crazy mode starts in 10s</span>
+              <span id="crazyCountdownText" class="crazy-countdown-text">Crazy in 10s</span>
               <button id="crazyUndoBtn" class="ghost" title="Undo crazy mode launch">Undo</button>
             </div>
           </div>
@@ -3928,20 +3998,29 @@
       }
 
       async function parseApiResponse(resp, fallback = 'Request failed.') {
+        let raw = '';
         let data = null;
         try {
-          data = await resp.json();
+          raw = await resp.text();
+          data = raw ? JSON.parse(raw) : null;
         } catch {
           data = null;
         }
         if (resp.ok && data && data.ok !== false) return data;
-        const err = normalizeApiError(data, fallback);
+        let err = normalizeApiError(data, fallback);
+        if ((!err || err === fallback) && raw) {
+          const clipped = String(raw).trim().slice(0, 400);
+          if (clipped) err = `HTTP ${resp.status}: ${clipped}`;
+        } else if (!err || err === fallback) {
+          err = `HTTP ${resp.status}: ${fallback}`;
+        }
         return { ...(data && typeof data === 'object' ? data : {}), ok: false, error: err };
       }
 
       let isBusy = false;
       let crazyCountdownTimer = null;
       let crazyCountdownRemaining = 0;
+      let crazyCountdownAction = null;
       let busyThoughtTimer = null;
       let busyThoughtIndex = 0;
       function busyThoughtPool(phase) {
@@ -4010,7 +4089,7 @@
       function updateCrazyCountdownText() {
         if (!crazyCountdownTextEl) return;
         const secs = Math.max(0, Number(crazyCountdownRemaining || 0));
-        crazyCountdownTextEl.textContent = `Crazy mode starts in ${secs}s`;
+        crazyCountdownTextEl.textContent = `Crazy in ${secs}s`;
       }
 
       function hideCrazyCountdown() {
@@ -4023,17 +4102,18 @@
           clearInterval(crazyCountdownTimer);
           crazyCountdownTimer = null;
         }
+        crazyCountdownAction = null;
         crazyCountdownRemaining = 0;
         hideCrazyCountdown();
         if (!isBusy && planBtn) planBtn.disabled = false;
         if (message) {
           statusEl.textContent = message;
           showToast(message, 'ok');
-          setStepNote('plan', 'Crazy mode cancelled.');
+          setStepNote('approve', 'Crazy mode cancelled before launch.');
         }
       }
 
-      function startCrazyCountdown() {
+      function startCrazyCountdown(onDone = null) {
         if (crazyCountdownTimer) return;
         const idea = String(chatInputEl?.value || '').trim();
         if (!idea) {
@@ -4041,14 +4121,15 @@
           showToast('Type a prompt first.', 'err');
           return;
         }
+        crazyCountdownAction = typeof onDone === 'function' ? onDone : null;
         crazyCountdownRemaining = 10;
         updateCrazyCountdownText();
         if (crazyCountdownEl) crazyCountdownEl.classList.remove('hidden');
         if (crazyUndoBtnEl) crazyUndoBtnEl.disabled = false;
         if (!isBusy && planBtn) planBtn.disabled = true;
-        setStep('plan', 'active');
-        setStepNote('plan', 'Crazy mode armed. Launching 3 parallel runs in 10s (Undo available).');
-        statusEl.textContent = 'Crazy mode armed: 3 parallel runs in 10 seconds.';
+        setStep('approve', 'active');
+        setStepNote('approve', 'Crazy mode armed. Press Undo within 10s to cancel.');
+        statusEl.textContent = 'Crazy mode armed. Launching 3 variants in 10 seconds.';
         crazyCountdownTimer = setInterval(() => {
           crazyCountdownRemaining -= 1;
           if (crazyCountdownRemaining <= 0) {
@@ -4056,7 +4137,9 @@
             crazyCountdownTimer = null;
             hideCrazyCountdown();
             if (!isBusy && planBtn) planBtn.disabled = false;
-            void createCrazyRun();
+            const run = crazyCountdownAction || createCrazyRun;
+            crazyCountdownAction = null;
+            void run();
             return;
           }
           updateCrazyCountdownText();
@@ -5127,6 +5210,9 @@
             step_states: s.step_states || { plan: '', approve: '', code: '', render: '' },
             step_notes: s.step_notes || { ...defaultStepNotes },
             phase: String(s.phase || 'idle'),
+            created_at: Number(s.created_at || Date.now()),
+            missing_checks: Number(s.missing_checks || 0),
+            pending_delete: false,
           }));
           activeChatSessionId = String(snap.active_chat_session_id || chatSessions[0].id);
           if (!chatSessions.some((s) => s.id === activeChatSessionId)) {
@@ -5350,6 +5436,43 @@
           file_path: filePath,
           saved_at: s.saved_at || new Date().toISOString(),
         };
+      }
+
+      function extractYouTubeIdFromUrl(url) {
+        const raw = String(url || '').trim();
+        if (!raw) return '';
+        try {
+          const u = new URL(raw);
+          if (u.hostname.includes('youtu.be')) {
+            return u.pathname.replace(/^\/+/, '').split('/')[0] || '';
+          }
+          if (u.searchParams.get('v')) return String(u.searchParams.get('v') || '');
+          const m = u.pathname.match(/\/shorts\/([A-Za-z0-9_-]+)/);
+          if (m) return m[1];
+          return '';
+        } catch {
+          return '';
+        }
+      }
+
+      function buildYoutubeFallbackSource(url, notes) {
+        const videoId = extractYouTubeIdFromUrl(url);
+        const title = videoId ? `YouTube source (${videoId})` : 'YouTube source';
+        const cleanNotes = cleanInline(notes || '');
+        const summary = cleanNotes || 'Transcript unavailable. Add key points in Notes and re-index for a stronger summary.';
+        return normalizeSourceRecord({
+          id: `src-yt-fallback-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+          kind: 'youtube',
+          source_type: 'youtube',
+          video_id: videoId,
+          url,
+          title,
+          summary,
+          notes: String(notes || '').trim(),
+          key_points: cleanNotes ? [cleanNotes] : ['Transcript unavailable; summary was created from URL and notes only.'],
+          prompt_hint: 'Use this source cautiously and mark assumptions if transcript is unavailable.',
+          saved_at: new Date().toISOString(),
+        });
       }
 
       function upsertSource(source) {
@@ -6277,6 +6400,31 @@
         renderChatSessions();
       }
 
+      function deleteSessionById(sessionId) {
+        const idx = chatSessions.findIndex((s) => s.id === sessionId);
+        if (idx < 0) return;
+        const wasActive = chatSessions[idx].id === activeChatSessionId;
+        if (wasActive) {
+          try { if (jobEventSource) jobEventSource.close(); } catch {}
+          jobEventSource = null;
+          setBusy(false);
+          cancelCrazyCountdown('');
+        }
+        chatSessions.splice(idx, 1);
+        if (!chatSessions.length) {
+          const fallback = createSessionRecord(makeSessionName(1));
+          fallback.id = `chat-${Date.now()}`;
+          chatSessions.push(fallback);
+        }
+        if (wasActive) {
+          const next = chatSessions[Math.max(0, idx - 1)] || chatSessions[0];
+          activeChatSessionId = next.id;
+          restoreSessionState(next);
+        }
+        scheduleAutosave();
+        renderChatSessions();
+      }
+
       function sessionPhaseLabel(session) {
         const phase = session?.phase || 'idle';
         if (phase === 'rendered') return 'Rendered';
@@ -6284,7 +6432,9 @@
         if (phase === 'coding') return 'Coding';
         if (phase === 'approve') return 'Awaiting approval';
         if (phase === 'planning') return 'Planning';
+        if (phase === 'queued') return 'Queued';
         if (phase === 'planned') return 'Planned';
+        if (phase === 'stale') return 'Missing';
         return 'Idle';
       }
 
@@ -6317,6 +6467,7 @@
         chatSessionsEl.innerHTML = '';
         chatSessions.forEach((session) => {
           updateSessionPhase(session);
+          if (session.pending_delete !== true) session.pending_delete = false;
           const card = document.createElement('div');
           card.className = `chat-session-card ${session.id === activeChatSessionId ? 'active' : ''}`;
           card.title = `${session.name}. Double tap name to rename. Use lock icon for pinned context.`;
@@ -6383,8 +6534,16 @@
           head.appendChild(headRight);
           const meta = document.createElement('div');
           meta.className = 'muted';
-          meta.textContent = session.job_id ? `Job ${session.job_id}` : 'No job yet';
+          if (session.phase === 'stale') meta.textContent = 'Missing job state (stale session)';
+          else meta.textContent = session.job_id ? `Job ${session.job_id}` : 'No job yet';
           card.appendChild(meta);
+
+          meta.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            startSessionRename(session, nameLabel);
+          });
+          bindTouchDoubleTap(meta, () => startSessionRename(session, nameLabel));
 
           card.addEventListener('click', () => switchToSession(session));
           card.addEventListener('dblclick', (e) => {
@@ -6395,51 +6554,46 @@
           bindTouchDoubleTap(card, () => startSessionRename(session, nameLabel));
 
           if (chatSessions.length > 1) {
-            const close = document.createElement('button');
-            close.type = 'button';
-            close.className = 'chat-session-close';
-            close.textContent = '×';
-            close.title = `Close ${session.name}`;
-            close.addEventListener('click', (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              const idx = chatSessions.findIndex((s) => s.id === session.id);
-              if (idx < 0) return;
-              const wasActive = session.id === activeChatSessionId;
-              chatSessions.splice(idx, 1);
-              if (!chatSessions.length) {
-                const fallback = {
-                  id: `chat-${Date.now()}`,
-                  name: makeSessionName(1),
-                  color: SESSION_COLORS[0],
-                  prompt: '',
-                  model: chatModelEl?.value || 'gemini-3-flash-preview',
-                  messages_html: '',
-                  last_sig: '',
-                  context_lock: false,
-                  job_id: '',
-                  plan_text: '',
-                  timeline_state: [],
-                  timeline_meta: { title: 'Scene Plan' },
-                  video_url: '',
-                  logs_text: '',
-                  diagnosis: '',
-                  code_diff: '',
-                  retry_result: '',
-                  step_states: {},
-                  step_notes: { ...defaultStepNotes },
-                  phase: 'idle',
-                };
-                chatSessions.push(fallback);
-              }
-              if (wasActive) {
-                const next = chatSessions[Math.max(0, idx - 1)] || chatSessions[0];
-                activeChatSessionId = next.id;
-                restoreSessionState(next);
-              }
-              renderChatSessions();
-            });
-            headRight.appendChild(close);
+            if (session.pending_delete) {
+              const yesBtn = document.createElement('button');
+              yesBtn.type = 'button';
+              yesBtn.className = 'chat-session-close confirm';
+              yesBtn.title = `Confirm delete ${session.name}`;
+              yesBtn.textContent = '✓';
+              yesBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                deleteSessionById(session.id);
+                showToast(`Deleted ${session.name}`, 'ok');
+              });
+              const noBtn = document.createElement('button');
+              noBtn.type = 'button';
+              noBtn.className = 'chat-session-close cancel';
+              noBtn.title = 'Cancel delete';
+              noBtn.textContent = '✕';
+              noBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                session.pending_delete = false;
+                renderChatSessions();
+              });
+              headRight.appendChild(yesBtn);
+              headRight.appendChild(noBtn);
+            } else {
+              const close = document.createElement('button');
+              close.type = 'button';
+              close.className = 'chat-session-close';
+              close.title = `Delete ${session.name}`;
+              close.setAttribute('aria-label', `Delete ${session.name}`);
+              close.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M8 6v14h8V6"/><path d="M10 10v7"/><path d="M14 10v7"/></svg>';
+              close.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                session.pending_delete = true;
+                renderChatSessions();
+              });
+              headRight.appendChild(close);
+            }
           }
           chatSessionsEl.appendChild(card);
         });
@@ -6451,29 +6605,7 @@
         addBtn.title = 'New chat session';
         addBtn.addEventListener('click', () => {
           saveActiveSessionState();
-          const nextIndex = chatSessions.length + 1;
-          const s = {
-            id: `chat-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
-            name: makeSessionName(nextIndex),
-            color: SESSION_COLORS[(nextIndex - 1) % SESSION_COLORS.length],
-            prompt: '',
-            model: chatModelEl?.value || 'gemini-3-flash-preview',
-            messages_html: '',
-            last_sig: '',
-            context_lock: false,
-            job_id: '',
-            plan_text: '',
-            timeline_state: [],
-            timeline_meta: { title: 'Scene Plan' },
-            video_url: '',
-            logs_text: '',
-            diagnosis: '',
-            code_diff: '',
-            retry_result: '',
-            step_states: {},
-            step_notes: { ...defaultStepNotes },
-            phase: 'idle',
-          };
+          const s = createSessionRecord();
           chatSessions.push(s);
           activeChatSessionId = s.id;
           restoreSessionState(s);
@@ -6581,15 +6713,60 @@
       }
 
       let sessionPoller = null;
+      function markSessionStale(session, message) {
+        if (!session) return;
+        session.job_id = '';
+        session.phase = 'stale';
+        session.missing_checks = 0;
+        session.pending_delete = false;
+        session.step_states = { plan: '', approve: '', code: '', render: '' };
+        session.step_notes = {
+          plan: message || 'Linked job is no longer available.',
+          approve: defaultStepNotes.approve,
+          code: defaultStepNotes.code,
+          render: defaultStepNotes.render,
+        };
+      }
       async function pollSessionStatuses() {
         if (!chatSessions.length) return;
+        let changed = false;
+        const now = Date.now();
         for (const session of chatSessions) {
           if (!session.job_id) continue;
           if (session.phase === 'rendered' || session.phase === 'failed') continue;
           try {
             const resp = await fetch(`/api/jobs/${encodeURIComponent(session.job_id)}`);
+            if (resp.status === 404) {
+              session.missing_checks = Number(session.missing_checks || 0) + 1;
+              const ageMs = now - Number(session.created_at || 0);
+              if (ageMs < 12000 && session.missing_checks < 4) {
+                if (session.id === activeChatSessionId) {
+                  statusEl.textContent = 'Waiting for job registration...';
+                }
+                continue;
+              }
+              markSessionStale(session, 'Job not found. This session can be deleted or reused.');
+              changed = true;
+              if (session.id === activeChatSessionId) {
+                statusEl.textContent = 'Active session job not found. Keeping session shell for reuse.';
+              }
+              continue;
+            }
             const st = await resp.json();
-            if (!st.ok) continue;
+            if (!st.ok) {
+              const maybeUnknown = String(st.error || '').toLowerCase();
+              if (resp.status === 404 || maybeUnknown.includes('unknown job')) {
+                session.missing_checks = Number(session.missing_checks || 0) + 1;
+                const ageMs = now - Number(session.created_at || 0);
+                if (ageMs < 12000 && session.missing_checks < 4) {
+                  continue;
+                }
+                markSessionStale(session, 'Job not found. This session can be deleted or reused.');
+                changed = true;
+              }
+              continue;
+            }
+            session.missing_checks = 0;
             applyJobStateToSession(session, st);
             if (session.id === activeChatSessionId) {
               applySessionToUI(session);
@@ -6597,6 +6774,7 @@
           } catch {}
         }
         renderChatSessions();
+        if (changed) scheduleAutosave();
       }
 
       function startSessionPoller() {
@@ -6606,25 +6784,11 @@
 
       function initChatSessions() {
         if (!chatSessions.length) {
-          chatSessions.push({
-            id: 'chat-1',
-            name: makeSessionName(1),
-            color: SESSION_COLORS[0],
-            prompt: '',
-            model: chatModelEl?.value || 'gemini-3-flash-preview',
-            messages_html: '',
-            last_sig: '',
-            context_lock: false,
-            job_id: '',
-            plan_text: '',
-            timeline_state: [],
-            timeline_meta: { title: 'Scene Plan' },
-            video_url: '',
-            logs_text: '',
-            step_states: { plan: '', approve: '', code: '', render: '' },
-            step_notes: { ...defaultStepNotes },
-            phase: 'idle',
-          });
+          const first = createSessionRecord(makeSessionName(1));
+          first.id = 'chat-1';
+          first.color = SESSION_COLORS[0];
+          first.step_states = { plan: '', approve: '', code: '', render: '' };
+          chatSessions.push(first);
         }
         if (!activeChatSessionId) activeChatSessionId = chatSessions[0].id;
         restoreSessionState(getActiveChatSession());
@@ -7422,7 +7586,7 @@
       }
 
       function contextPanelHeightForTab(id) {
-        return 176;
+        return 126;
       }
 
       function applyContextPanelHeight(id) {
@@ -9134,7 +9298,7 @@
         if (!skillRailMetaEl) return;
         const selected = selectedSkillIdSet.size;
         const total = (skillsCache || []).length;
-        skillRailMetaEl.textContent = `${selected} selected • swipe for more (${total})`;
+        skillRailMetaEl.textContent = `${selected} selected / ${total}`;
       }
 
       function scrollSkillRail(deltaPx) {
@@ -10263,10 +10427,6 @@
       }
 
       async function createPlan() {
-        if (crazyModeEl && crazyModeEl.checked) {
-          startCrazyCountdown();
-          return;
-        }
         resetSteps();
         setStep('plan', 'active');
         setStepNote('plan', 'Sending prompt to Gemini for scene planning…');
@@ -10382,9 +10542,19 @@
 
         approveBtn.addEventListener('click', async () => {
           approveBtn.disabled = true;
-          approveBtn.textContent = 'Rendering…';
+          approveBtn.textContent = 'Processing…';
           if (timelineState.length) {
             syncPlanFromTimeline();
+          }
+          if (crazyModeEl && crazyModeEl.checked) {
+            startCrazyCountdown(async () => {
+              await createCrazyRun();
+            });
+            approveBtn.disabled = false;
+            approveBtn.textContent = 'Approve & Render';
+            setStep('approve', 'active');
+            setStepNote('approve', 'Crazy mode armed. Undo within 10s or launch 3 variants.');
+            return;
           }
           await approvePlan(lastPlanBox ? lastPlanBox.value : planBox.value);
           approveBtn.disabled = false;
@@ -10447,6 +10617,9 @@
           diagnosis: '',
           code_diff: '',
           retry_result: '',
+          created_at: Date.now(),
+          missing_checks: 0,
+          pending_delete: false,
         };
       }
 
@@ -10463,7 +10636,7 @@
         }
         setBusy(true, 'Launching 3 parallel variants…', 'Crazy mode');
         setStep('plan', 'active');
-        setStepNote('plan', 'Creating 3 parallel plans and renders…');
+        setStepNote('plan', 'Running 3 variants in parallel…');
         let data = null;
         try {
           const resp = await fetch('/api/crazy-run', {
@@ -10542,7 +10715,7 @@
             code: 'Generating code…',
             render: 'Rendering…',
           };
-          session.phase = 'planning';
+          session.phase = 'queued';
           session.job_files = Array.isArray(j.job_files) ? j.job_files : [];
           chatSessions.push(session);
           created.push(session);
@@ -11288,10 +11461,24 @@
           showToast('Enter a source URL first.', 'err');
           return;
         }
-        setSourceStatus('Indexing source with Gemini…', 'loading');
+        const looksYoutube = /youtu\.be|youtube\.com/i.test(url);
+        setSourceStatus(
+          looksYoutube
+            ? 'Indexing YouTube source (fetching transcript/description)…'
+            : 'Indexing source with Gemini…',
+          'loading'
+        );
         const indexBtnLabel = indexSourceBtn.textContent || 'Index source';
         indexSourceBtn.disabled = true;
         indexSourceBtn.textContent = 'Indexing…';
+        if (sourceCardsEl) {
+          sourceCardsEl.innerHTML = `
+            <div class="saved-card index-skeleton">
+              <div class="saved-card-title">Preparing source summary…</div>
+              <div class="saved-card-body">Gemini is extracting context and key points.</div>
+            </div>
+          `;
+        }
         try {
           const resp = await fetch('/api/docs/index', {
             method: 'POST',
@@ -11303,10 +11490,18 @@
               model: chatModelEl?.value || null,
             }),
           });
-          const data = await resp.json();
+          const data = await parseApiResponse(resp, 'Indexing failed.');
           if (!data.ok || !data.indexed) {
-            setSourceStatus(data.error || 'Indexing failed.', 'err');
-            showToast(data.error || 'Indexing failed.', 'err');
+            if (looksYoutube) {
+              const fallback = buildYoutubeFallbackSource(url, notes);
+              upsertSource(fallback);
+              setSourceStatus('YouTube fallback saved. Add notes/transcript and re-index for richer context.', 'warn');
+              showToast(data.error || 'Transcript unavailable, fallback source saved.', 'ok');
+            } else {
+              setSourceStatus(data.error || 'Indexing failed.', 'err');
+              showToast(data.error || 'Indexing failed.', 'err');
+            }
+            renderSources();
             return;
           }
           const indexed = normalizeSourceRecord({
@@ -11334,8 +11529,16 @@
           sourceNotesEl.value = '';
           scheduleAutosave();
         } catch {
-          setSourceStatus('Failed to reach backend. Is the server running?', 'err');
-          showToast('Failed to reach backend.', 'err');
+          if (looksYoutube) {
+            const fallback = buildYoutubeFallbackSource(url, notes);
+            upsertSource(fallback);
+            setSourceStatus('Backend unavailable. Saved YouTube source in fallback mode.', 'warn');
+            showToast('Saved fallback source (backend unavailable).', 'ok');
+          } else {
+            setSourceStatus('Failed to reach backend. Is the server running?', 'err');
+            showToast('Failed to reach backend.', 'err');
+          }
+          renderSources();
         } finally {
           indexSourceBtn.disabled = false;
           indexSourceBtn.textContent = indexBtnLabel;
