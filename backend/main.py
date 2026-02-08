@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import base64
+import concurrent.futures
+import html
 import json
 import logging
 import re
@@ -8,10 +10,12 @@ import secrets
 import time
 import shutil
 import subprocess
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Dict, Optional, List
 from urllib.parse import parse_qs, urlparse
 
+import requests
 from fastapi import FastAPI, Response, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
@@ -396,6 +400,149 @@ def _index_source_with_gemini(
         model=model,
     )
     return _parse_json(text)
+
+
+def _extract_player_response_json(page_html: str) -> Optional[Dict[str, Any]]:
+    patterns = [
+        r"ytInitialPlayerResponse\s*=\s*(\{.*?\});",
+        r"var\s+ytInitialPlayerResponse\s*=\s*(\{.*?\});",
+    ]
+    for pattern in patterns:
+        m = re.search(pattern, page_html, re.S)
+        if not m:
+            continue
+        try:
+            return json.loads(m.group(1))
+        except Exception:
+            continue
+    return None
+
+
+def _pick_caption_track(caption_tracks: list[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if not caption_tracks:
+        return None
+
+    def score(track: Dict[str, Any]) -> tuple[int, int]:
+        lang = str(track.get("languageCode") or "").lower()
+        kind = str(track.get("kind") or "").lower()
+        is_en = 1 if lang.startswith("en") else 0
+        is_manual = 1 if kind != "asr" else 0
+        return (is_en, is_manual)
+
+    ranked = sorted(caption_tracks, key=score, reverse=True)
+    return ranked[0] if ranked else None
+
+
+def _extract_transcript_text(payload: str) -> str:
+    raw = (payload or "").strip()
+    if not raw:
+        return ""
+
+    # Timedtext XML response.
+    if raw.startswith("<"):
+        try:
+            root = ET.fromstring(raw)
+            parts: list[str] = []
+            for node in root.findall(".//text"):
+                text = "".join(node.itertext())
+                text = html.unescape(text or "").strip()
+                if text:
+                    parts.append(text)
+            return " ".join(parts).strip()
+        except Exception:
+            return ""
+
+    # VTT fallback.
+    lines: list[str] = []
+    for line in raw.splitlines():
+        t = line.strip()
+        if not t:
+            continue
+        if t.upper().startswith("WEBVTT"):
+            continue
+        if "-->" in t:
+            continue
+        if re.fullmatch(r"\d+", t):
+            continue
+        lines.append(t)
+    return " ".join(lines).strip()
+
+
+def _fetch_youtube_transcript(
+    *,
+    url: str,
+    video_id: Optional[str],
+    timeout: float = 20.0,
+) -> tuple[Optional[str], str, Optional[str], Optional[str]]:
+    def _oembed_title(candidate_url: str) -> Optional[str]:
+        try:
+            resp = requests.get(
+                "https://www.youtube.com/oembed",
+                params={"url": candidate_url, "format": "json"},
+                timeout=timeout,
+                headers={"User-Agent": "Mozilla/5.0 (NorthStar Source Indexer)"},
+            )
+            if resp.status_code != 200:
+                return None
+            data = resp.json()
+            title = str(data.get("title") or "").strip()
+            return title or None
+        except Exception:
+            return None
+
+    watch_url = url
+    if video_id:
+        watch_url = f"https://www.youtube.com/watch?v={video_id}"
+
+    headers = {"User-Agent": "Mozilla/5.0 (NorthStar Source Indexer)"}
+    try:
+        page = requests.get(watch_url, timeout=timeout, headers=headers)
+        page.raise_for_status()
+    except Exception as exc:
+        return (None, "", None, f"Unable to fetch YouTube page: {exc}")
+
+    player = _extract_player_response_json(page.text or "")
+    if not player:
+        return (
+            _oembed_title(watch_url),
+            "",
+            None,
+            "Unable to parse YouTube player response.",
+        )
+
+    title = (
+        str(
+            (player.get("videoDetails") or {}).get("title")
+            or ""
+        ).strip()
+        or None
+    )
+    tracks = (
+        ((player.get("captions") or {}).get("playerCaptionsTracklistRenderer") or {}).get("captionTracks")
+        or []
+    )
+    if not tracks:
+        return (title, "", None, "No caption tracks available for this video.")
+
+    track = _pick_caption_track(tracks)
+    if not track:
+        return (title, "", None, "No usable caption track found.")
+
+    lang = str(track.get("languageCode") or "").strip() or None
+    base_url = str(track.get("baseUrl") or "").strip()
+    if not base_url:
+        return (title, "", lang, "Caption track is missing a transcript URL.")
+
+    try:
+        cap = requests.get(base_url, timeout=timeout, headers=headers)
+        cap.raise_for_status()
+    except Exception as exc:
+        return (title, "", lang, f"Unable to fetch transcript payload: {exc}")
+
+    transcript = _extract_transcript_text(cap.text or "")
+    if not transcript:
+        return (title, "", lang, "Transcript payload was empty.")
+    return (title, transcript, lang, None)
 
 
 def _build_director_brief(req: AnimateReq) -> str:
@@ -1470,6 +1617,36 @@ def docs_index(req: SourceIndexReq):
     api_key = settings.get("api_key")
     text_model = req.model or settings.get("text_model")
 
+    index_notes = notes
+    yt_title: Optional[str] = None
+    yt_lang: Optional[str] = None
+    transcript_used = False
+    transcript_chars = 0
+    transcript_issue: Optional[str] = None
+    if kind == "youtube" and video_id:
+        yt_title, yt_text, yt_lang, transcript_issue = _fetch_youtube_transcript(
+            url=url,
+            video_id=video_id,
+        )
+        if yt_text:
+            transcript_used = True
+            transcript_chars = len(yt_text)
+            clip = yt_text[:12000]
+            if notes:
+                index_notes = f"{notes}\n\n[Auto transcript]\n{clip}"
+            else:
+                index_notes = clip
+    if len(index_notes) > 30000:
+        index_notes = index_notes[:30000]
+    # Keep indexing useful even when transcript is unavailable and user didn't add notes.
+    if not index_notes and kind == "youtube":
+        seed_title = yt_title or f"YouTube video {video_id or ''}".strip()
+        index_notes = (
+            f"Video title: {seed_title}\n"
+            "Transcript unavailable. Build a cautious summary from the title and known topic only.\n"
+            "Mark assumptions explicitly."
+        )
+
     title = ""
     summary = ""
     key_points: list[str] = []
@@ -1478,7 +1655,7 @@ def docs_index(req: SourceIndexReq):
     try:
         indexed = _index_source_with_gemini(
             url=url,
-            notes=notes,
+            notes=index_notes,
             kind=kind,
             video_id=video_id,
             api_key=api_key,
@@ -1492,21 +1669,23 @@ def docs_index(req: SourceIndexReq):
         # Safe fallback keeps the UX moving even if model call fails.
         warning = f"Indexing fallback used: {exc}"
         if kind == "youtube":
-            title = f"YouTube source ({video_id or 'video'})"
+            title = yt_title or f"YouTube source ({video_id or 'video'})"
         else:
             title = f"Web source: {_slug_from_url(url, 'article')}"
-        summary = notes[:500] if notes else (
+        summary = index_notes[:500] if index_notes else (
             "Source indexed without transcript. Add notes/transcript for stronger summaries."
         )
         key_points = [summary] if summary else []
         prompt_hint = "Focus on one concept per scene and verify assumptions from the source."
 
     if not title:
-        title = f"{kind.title()} source"
+        title = yt_title or f"{kind.title()} source"
     if not summary:
         summary = "No summary available. Add transcript/notes and re-index."
     if not key_points:
         key_points = [summary]
+    if kind == "youtube" and not transcript_used and transcript_issue:
+        warning = warning or f"YouTube transcript not available: {transcript_issue}"
 
     source_id = f"src-{int(time.time())}-{secrets.token_hex(2)}"
     slug = _slug_from_url(url, "source")
@@ -1519,6 +1698,12 @@ def docs_index(req: SourceIndexReq):
     ]
     if video_id:
         md_lines.append(f"- YouTube ID: {video_id}")
+    if kind == "youtube":
+        md_lines.append(f"- Transcript: {'yes' if transcript_used else 'no'}")
+        if yt_lang:
+            md_lines.append(f"- Transcript language: {yt_lang}")
+        if transcript_chars:
+            md_lines.append(f"- Transcript characters: {transcript_chars}")
     md_lines.extend(
         [
             "",
@@ -1538,6 +1723,8 @@ def docs_index(req: SourceIndexReq):
     )
     if notes:
         md_lines.extend(["", "## Notes / Transcript (user-provided)", notes[:4000]])
+    if transcript_used and index_notes and index_notes != notes:
+        md_lines.extend(["", "## Transcript (auto-fetched excerpt)", index_notes[:4000]])
     markdown = "\n".join(md_lines).strip() + "\n"
 
     resp: Dict[str, Any] = {
@@ -1551,6 +1738,10 @@ def docs_index(req: SourceIndexReq):
             "summary": summary,
             "key_points": key_points[:12],
             "prompt_hint": prompt_hint,
+            "transcript_used": transcript_used,
+            "transcript_language": yt_lang,
+            "transcript_chars": transcript_chars,
+            "transcript_issue": transcript_issue,
             "file_suggested_path": file_suggested_path,
             "markdown": markdown,
         },
@@ -2351,9 +2542,10 @@ def crazy_run(req: CrazyRunReq):
         "Variant focus: exam-ready structure with clear definitions and checkpoints.",
     ]
 
-    jobs: list[Dict[str, Any]] = []
+    jobs_by_index: list[Optional[Dict[str, Any]]] = [None] * count
     errors: list[str] = []
-    for i in range(count):
+
+    def run_variant(i: int) -> tuple[int, Optional[Dict[str, Any]], Optional[str]]:
         job_id = new_job_id()
         paths = job_paths(JOBS, job_id)
         paths.job_dir.mkdir(parents=True, exist_ok=True)
@@ -2413,7 +2605,8 @@ def crazy_run(req: CrazyRunReq):
                 api_key=api_key,
                 text_model=text_model,
             )
-            jobs.append(
+            return (
+                i,
                 {
                     "job_id": job_id,
                     "variant_index": i + 1,
@@ -2421,10 +2614,28 @@ def crazy_run(req: CrazyRunReq):
                     "plan": plan_obj,
                     "plan_text": json.dumps(plan_obj, indent=2),
                     "job_files": _job_files(paths),
-                }
+                },
+                None,
             )
         except Exception as exc:
-            errors.append(f"Variant {i + 1}: {exc}")
+            return (i, None, f"Variant {i + 1}: {exc}")
+
+    max_workers = max(1, min(count, 5))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = [pool.submit(run_variant, i) for i in range(count)]
+        for fut in concurrent.futures.as_completed(futures):
+            try:
+                idx, payload, err = fut.result()
+            except Exception as exc:
+                errors.append(f"Variant worker failed: {exc}")
+                continue
+            if err:
+                errors.append(err)
+                continue
+            if payload is not None and 0 <= idx < len(jobs_by_index):
+                jobs_by_index[idx] = payload
+
+    jobs = [j for j in jobs_by_index if j is not None]
 
     if not jobs:
         return JSONResponse(

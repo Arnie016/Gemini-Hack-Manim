@@ -1327,7 +1327,8 @@
         align-items: center;
         gap: 8px;
         margin-top: 6px;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+        overflow-x: auto;
       }
       .mode-chip {
         display: inline-flex;
@@ -1344,9 +1345,11 @@
         user-select: none;
       }
       .mode-chip input {
-        margin: 0;
-        width: 14px;
-        height: 14px;
+        position: absolute;
+        width: 0;
+        height: 0;
+        opacity: 0;
+        pointer-events: none;
       }
       .mode-chip .mode-icon {
         width: 15px;
@@ -1360,10 +1363,15 @@
       .mode-chip .mode-label {
         font-weight: 700;
         color: #dbeafe;
+        white-space: nowrap;
+        font-size: 11px;
       }
       .mode-chip.checked {
         border-color: rgba(106, 169, 255, 0.58);
         background: linear-gradient(180deg, rgba(59,130,246,0.18), rgba(15,20,29,0.78));
+      }
+      .mode-chip.checked .mode-icon {
+        color: #dbeafe;
       }
       .compose-polish {
         width: 36px;
@@ -1791,8 +1799,9 @@
       }
       .context-panel-shell {
         margin-top: 10px;
-        min-height: 324px;
-        max-height: 324px;
+        height: var(--context-panel-height, 236px);
+        min-height: 220px;
+        max-height: 280px;
         border: 1px solid rgba(255,255,255,0.08);
         border-radius: 12px;
         background: rgba(11, 13, 18, 0.42);
@@ -1803,7 +1812,7 @@
         display: none;
         height: 100%;
         overflow: auto;
-        padding: 10px;
+        padding: 8px 10px;
       }
       .context-panel.active { display: block; }
       .context-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
@@ -1821,6 +1830,55 @@
         grid-template-columns: 1fr 1fr;
         gap: 8px;
       }
+      .source-status {
+        margin-top: 8px;
+        min-height: 20px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        white-space: normal;
+        line-height: 1.35;
+      }
+      .source-status::before {
+        content: '';
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        border: 2px solid rgba(148, 163, 184, 0.35);
+        border-top-color: transparent;
+        opacity: 0;
+        transform: scale(0.85);
+      }
+      .source-status.loading::before {
+        opacity: 1;
+        animation: spin 1s linear infinite;
+      }
+      .source-status.ok { color: #93c5fd; }
+      .source-status.warn { color: #facc15; }
+      .source-status.err { color: #fca5a5; }
+      .memory-entry {
+        margin-top: 8px;
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 10px;
+        background: rgba(11, 13, 18, 0.55);
+        padding: 8px;
+      }
+      .memory-entry-title {
+        font-weight: 700;
+        font-size: 12px;
+        color: var(--text);
+      }
+      .memory-entry-body {
+        margin-top: 4px;
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.35;
+      }
+      .memory-empty {
+        margin-top: 8px;
+        font-size: 12px;
+        color: var(--muted);
+      }
       .context-actions-row {
         display: flex;
         align-items: end;
@@ -1833,13 +1891,13 @@
       }
       .skill-rail-shell {
         display: grid;
-        grid-template-columns: auto 1fr auto;
-        gap: 8px;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 6px;
         align-items: center;
       }
       .skill-rail-btn {
-        width: 28px;
-        height: 72px;
+        width: 24px;
+        height: 58px;
         border-radius: 10px;
         border: 1px solid rgba(148, 163, 184, 0.2);
         background: rgba(15, 23, 42, 0.7);
@@ -1852,23 +1910,26 @@
       }
       .skill-rail {
         display: flex;
-        gap: 10px;
+        gap: 8px;
         overflow-x: auto;
         overflow-y: hidden;
-        padding: 4px 2px;
-        scroll-snap-type: x proximity;
+        padding: 4px 0 6px 0;
+        scroll-snap-type: x mandatory;
+        scrollbar-width: thin;
       }
       .skill-pill {
-        flex: 0 0 74px;
-        width: 74px;
-        border-radius: 14px;
+        flex: 0 0 calc((100% - 32px) / 5);
+        min-width: 52px;
+        max-width: 64px;
+        border-radius: 999px;
         border: 1px solid rgba(148, 163, 184, 0.24);
         background: rgba(11, 13, 18, 0.68);
         color: var(--muted);
-        padding: 8px 6px;
-        display: grid;
-        justify-items: center;
-        gap: 6px;
+        padding: 6px 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0;
         cursor: pointer;
         transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
         scroll-snap-align: center;
@@ -1889,8 +1950,8 @@
         box-shadow: 0 0 0 1px rgba(106,169,255,0.35) inset, 0 8px 20px rgba(5,10,20,0.45);
       }
       .skill-pill-icon {
-        width: 30px;
-        height: 30px;
+        width: 36px;
+        height: 36px;
         border-radius: 999px;
         border: 1px solid rgba(255,255,255,0.16);
         display: inline-flex;
@@ -1907,18 +1968,53 @@
         border-color: rgba(34, 197, 94, 0.45);
       }
       .skill-pill-name {
-        width: 100%;
-        font-size: 11px;
-        line-height: 1.15;
-        text-align: center;
-        white-space: nowrap;
+        position: absolute;
+        width: 1px;
+        height: 1px;
         overflow: hidden;
-        text-overflow: ellipsis;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
       }
       .skill-rail-meta {
         margin-top: 8px;
         font-size: 12px;
         color: var(--muted);
+      }
+      .skill-tooltip {
+        position: fixed;
+        z-index: 1400;
+        max-width: 280px;
+        border: 1px solid rgba(106, 169, 255, 0.4);
+        background: rgba(6, 10, 16, 0.96);
+        border-radius: 12px;
+        box-shadow: 0 16px 34px rgba(2, 6, 23, 0.65);
+        padding: 10px 12px;
+        color: var(--text);
+        pointer-events: none;
+        opacity: 0;
+        transform: translateY(6px);
+        transition: opacity 130ms ease, transform 130ms ease;
+      }
+      .skill-tooltip.show {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .skill-tooltip-title {
+        font-size: 12px;
+        font-weight: 700;
+        color: #dbeafe;
+      }
+      .skill-tooltip-handle {
+        margin-top: 3px;
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 11px;
+        color: #93c5fd;
+      }
+      .skill-tooltip-body {
+        margin-top: 6px;
+        font-size: 11px;
+        color: var(--muted);
+        line-height: 1.35;
       }
 
       .drop-target { outline: 2px dashed var(--accent); }
@@ -2789,7 +2885,12 @@
                       <option value="2:3">2:3</option>
                       <option value="3:2">3:2</option>
                       <option value="4:3">4:3</option>
+                      <option value="5:4">5:4</option>
+                      <option value="5:3">5:3</option>
+                      <option value="18:9">18:9</option>
                       <option value="21:9">21:9</option>
+                      <option value="1.91:1">1.91:1</option>
+                      <option value="2.39:1">2.39:1</option>
                     </select>
                   </div>
                 </div>
@@ -2938,7 +3039,12 @@
                         <option value="2:3">2:3</option>
                         <option value="3:2">3:2</option>
                         <option value="4:3">4:3</option>
+                        <option value="5:4">5:4</option>
+                        <option value="5:3">5:3</option>
+                        <option value="18:9">18:9</option>
                         <option value="21:9">21:9</option>
+                        <option value="1.91:1">1.91:1</option>
+                        <option value="2.39:1">2.39:1</option>
                       </select>
                     </label>
                     <button id="toggleTimelineBtn" class="overlay-btn" title="Hide or show timeline" aria-label="Toggle timeline">
@@ -3357,7 +3463,7 @@
                   </div>
                 </div>
                 <div id="sourceCards" class="saved-grid" style="margin-top:10px;"></div>
-                <pre id="sourceStatus" class="muted" style="margin-top:10px; white-space:pre-wrap;">No sources yet.</pre>
+                <div id="sourceStatus" class="source-status muted">No sources yet.</div>
               </div>
 
               <div class="context-panel" data-ctx="skills" role="tabpanel">
@@ -3396,12 +3502,12 @@
             </button>
           </div>
           <div class="compose-mode-row">
-            <label class="mode-chip" title="Crazy mode: run 3 parallel plan+render variants from one prompt.">
+            <label class="mode-chip" title="Crazy mode (3 parallel plan+render variants)">
               <input id="crazyMode" type="checkbox" />
               <span class="mode-icon" aria-hidden="true">⚡</span>
               <span class="mode-label">Crazy</span>
             </label>
-            <label class="mode-chip" title="Gemini assist: auto-polish prompt before planning.">
+            <label class="mode-chip" title="Gemini assist (auto-polish prompt before planning)">
               <input id="geminiAssist" type="checkbox" checked />
               <span class="mode-icon" aria-hidden="true">✦</span>
               <span class="mode-label">Assist</span>
@@ -3462,6 +3568,7 @@
     <!-- settings drawer removed (settings are now in the middle panel) -->
 
     <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+    <div id="skillTooltip" class="skill-tooltip hidden" aria-hidden="true"></div>
 
     <div id="infoModal" class="modal" aria-hidden="true">
       <div class="modal-card">
@@ -3632,6 +3739,7 @@
       const memoryListEl = document.getElementById('memoryList');
       const ctxTabs = Array.from(document.querySelectorAll('.ctx-tab'));
       const ctxPanels = Array.from(document.querySelectorAll('.context-panel'));
+      const contextPanelShellEl = document.querySelector('.context-panel-shell');
       const skillNameEl = document.getElementById('skillName');
       const skillContentEl = document.getElementById('skillContent');
       const saveSkillBtn = document.getElementById('saveSkill');
@@ -3642,6 +3750,7 @@
       const skillRailPrevEl = document.getElementById('skillRailPrev');
       const skillRailNextEl = document.getElementById('skillRailNext');
       const skillRailMetaEl = document.getElementById('skillRailMeta');
+      const skillTooltipEl = document.getElementById('skillTooltip');
       const savedSkillCardsEl = document.getElementById('savedSkillCards');
 
       const bgThumbEl = document.getElementById('bgThumb');
@@ -5219,11 +5328,11 @@
       function renderSources() {
         const sources = getSources();
         if (!sources.length) {
-          sourceStatusEl.textContent = 'No sources yet.';
+          setSourceStatus('No sources yet.', 'muted');
           if (sourceCardsEl) sourceCardsEl.innerHTML = '';
           return;
         }
-        sourceStatusEl.textContent = `${sources.length} source(s) ready. Drag into prompt, timeline, or context.`;
+        setSourceStatus(`${sources.length} source(s) ready. Drag into prompt, timeline, or context.`, 'ok');
         if (!sourceCardsEl) return;
         sourceCardsEl.innerHTML = '';
         sources.forEach((raw, idx) => {
@@ -6068,6 +6177,30 @@
         return 'Idle';
       }
 
+      function bindTouchDoubleTap(el, handler) {
+        if (!el || typeof handler !== 'function') return;
+        let lastTapAt = 0;
+        let lastX = 0;
+        let lastY = 0;
+        el.addEventListener('pointerup', (e) => {
+          if (e.pointerType !== 'touch') return;
+          const now = Date.now();
+          const dt = now - lastTapAt;
+          const dx = Math.abs((e.clientX || 0) - lastX);
+          const dy = Math.abs((e.clientY || 0) - lastY);
+          if (dt > 0 && dt < 340 && dx < 18 && dy < 18) {
+            e.preventDefault();
+            e.stopPropagation();
+            handler(e);
+            lastTapAt = 0;
+            return;
+          }
+          lastTapAt = now;
+          lastX = e.clientX || 0;
+          lastY = e.clientY || 0;
+        });
+      }
+
       function renderChatSessions() {
         if (!chatSessionsEl) return;
         chatSessionsEl.innerHTML = '';
@@ -6090,18 +6223,13 @@
             e.stopPropagation();
             startSessionRename(session, nameLabel);
           });
-          let lastNameTap = 0;
-          nameLabel.addEventListener('click', (e) => {
-            const now = Date.now();
-            if (now - lastNameTap < 320) {
-              e.preventDefault();
-              e.stopPropagation();
-              startSessionRename(session, nameLabel);
-              lastNameTap = 0;
-              return;
-            }
-            lastNameTap = now;
+          bindTouchDoubleTap(nameLabel, () => startSessionRename(session, nameLabel));
+          head.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            startSessionRename(session, nameLabel);
           });
+          bindTouchDoubleTap(head, () => startSessionRename(session, nameLabel));
           name.appendChild(nameLabel);
           const phase = document.createElement('div');
           phase.className = 'chat-session-phase';
@@ -6153,6 +6281,7 @@
             e.stopPropagation();
             startSessionRename(session, nameLabel);
           });
+          bindTouchDoubleTap(card, () => startSessionRename(session, nameLabel));
 
           if (chatSessions.length > 1) {
             const close = document.createElement('button');
@@ -7181,6 +7310,25 @@
         panels.forEach(p => p.classList.toggle('active', p.dataset.tab === tabId));
       }
 
+      function contextPanelHeightForTab(id) {
+        if (id === 'docs') return 250;
+        if (id === 'skills') return 214;
+        return 232; // memory
+      }
+
+      function applyContextPanelHeight(id) {
+        if (!contextPanelShellEl) return;
+        const px = contextPanelHeightForTab(id || 'memory');
+        contextPanelShellEl.style.setProperty('--context-panel-height', `${px}px`);
+      }
+
+      function setSourceStatus(message, kind = 'muted') {
+        if (!sourceStatusEl) return;
+        sourceStatusEl.textContent = String(message || '');
+        sourceStatusEl.classList.remove('loading', 'ok', 'warn', 'err', 'muted');
+        sourceStatusEl.classList.add(kind || 'muted');
+      }
+
       function setContextTab(id) {
         ctxTabs.forEach(b => {
           const on = b.dataset.ctx === id;
@@ -7188,8 +7336,10 @@
           b.setAttribute('aria-selected', on ? 'true' : 'false');
         });
         ctxPanels.forEach(p => p.classList.toggle('active', p.dataset.ctx === id));
+        applyContextPanelHeight(id);
       }
       ctxTabs.forEach(b => b.addEventListener('click', () => setContextTab(b.dataset.ctx)));
+      applyContextPanelHeight('memory');
 
       if (saveProjectBtn) saveProjectBtn.addEventListener('click', () => saveProject(false));
       function safeOn(el, eventName, handler) {
@@ -8687,10 +8837,21 @@
         const resp = await fetch('/api/memories');
         const data = await resp.json();
         memoryListEl.innerHTML = '';
-        (data.memories || []).forEach(mem => {
-          const row = document.createElement('div');
-          row.className = 'tree-file';
-          row.innerHTML = `<label><input type="checkbox" data-id="${mem.id}" /> ${mem.title}</label>`;
+        const memories = Array.isArray(data.memories) ? data.memories : [];
+        if (!memories.length) {
+          const empty = document.createElement('div');
+          empty.className = 'memory-empty';
+          empty.textContent = 'No memory yet. Add one above.';
+          memoryListEl.appendChild(empty);
+          return;
+        }
+        memories.forEach((mem, idx) => {
+          const row = document.createElement('label');
+          row.className = 'memory-entry';
+          row.title = 'Select memory for the next plan/render';
+          const title = cleanInline(mem?.title || '').trim() || `Memory ${idx + 1}`;
+          const body = cleanInline(mem?.content || '').trim();
+          row.innerHTML = `<div style="display:flex; align-items:flex-start; gap:8px;"><input type="checkbox" data-id="${mem.id}" style="margin-top:2px;" /><div style="min-width:0;"><div class="memory-entry-title">${escapeHtml(compactLabel(title, 56))}</div><div class="memory-entry-body">${escapeHtml(compactLabel(body || 'No details provided.', 160))}</div></div></div>`;
           memoryListEl.appendChild(row);
         });
       }
@@ -8864,12 +9025,63 @@
         if (!skillRailMetaEl) return;
         const selected = selectedSkillIdSet.size;
         const total = (skillsCache || []).length;
-        skillRailMetaEl.textContent = `${selected} selected • ${total} total`;
+        skillRailMetaEl.textContent = `${selected} selected • swipe for more (${total})`;
       }
 
       function scrollSkillRail(deltaPx) {
         if (!skillListEl) return;
         skillListEl.scrollBy({ left: deltaPx, behavior: 'smooth' });
+      }
+
+      let skillTooltipTimer = null;
+      function hideSkillTooltip(immediate = false) {
+        if (!skillTooltipEl) return;
+        const run = () => {
+          skillTooltipEl.classList.remove('show');
+          skillTooltipEl.classList.add('hidden');
+          skillTooltipEl.setAttribute('aria-hidden', 'true');
+        };
+        if (immediate) {
+          clearTimeout(skillTooltipTimer);
+          run();
+          return;
+        }
+        clearTimeout(skillTooltipTimer);
+        skillTooltipTimer = setTimeout(run, 100);
+      }
+
+      function positionSkillTooltip(x, y) {
+        if (!skillTooltipEl) return;
+        const pad = 10;
+        const rect = skillTooltipEl.getBoundingClientRect();
+        let left = x + 14;
+        let top = y + 14;
+        if (left + rect.width > window.innerWidth - pad) {
+          left = Math.max(pad, x - rect.width - 14);
+        }
+        if (top + rect.height > window.innerHeight - pad) {
+          top = Math.max(pad, y - rect.height - 14);
+        }
+        skillTooltipEl.style.left = `${left}px`;
+        skillTooltipEl.style.top = `${top}px`;
+      }
+
+      function showSkillTooltip(skill, anchorEl, x, y) {
+        if (!skillTooltipEl || !skill) return;
+        clearTimeout(skillTooltipTimer);
+        const name = compactLabel(skill._display || skill.name || 'Skill', 52);
+        const nick = skill._nick || makeHandle(name, 'skill');
+        const body = compactLabel((skill.content || '').replace(/\\n/g, ' '), 190) || 'Reusable instruction block';
+        skillTooltipEl.innerHTML = `<div class="skill-tooltip-title">${escapeHtml(name)}</div><div class="skill-tooltip-handle">@${escapeHtml(nick)}</div><div class="skill-tooltip-body">${escapeHtml(body)}</div>`;
+        skillTooltipEl.classList.remove('hidden');
+        skillTooltipEl.setAttribute('aria-hidden', 'false');
+        const px = Number.isFinite(x) ? x : ((anchorEl?.getBoundingClientRect?.().left || 0) + (anchorEl?.getBoundingClientRect?.().width || 0) / 2);
+        const py = Number.isFinite(y) ? y : ((anchorEl?.getBoundingClientRect?.().top || 0) + 8);
+        positionSkillTooltip(px, py);
+        requestAnimationFrame(() => {
+          skillTooltipEl.classList.add('show');
+          positionSkillTooltip(px, py);
+        });
       }
 
       function renderSkills(skills) {
@@ -8907,7 +9119,12 @@
         (skillsCache || []).forEach(skill => {
           const displayName = skill._display || 'Skill';
           const nick = skill._nick || makeHandle(displayName, 'skill');
-          const icon = String(displayName || 'S').trim().charAt(0).toUpperCase() || 'S';
+          const icon = String(displayName || 'S')
+            .split(/[\s_-]+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((s) => s.charAt(0).toUpperCase())
+            .join('') || 'S';
           const desc = compactLabel((skill.content || '').replace(/\\n/g, ' '), 120) || 'Reusable instruction skill';
           const btn = document.createElement('button');
           btn.type = 'button';
@@ -8915,7 +9132,7 @@
           btn.dataset.id = String(skill.id || '');
           btn.dataset.nick = nick;
           btn.dataset.name = displayName;
-          btn.title = `${displayName}\n@${nick}\n${desc}`;
+          btn.setAttribute('aria-label', `${displayName} @${nick}`);
           if (selectedSkillIdSet.has(String(skill.id || ''))) {
             btn.classList.add('is-selected');
           }
@@ -8929,6 +9146,20 @@
             updateSkillRailMeta();
             scheduleAutosave();
           });
+          btn.addEventListener('mouseenter', (e) => {
+            showSkillTooltip(skill, btn, e.clientX, e.clientY);
+          });
+          btn.addEventListener('mousemove', (e) => {
+            positionSkillTooltip(e.clientX, e.clientY);
+          });
+          btn.addEventListener('mouseleave', () => hideSkillTooltip());
+          btn.addEventListener('focus', () => showSkillTooltip(skill, btn));
+          btn.addEventListener('blur', () => hideSkillTooltip(true));
+          btn.addEventListener('touchstart', (e) => {
+            const t = e.touches && e.touches[0];
+            showSkillTooltip(skill, btn, t?.clientX, t?.clientY);
+            setTimeout(() => hideSkillTooltip(), 1200);
+          }, { passive: true });
           btn.draggable = true;
           btn.addEventListener('dragstart', (e) => {
             const token = `@${nick}`;
@@ -8958,6 +9189,15 @@
         updateSkillRailMeta();
         renderMentionBar();
       }
+
+      document.addEventListener('scroll', () => hideSkillTooltip(true), true);
+      window.addEventListener('resize', () => hideSkillTooltip(true));
+      document.addEventListener('pointerdown', (e) => {
+        const t = e.target;
+        if (!t || !(t instanceof Element)) return;
+        if (t.closest('.skill-pill')) return;
+        hideSkillTooltip(true);
+      });
 
       async function seedDefaultSkills(existingSkills = []) {
         const existingNormalized = new Set(
@@ -9651,11 +9891,18 @@
         return true;
       }
 
-      const DIRECTOR_BRIEF_SOFT_LIMIT = 2200;
+      const DIRECTOR_BRIEF_SOFT_LIMIT = 1800;
+      let lastBriefTrimNoticeAt = 0;
       function clipDirectorBrief(text) {
         const raw = String(text || '').trim();
         if (!raw) return null;
         if (raw.length <= DIRECTOR_BRIEF_SOFT_LIMIT) return raw;
+        const now = Date.now();
+        if (now - lastBriefTrimNoticeAt > 1600) {
+          lastBriefTrimNoticeAt = now;
+          if (statusEl) statusEl.textContent = 'Director brief was long. Auto-trimmed to avoid request errors.';
+          showToast('Director brief auto-trimmed for request size.', 'ok');
+        }
         return `${raw.slice(0, DIRECTOR_BRIEF_SOFT_LIMIT)}\n\n[Auto-trimmed for request size.]`;
       }
 
@@ -10878,16 +11125,27 @@
         }
       });
 
+      safeOn(sourceUrlEl, 'input', () => {
+        const url = String(sourceUrlEl?.value || '').trim().toLowerCase();
+        if (!sourceTypeEl) return;
+        if (!url) return;
+        if (url.includes('youtube.com') || url.includes('youtu.be')) {
+          sourceTypeEl.value = 'youtube';
+          return;
+        }
+        if (sourceTypeEl.value === 'youtube') sourceTypeEl.value = 'auto';
+      });
+
       safeOn(indexSourceBtn, 'click', async () => {
         const url = sourceUrlEl.value.trim();
         const notes = sourceNotesEl.value.trim();
         const sourceType = (sourceTypeEl?.value || 'auto').trim();
         if (!url) {
-          sourceStatusEl.textContent = 'Enter a source URL first.';
+          setSourceStatus('Enter a source URL first.', 'err');
           showToast('Enter a source URL first.', 'err');
           return;
         }
-        sourceStatusEl.textContent = 'Indexing source with Gemini...';
+        setSourceStatus('Indexing source with Gemini…', 'loading');
         indexSourceBtn.disabled = true;
         try {
           const resp = await fetch('/api/docs/index', {
@@ -10902,7 +11160,7 @@
           });
           const data = await resp.json();
           if (!data.ok || !data.indexed) {
-            sourceStatusEl.textContent = data.error || 'Indexing failed.';
+            setSourceStatus(data.error || 'Indexing failed.', 'err');
             showToast(data.error || 'Indexing failed.', 'err');
             return;
           }
@@ -10916,12 +11174,13 @@
           if (savedPath) indexed.file_path = savedPath;
           upsertSource(indexed);
           renderSources();
-          if (savedPath) {
-            sourceStatusEl.textContent = `Indexed ${indexed.kind} source. Summary saved: ${savedPath}`;
-          } else {
-            sourceStatusEl.textContent = `Indexed ${indexed.kind} source.`;
-          }
+          const transcriptMeta = indexed.kind === 'youtube'
+            ? ` | transcript: ${data.indexed.transcript_used ? 'yes' : 'no'}`
+            : '';
+          if (savedPath) setSourceStatus(`Indexed ${indexed.kind} source${transcriptMeta}. Saved: ${savedPath}`, 'ok');
+          else setSourceStatus(`Indexed ${indexed.kind} source${transcriptMeta}.`, 'ok');
           if (data.warning) {
+            setSourceStatus(data.warning, 'warn');
             showToast(data.warning, 'err');
           } else {
             showToast('Source indexed.', 'ok');
@@ -10930,7 +11189,7 @@
           sourceNotesEl.value = '';
           scheduleAutosave();
         } catch {
-          sourceStatusEl.textContent = 'Failed to reach backend. Is the server running?';
+          setSourceStatus('Failed to reach backend. Is the server running?', 'err');
           showToast('Failed to reach backend.', 'err');
         } finally {
           indexSourceBtn.disabled = false;
@@ -10941,7 +11200,7 @@
         const url = sourceUrlEl.value.trim();
         const notes = sourceNotesEl.value.trim();
         if (!url && !notes) {
-          sourceStatusEl.textContent = 'Enter a URL or notes before saving.';
+          setSourceStatus('Enter a URL or notes before saving.', 'err');
           return;
         }
         const manual = normalizeSourceRecord({
@@ -10960,7 +11219,7 @@
         renderSources();
         sourceUrlEl.value = '';
         sourceNotesEl.value = '';
-        sourceStatusEl.textContent = 'Saved source without indexing.';
+        setSourceStatus('Saved source without indexing.', 'ok');
         showToast('Saved source.', 'ok');
         scheduleAutosave();
       });
