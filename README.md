@@ -1,11 +1,18 @@
 # NorthStar
 
 NorthStar is an AI-native visual storytelling studio for science explainers.
+Built by **Arnav Salkade**.
 
 Turn a prompt into a rendered Manim video through an agentic workflow:
 `Plan -> Approve -> Code -> Render`.
 
 Project start date: **February 3, 2026**.
+
+## Judge Note (Quick)
+
+- Live UI demo: https://skill-deploy-c6ioczee1j-codex-agent-deploys.vercel.app
+- Full Gemini + Manim rendering pipeline runs with the local backend (`python -m uvicorn backend.main:app --reload --port 8000`).
+- Public code: https://github.com/Arnie016/Gemini-Hack-Manim
 
 ## What This App Does
 
