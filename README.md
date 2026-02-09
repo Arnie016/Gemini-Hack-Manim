@@ -32,3 +32,6 @@ python -m uvicorn backend.main:app --reload --port 8000
 Open `http://127.0.0.1:8000`  
 Output files: `work/jobs/<job_id>/`  
 Credits: Manim by Grant Sanderson (3Blue1Brown) + Manim Community.
+
+## Devpost tags
+`gemini-api` `manim` `education` `edtech` `ai-video` `multimodal-ai` `fastapi` `python` `creator-tools` `scientific-visualization`
