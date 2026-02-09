@@ -1,3 +1,5 @@
+![NorthStar UI](screenshot/UI.png)
+
 # NorthStar
 
 NorthStar is an AI-native visual storytelling studio for science explainers.
