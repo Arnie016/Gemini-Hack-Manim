@@ -1865,9 +1865,9 @@
       }
       .context-panel-shell {
         margin-top: 8px;
-        height: var(--context-panel-height, 126px);
-        min-height: 126px;
-        max-height: 126px;
+        height: var(--context-panel-height, 168px);
+        min-height: var(--context-panel-height, 168px);
+        max-height: var(--context-panel-height, 168px);
         border: 1px solid rgba(255,255,255,0.08);
         border-radius: 12px;
         background: rgba(11, 13, 18, 0.42);
@@ -1968,8 +1968,39 @@
       }
       #memoryList {
         margin-top: 6px;
-        max-height: 36px;
+        max-height: 74px;
         overflow: auto;
+      }
+      .memory-row {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 8px;
+        align-items: start;
+      }
+      .memory-row > input[type="checkbox"] {
+        margin-top: 2px;
+      }
+      .memory-row .ghost {
+        width: auto;
+        padding: 4px 8px;
+        height: 24px;
+      }
+      #indexSource.indexing {
+        position: relative;
+        padding-right: 34px;
+      }
+      #indexSource.indexing::after {
+        content: '';
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        border: 2px solid rgba(148,163,184,0.45);
+        border-top-color: #93c5fd;
+        transform: translateY(-50%);
+        animation: spin 0.8s linear infinite;
       }
       .context-actions-row {
         display: flex;
@@ -5558,14 +5589,21 @@
         return saved || '';
       }
 
-      function renderSources() {
+      function renderSources(opts = {}) {
+        const preserveStatus = !!opts.preserveStatus;
         const sources = getSources();
+        const statusKind = sourceStatusEl
+          ? (['loading', 'warn', 'err', 'ok', 'muted'].find((k) => sourceStatusEl.classList.contains(k)) || 'muted')
+          : 'muted';
+        const canOverrideStatus = !preserveStatus && (statusKind === 'muted' || statusKind === 'ok');
         if (!sources.length) {
-          setSourceStatus('No sources yet.', 'muted');
+          if (canOverrideStatus) setSourceStatus('No sources yet.', 'muted');
           if (sourceCardsEl) sourceCardsEl.innerHTML = '';
           return;
         }
-        setSourceStatus(`${sources.length} source(s) ready. Drag into prompt, timeline, or context.`, 'ok');
+        if (canOverrideStatus) {
+          setSourceStatus(`${sources.length} source(s) ready. Drag into prompt, timeline, or context.`, 'ok');
+        }
         if (!sourceCardsEl) return;
         sourceCardsEl.innerHTML = '';
         sources.forEach((raw, idx) => {
@@ -6243,6 +6281,20 @@
       function updateSessionPhase(session) {
         if (!session) return;
         const states = session.step_states || {};
+        const hasJob = !!String(session.job_id || '').trim();
+        if (!hasJob) {
+          let cleaned = false;
+          ['plan', 'approve', 'code', 'render'].forEach((k) => {
+            if (states[k] === 'active') {
+              states[k] = '';
+              cleaned = true;
+            }
+          });
+          if (cleaned) session.step_states = { ...states };
+          if (states.plan === 'done') session.phase = 'planned';
+          else session.phase = 'idle';
+          return;
+        }
         if (states.render === 'error' || states.code === 'error') {
           session.phase = 'failed';
           return;
@@ -6285,6 +6337,7 @@
 
       function restoreSessionState(session) {
         if (!session) return;
+        updateSessionPhase(session);
         if (chatMessagesEl) chatMessagesEl.innerHTML = session.messages_html || '';
         if (chatInputEl) chatInputEl.value = session.prompt || '';
         if (chatModelEl && session.model) chatModelEl.value = session.model;
@@ -6321,6 +6374,12 @@
 
       function syncBusyFromSession(session) {
         if (!session) return;
+        const hasJob = !!String(session.job_id || '').trim();
+        if (!hasJob) {
+          setBusy(false);
+          if (statusEl) statusEl.textContent = 'Ready.';
+          return;
+        }
         const phase = session.phase || '';
         if (phase === 'rendering') {
           setBusy(true, 'Rendering…', 'Rendering');
@@ -6683,6 +6742,7 @@
 
       function applySessionToUI(session) {
         if (!session) return;
+        updateSessionPhase(session);
         currentJobId = session.job_id || '';
         currentPlanText = session.plan_text || '';
         timelineMeta = session.timeline_meta || { title: 'Scene Plan' };
@@ -7586,7 +7646,7 @@
       }
 
       function contextPanelHeightForTab(id) {
-        return 126;
+        return 168;
       }
 
       function applyContextPanelHeight(id) {
@@ -9124,8 +9184,30 @@
           row.title = 'Select memory for the next plan/render';
           const title = cleanInline(mem?.title || '').trim() || `Memory ${idx + 1}`;
           const body = cleanInline(mem?.content || '').trim();
-          row.innerHTML = `<div style="display:flex; align-items:flex-start; gap:8px;"><input type="checkbox" data-id="${mem.id}" style="margin-top:2px;" /><div style="min-width:0;"><div class="memory-entry-title">${escapeHtml(compactLabel(title, 56))}</div><div class="memory-entry-body">${escapeHtml(compactLabel(body || 'No details provided.', 160))}</div></div></div>`;
+          row.innerHTML = `
+            <div class="memory-row">
+              <input type="checkbox" data-id="${mem.id}" />
+              <div style="min-width:0;">
+                <div class="memory-entry-title">${escapeHtml(compactLabel(title, 56))}</div>
+                <div class="memory-entry-body">${escapeHtml(compactLabel(body || 'No details provided.', 140))}</div>
+              </div>
+              <button class="ghost" type="button" data-memory-del="${mem.id}" title="Remove memory">Remove</button>
+            </div>`;
           memoryListEl.appendChild(row);
+        });
+        memoryListEl.querySelectorAll('[data-memory-del]').forEach((btn) => {
+          btn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const id = btn.getAttribute('data-memory-del');
+            if (!id) return;
+            try {
+              await fetch(`/api/memories/${encodeURIComponent(id)}`, { method: 'DELETE' });
+            } catch {}
+            await loadMemories();
+            showToast('Memory removed.', 'ok');
+            scheduleAutosave();
+          });
         });
       }
 
@@ -10690,10 +10772,22 @@
           showToast('No variants returned.', 'err');
           return;
         }
+        const validJobs = jobs.filter((j) => !!String(j?.job_id || '').trim());
+        if (!validJobs.length) {
+          showToast('Crazy mode failed: backend returned no valid job ids.', 'err');
+          statusEl.textContent = 'Crazy mode failed: no valid jobs were created.';
+          setStep('plan', 'error');
+          setStepNote('plan', 'Crazy mode failed: no valid job ids returned.');
+          return;
+        }
+        const dropped = jobs.length - validJobs.length;
+        if (dropped > 0) {
+          showToast(`Skipped ${dropped} invalid variant${dropped > 1 ? 's' : ''}.`, 'err');
+        }
         saveActiveSessionState();
         const labels = ['Crazy A', 'Crazy B', 'Crazy C'];
         const created = [];
-        jobs.forEach((j, idx) => {
+        validJobs.forEach((j, idx) => {
           const session = createSessionRecord(labels[idx] || `Crazy ${idx + 1}`);
           session.job_id = j.job_id || '';
           session.plan_text = j.plan_text || '';
@@ -11470,6 +11564,7 @@
         );
         const indexBtnLabel = indexSourceBtn.textContent || 'Index source';
         indexSourceBtn.disabled = true;
+        indexSourceBtn.classList.add('indexing');
         indexSourceBtn.textContent = 'Indexing…';
         if (sourceCardsEl) {
           sourceCardsEl.innerHTML = `
@@ -11501,7 +11596,7 @@
               setSourceStatus(data.error || 'Indexing failed.', 'err');
               showToast(data.error || 'Indexing failed.', 'err');
             }
-            renderSources();
+            renderSources({ preserveStatus: true });
             return;
           }
           const indexed = normalizeSourceRecord({
@@ -11538,9 +11633,10 @@
             setSourceStatus('Failed to reach backend. Is the server running?', 'err');
             showToast('Failed to reach backend.', 'err');
           }
-          renderSources();
+          renderSources({ preserveStatus: true });
         } finally {
           indexSourceBtn.disabled = false;
+          indexSourceBtn.classList.remove('indexing');
           indexSourceBtn.textContent = indexBtnLabel;
         }
       });

@@ -1639,9 +1639,12 @@ def docs_index(req: SourceIndexReq):
             url=url,
             video_id=video_id,
         )
+        used_description_fallback = bool(
+            transcript_issue and "Used video description fallback" in transcript_issue
+        )
         if yt_text:
-            transcript_used = True
             transcript_chars = len(yt_text)
+            transcript_used = not used_description_fallback
             clip = yt_text[:12000]
             if notes:
                 index_notes = f"{notes}\n\n[Auto transcript]\n{clip}"
