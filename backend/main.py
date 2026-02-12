@@ -1228,6 +1228,11 @@ def index():
     return FileResponse(WEB / "index.html")
 
 
+@app.head("/")
+def index_head():
+    return Response(status_code=200)
+
+
 @app.get("/favicon.ico")
 def favicon():
     # Browser requests this by default; avoid noisy 404 logs during demos.
@@ -1315,6 +1320,11 @@ def health():
 @app.get("/api/healthz")
 def healthz():
     return {"ok": True}
+
+
+@app.head("/api/healthz")
+def healthz_head():
+    return Response(status_code=200)
 
 
 def _health_snapshot(settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
