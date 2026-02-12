@@ -1312,6 +1312,11 @@ def health():
     return _health_snapshot(load_settings())
 
 
+@app.get("/api/healthz")
+def healthz():
+    return {"ok": True}
+
+
 def _health_snapshot(settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     import subprocess
     import shutil
