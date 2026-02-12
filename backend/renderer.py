@@ -184,3 +184,167 @@ def concat_videos(
         return True, logs_all
 
     return False, logs_all or "ffmpeg concat failed"
+
+
+def _probe_duration_s(video_path: Path) -> tuple[bool, float, str]:
+    ffprobe = shutil.which("ffprobe")
+    if not ffprobe:
+        return False, 0.0, "ffprobe not found on PATH"
+    cmd = [
+        ffprobe,
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=nokey=1:noprint_wrappers=1",
+        str(video_path),
+    ]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    except subprocess.TimeoutExpired as exc:
+        logs = (exc.stdout or "") + "\n" + (exc.stderr or "")
+        return False, 0.0, logs + "\nffprobe timed out"
+    out = (proc.stdout or "").strip()
+    logs = (proc.stdout or "") + "\n" + (proc.stderr or "")
+    if proc.returncode != 0:
+        return False, 0.0, logs or "ffprobe failed"
+    try:
+        return True, float(out), logs
+    except ValueError:
+        return False, 0.0, logs or "ffprobe returned invalid duration"
+
+
+def _encode_trim_segment(
+    *,
+    ffmpeg: str,
+    in_video: Path,
+    out_video: Path,
+    start_s: float | None = None,
+    end_s: float | None = None,
+    timeout_s: int = 240,
+) -> tuple[bool, str]:
+    cmd = [ffmpeg, "-y", "-i", str(in_video)]
+    if start_s is not None and start_s > 0:
+        cmd += ["-ss", f"{start_s:.3f}"]
+    if end_s is not None and end_s > 0:
+        if start_s is not None and start_s > 0:
+            dur = max(0.05, end_s - start_s)
+            cmd += ["-t", f"{dur:.3f}"]
+        else:
+            cmd += ["-to", f"{end_s:.3f}"]
+    cmd += [
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "20",
+        "-pix_fmt",
+        "yuv420p",
+        str(out_video),
+    ]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s)
+    except subprocess.TimeoutExpired as exc:
+        logs = (exc.stdout or "") + "\n" + (exc.stderr or "")
+        return False, logs + "\nffmpeg trim timed out"
+    logs = (proc.stdout or "") + "\n" + (proc.stderr or "")
+    return proc.returncode == 0 and out_video.exists(), logs
+
+
+def cut_video_range(
+    in_video: Path,
+    *,
+    start_s: float,
+    end_s: float,
+    out_video: Path,
+    timeout_s: int = 300,
+) -> tuple[bool, str]:
+    """Remove [start_s, end_s] from a rendered video and output a new mp4."""
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return False, "ffmpeg not found on PATH"
+    if not in_video.exists():
+        return False, f"Missing video: {in_video}"
+    if start_s < 0 or end_s <= start_s:
+        return False, "Invalid cut range"
+
+    ok_dur, duration_s, probe_logs = _probe_duration_s(in_video)
+    logs_all = probe_logs + "\n"
+    if not ok_dur:
+        return False, logs_all or "Could not read video duration"
+    if start_s >= duration_s:
+        return False, f"Cut start {start_s:.2f}s is beyond duration {duration_s:.2f}s"
+    end_s = min(end_s, duration_s)
+    if end_s - start_s <= 0.02:
+        return False, "Cut range too small"
+
+    out_video.parent.mkdir(parents=True, exist_ok=True)
+    tmp_dir = out_video.parent / ".cut_tmp"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    part_a = tmp_dir / "part-a.mp4"
+    part_b = tmp_dir / "part-b.mp4"
+
+    # Case 1: remove from beginning.
+    if start_s <= 0.02:
+        ok_b, logs_b = _encode_trim_segment(
+            ffmpeg=ffmpeg,
+            in_video=in_video,
+            out_video=part_b,
+            start_s=end_s,
+            end_s=None,
+            timeout_s=timeout_s,
+        )
+        logs_all += "\n=== cut from start ===\n" + logs_b
+        if not ok_b:
+            return False, logs_all
+        part_b.replace(out_video)
+        return True, logs_all
+
+    # Case 2: remove to end.
+    if end_s >= duration_s - 0.02:
+        ok_a, logs_a = _encode_trim_segment(
+            ffmpeg=ffmpeg,
+            in_video=in_video,
+            out_video=part_a,
+            start_s=0.0,
+            end_s=start_s,
+            timeout_s=timeout_s,
+        )
+        logs_all += "\n=== cut to end ===\n" + logs_a
+        if not ok_a:
+            return False, logs_all
+        part_a.replace(out_video)
+        return True, logs_all
+
+    # Case 3: remove middle range and stitch the two sides.
+    ok_a, logs_a = _encode_trim_segment(
+        ffmpeg=ffmpeg,
+        in_video=in_video,
+        out_video=part_a,
+        start_s=0.0,
+        end_s=start_s,
+        timeout_s=timeout_s,
+    )
+    logs_all += "\n=== part A ===\n" + logs_a
+    if not ok_a:
+        return False, logs_all
+
+    ok_b, logs_b = _encode_trim_segment(
+        ffmpeg=ffmpeg,
+        in_video=in_video,
+        out_video=part_b,
+        start_s=end_s,
+        end_s=None,
+        timeout_s=timeout_s,
+    )
+    logs_all += "\n=== part B ===\n" + logs_b
+    if not ok_b:
+        return False, logs_all
+
+    ok_concat, concat_logs = concat_videos(part_a, part_b, out_video, timeout_s=timeout_s)
+    logs_all += "\n=== concat ===\n" + concat_logs
+    if not ok_concat:
+        return False, logs_all
+    return True, logs_all
