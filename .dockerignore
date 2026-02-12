@@ -1,0 +1,17 @@
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+.DS_Store
+
+work
+output
+notes
+docs
+screenshot
+
+*.mp4
+*.mov
+*.avi
+*.log
