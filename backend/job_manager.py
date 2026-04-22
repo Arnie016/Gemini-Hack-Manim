@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import difflib
 import json
 import subprocess
 import threading
@@ -44,6 +45,46 @@ def _build_srt(plan: Dict[str, Any]) -> str:
     return "\n".join(lines).strip() + "\n"
 
 
+def _diagnose_logs(logs: str) -> str:
+    """Extract the most useful render failure lines for the UI."""
+    text = logs or ""
+    if not text.strip():
+        return "Render failed before logs were written."
+    interesting: list[str] = []
+    needles = (
+        "traceback",
+        "error",
+        "exception",
+        "failed",
+        "modulenotfounderror",
+        "nameerror",
+        "typeerror",
+        "valueerror",
+        "attributeerror",
+    )
+    for line in text.splitlines():
+        clean = line.strip()
+        if not clean:
+            continue
+        low = clean.lower()
+        if any(token in low for token in needles):
+            interesting.append(clean)
+    if not interesting:
+        interesting = [line.strip() for line in text.splitlines() if line.strip()][-12:]
+    return "\n".join(interesting[-24:])[:4000]
+
+
+def _code_diff(before: str, after: str) -> str:
+    diff = difflib.unified_diff(
+        before.splitlines(),
+        after.splitlines(),
+        fromfile="scene.py.before",
+        tofile="scene.py.after",
+        lineterm="",
+    )
+    return "\n".join(diff)[:12000]
+
+
 class JobManager:
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -67,6 +108,7 @@ class JobManager:
         manim_py: Optional[str],
         api_key: Optional[str],
         text_model: Optional[str],
+        text_provider: Optional[str] = None,
     ) -> None:
         with self._lock:
             if job_id in self._threads and self._threads[job_id].is_alive():
@@ -86,6 +128,7 @@ class JobManager:
                     "manim_py": manim_py,
                     "api_key": api_key,
                     "text_model": text_model,
+                    "text_provider": text_provider,
                 },
             )
             self._threads[job_id] = t
@@ -104,6 +147,7 @@ class JobManager:
         manim_py: Optional[str],
         api_key: Optional[str],
         text_model: Optional[str],
+        text_provider: Optional[str] = None,
     ) -> None:
         import traceback
 
@@ -141,6 +185,7 @@ class JobManager:
                 system_text=MANIM_CODE_SYSTEM,
                 api_key=api_key,
                 model=text_model,
+                provider=text_provider,
             )
             code = sanitize_manim_code(code)
             scene_path.write_text(code, encoding="utf-8")
@@ -176,6 +221,8 @@ class JobManager:
                     state.status = "failed"
                     state.step = "render"
                     state.error = "Manim missing (install manim or choose a different Python in Settings → Rendering)"
+                    state.diagnosis = _diagnose_logs((proc.stdout or "") + "\n" + (proc.stderr or ""))
+                    state.retry_result = "not_attempted"
                     state.message = "Failed."
                     state.updated_at = time.time()
                     write_state(job_dir, state)
@@ -214,6 +261,9 @@ class JobManager:
                     logs = logs_path.read_text(encoding="utf-8")
                 except Exception:
                     logs = ""
+                state.diagnosis = _diagnose_logs(logs)
+                state.retry_result = "repair_requested"
+                write_state(job_dir, state)
 
                 repair_user = (
                     "The render failed.\n"
@@ -223,18 +273,22 @@ class JobManager:
                     f"{scene_path.read_text(encoding='utf-8')}\n\n"
                     "Return a fixed full python file."
                 )
+                old_code = scene_path.read_text(encoding="utf-8")
                 code2 = generate_content(
                     repair_user,
                     system_text=REPAIR_SYSTEM,
                     api_key=api_key,
                     model=text_model,
+                    provider=text_provider,
                 )
                 code2 = sanitize_manim_code(code2)
                 scene_path.write_text(code2, encoding="utf-8")
+                state.code_diff = _code_diff(old_code, code2)
 
                 state.status = "running"
                 state.step = "render"
                 state.message = "Rendering MP4 (retry)…"
+                state.retry_result = "retry_started"
                 state.updated_at = time.time()
                 write_state(job_dir, state)
                 append_event(
@@ -255,6 +309,11 @@ class JobManager:
                 state.status = "failed"
                 state.step = "render"
                 state.error = "Render failed"
+                state.retry_result = "retry_failed"
+                try:
+                    state.diagnosis = _diagnose_logs(logs_path.read_text(encoding="utf-8"))
+                except Exception:
+                    pass
                 state.message = "Failed."
                 state.updated_at = time.time()
                 write_state(job_dir, state)
@@ -269,6 +328,8 @@ class JobManager:
             state.step = "idle"
             state.message = "Render complete."
             state.video_path = str(out_mp4)
+            if state.retry_result == "retry_started":
+                state.retry_result = "fixed_on_retry"
             state.updated_at = time.time()
             write_state(job_dir, state)
             append_event(

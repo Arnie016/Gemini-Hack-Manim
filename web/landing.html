@@ -1,0 +1,1156 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NorthStar - Agentic Manim IDE</title>
+    <meta
+      name="description"
+      content="NorthStar is an agentic IDE for Manim storytelling animations: turn physics concepts into storyboarded, inspectable Manim videos."
+    />
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap");
+
+      :root {
+        color-scheme: dark;
+        --bg: #0b0d12;
+        --bg-2: #0f131a;
+        --panel: #14171d;
+        --panel-2: #1a1f26;
+        --text: #e6e9ef;
+        --muted: #9aa4b2;
+        --line: #242a33;
+        --line-soft: rgba(230, 233, 239, 0.12);
+        --blue: #6aa9ff;
+        --green: #22c55e;
+        --violet: #a78bfa;
+        --amber: #f59e0b;
+        --red: #ef4444;
+        --shadow: 0 32px 90px rgba(0, 0, 0, 0.42);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100svh;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+        letter-spacing: 0;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      button,
+      .button {
+        min-height: 44px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #0f141d;
+        color: var(--text);
+        padding: 0 16px;
+        font: inherit;
+        font-weight: 700;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        cursor: pointer;
+        transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+      }
+
+      button:hover,
+      .button:hover {
+        transform: translateY(-1px);
+        border-color: rgba(106, 169, 255, 0.62);
+        background: #151d2a;
+      }
+
+      .button.primary {
+        background: var(--blue);
+        border-color: transparent;
+        color: #07101d;
+      }
+
+      .button.ghost {
+        background: rgba(15, 20, 29, 0.66);
+      }
+
+      .site-nav {
+        position: fixed;
+        inset: 0 0 auto;
+        height: 64px;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 24px;
+        border-bottom: 1px solid rgba(36, 42, 51, 0.72);
+        background: rgba(11, 13, 18, 0.82);
+        backdrop-filter: blur(18px);
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+      }
+
+      .brand-mark {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        display: grid;
+        place-items: center;
+        background: var(--blue);
+        color: #07101d;
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .nav-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .hero {
+        min-height: 100svh;
+        position: relative;
+        overflow: hidden;
+        display: grid;
+        grid-template-columns: minmax(360px, 0.75fr) minmax(0, 1.25fr);
+        align-items: stretch;
+        padding-top: 64px;
+        background:
+          linear-gradient(180deg, rgba(11, 13, 18, 0.12), rgba(11, 13, 18, 0.96)),
+          var(--bg);
+      }
+
+      .hero::before {
+        content: "";
+        position: absolute;
+        inset: 64px 0 0;
+        pointer-events: none;
+        background-image:
+          linear-gradient(rgba(106, 169, 255, 0.08) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(106, 169, 255, 0.08) 1px, transparent 1px);
+        background-size: 48px 48px;
+        mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0.28), #000 28%, #000 74%, rgba(0, 0, 0, 0.42));
+      }
+
+      .hero-copy {
+        position: relative;
+        z-index: 3;
+        display: grid;
+        align-content: center;
+        gap: 22px;
+        padding: 80px 24px 80px 56px;
+        max-width: 720px;
+      }
+
+      .eyebrow {
+        color: var(--blue);
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 12px;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: 6.4rem;
+        line-height: 0.9;
+        letter-spacing: 0;
+      }
+
+      .hero-copy p {
+        max-width: 34ch;
+        color: #c7d0df;
+        font-size: 1.35rem;
+        line-height: 1.42;
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .hero-mini {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        color: var(--muted);
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 12px;
+      }
+
+      .hero-mini span {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 6px 10px;
+        background: rgba(20, 23, 29, 0.76);
+      }
+
+      .physics-stage {
+        position: relative;
+        min-height: calc(100svh - 64px);
+        isolation: isolate;
+        overflow: hidden;
+        border-left: 1px solid rgba(36, 42, 51, 0.72);
+      }
+
+      #physicsCanvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+      }
+
+      .concept-field {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+      }
+
+      .concept-node {
+        position: absolute;
+        min-width: 118px;
+        max-width: 190px;
+        min-height: 42px;
+        border: 1px solid rgba(106, 169, 255, 0.26);
+        border-radius: 8px;
+        background: rgba(15, 20, 29, 0.74);
+        color: #dce7f7;
+        padding: 8px 10px;
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 12px;
+        line-height: 1.2;
+        box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
+        backdrop-filter: blur(8px);
+        will-change: transform, opacity;
+        cursor: pointer;
+      }
+
+      .concept-node em {
+        display: block;
+        color: var(--muted);
+        font-style: normal;
+        font-size: 10px;
+        margin-top: 3px;
+      }
+
+      .concept-node.active {
+        border-color: rgba(34, 197, 94, 0.72);
+        background: rgba(23, 45, 34, 0.88);
+        color: #f0fff6;
+      }
+
+      .focus-readout {
+        position: absolute;
+        z-index: 4;
+        right: 28px;
+        bottom: 28px;
+        width: min(420px, calc(100% - 56px));
+        border: 1px solid rgba(106, 169, 255, 0.34);
+        border-radius: 8px;
+        background: rgba(11, 13, 18, 0.82);
+        padding: 18px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(14px);
+      }
+
+      .focus-label {
+        color: var(--green);
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 12px;
+        text-transform: uppercase;
+      }
+
+      .focus-title {
+        margin-top: 8px;
+        font-size: 2rem;
+        line-height: 1.05;
+        font-weight: 700;
+      }
+
+      .focus-note {
+        margin-top: 10px;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .focus-actions {
+        margin-top: 16px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .focus-actions .button {
+        min-height: 36px;
+        padding: 9px 12px;
+        font-size: 0.88rem;
+      }
+
+      .section {
+        padding: 96px 56px;
+        background: var(--bg);
+      }
+
+      .section.alt {
+        background: var(--bg-2);
+      }
+
+      .section-head {
+        max-width: 920px;
+        display: grid;
+        gap: 14px;
+      }
+
+      h2 {
+        max-width: 13ch;
+        font-size: 4.75rem;
+        line-height: 0.96;
+        letter-spacing: 0;
+      }
+
+      .section-head p,
+      .final-copy p {
+        max-width: 62ch;
+        color: var(--muted);
+        font-size: 1.08rem;
+        line-height: 1.55;
+      }
+
+      .concept-atlas {
+        margin-top: 42px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        border-top: 1px solid var(--line);
+        border-left: 1px solid var(--line);
+      }
+
+      .atlas-cell {
+        min-height: 78px;
+        display: grid;
+        align-content: space-between;
+        justify-content: stretch;
+        gap: 12px;
+        padding: 12px;
+        border-right: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+        border-radius: 0;
+        background: rgba(20, 23, 29, 0.46);
+        text-align: left;
+        transition: background 180ms ease, color 180ms ease;
+        cursor: pointer;
+      }
+
+      .atlas-cell:hover {
+        background: rgba(106, 169, 255, 0.12);
+      }
+
+      .atlas-cell b {
+        font-size: 0.92rem;
+      }
+
+      .atlas-cell span {
+        color: var(--muted);
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 11px;
+      }
+
+      .workflow-grid {
+        margin-top: 44px;
+        display: grid;
+        grid-template-columns: repeat(5, minmax(120px, 1fr));
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+      }
+
+      .workflow-step {
+        min-height: 180px;
+        padding: 20px;
+        display: grid;
+        align-content: space-between;
+        border-right: 1px solid var(--line);
+      }
+
+      .workflow-step:last-child {
+        border-right: 0;
+      }
+
+      .workflow-step span {
+        color: var(--blue);
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 12px;
+      }
+
+      .workflow-step strong {
+        font-size: 1.35rem;
+        line-height: 1.12;
+      }
+
+      .proof-grid {
+        margin-top: 48px;
+        display: grid;
+        grid-template-columns: minmax(0, 1.12fr) minmax(300px, 0.88fr);
+        gap: 40px;
+        align-items: start;
+      }
+
+      .product-shot {
+        min-height: 520px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: #0b0d12 url("/screenshot/UI.png") center / cover no-repeat;
+        box-shadow: var(--shadow);
+      }
+
+      .proof-list {
+        border-top: 1px solid var(--line);
+      }
+
+      .proof-item {
+        display: grid;
+        grid-template-columns: 36px minmax(0, 1fr);
+        gap: 16px;
+        padding: 20px 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .proof-item b {
+        color: var(--green);
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+      }
+
+      .proof-item strong {
+        display: block;
+        margin-bottom: 6px;
+      }
+
+      .proof-item p {
+        color: var(--muted);
+        line-height: 1.52;
+      }
+
+      .readiness {
+        display: grid;
+        grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1.1fr);
+        gap: 44px;
+        align-items: start;
+      }
+
+      .check-panel {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(20, 23, 29, 0.58);
+        padding: 24px;
+      }
+
+      .check-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 16px;
+        align-items: center;
+        min-height: 58px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .check-row:last-child {
+        border-bottom: 0;
+      }
+
+      .status-pill {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 6px 10px;
+        color: var(--muted);
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 12px;
+      }
+
+      .status-pill.ok {
+        border-color: rgba(34, 197, 94, 0.54);
+        color: var(--green);
+      }
+
+      .status-pill.bad {
+        border-color: rgba(239, 68, 68, 0.52);
+        color: #ff9f9f;
+      }
+
+      .final {
+        min-height: 56svh;
+        display: grid;
+        place-items: center;
+        text-align: center;
+      }
+
+      .final-copy {
+        display: grid;
+        justify-items: center;
+        gap: 18px;
+      }
+
+      .final-copy h2 {
+        max-width: 12ch;
+      }
+
+      @keyframes enterUp {
+        from {
+          opacity: 0;
+          transform: translateY(14px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .hero-copy > * {
+        animation: enterUp 620ms ease both;
+      }
+
+      .hero-copy > *:nth-child(2) {
+        animation-delay: 80ms;
+      }
+
+      .hero-copy > *:nth-child(3) {
+        animation-delay: 140ms;
+      }
+
+      .hero-copy > *:nth-child(4) {
+        animation-delay: 200ms;
+      }
+
+      .hero-copy > *:nth-child(5) {
+        animation-delay: 260ms;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+
+        *,
+        *::before,
+        *::after {
+          animation: none !important;
+          transition: none !important;
+        }
+      }
+
+      @media (max-width: 980px) {
+        .site-nav {
+          padding-inline: 14px;
+        }
+
+        .nav-actions .ghost {
+          display: none;
+        }
+
+        .hero {
+          grid-template-columns: 1fr;
+        }
+
+        .hero-copy {
+          padding: 64px 18px 24px;
+        }
+
+        .physics-stage {
+          min-height: 520px;
+          border-left: 0;
+          border-top: 1px solid var(--line);
+        }
+
+        h1 {
+          font-size: 4rem;
+        }
+
+        h2 {
+          font-size: 3rem;
+        }
+
+        .hero-copy p {
+          font-size: 1.08rem;
+        }
+
+        .section {
+          padding: 72px 18px;
+        }
+
+        .workflow-grid,
+        .proof-grid,
+        .readiness {
+          grid-template-columns: 1fr;
+        }
+
+        .workflow-step {
+          min-height: 110px;
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .workflow-step:last-child {
+          border-bottom: 0;
+        }
+
+        .product-shot {
+          min-height: 340px;
+        }
+      }
+
+      @media (max-width: 560px) {
+        .brand span:last-child {
+          display: none;
+        }
+
+        h1 {
+          font-size: 3.3rem;
+        }
+
+        h2 {
+          font-size: 2.35rem;
+        }
+
+        .focus-readout {
+          right: 14px;
+          bottom: 14px;
+          width: calc(100% - 28px);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="site-nav" aria-label="Primary">
+      <a class="brand" href="/" aria-label="NorthStar home">
+        <span class="brand-mark">NS</span>
+        <span>NorthStar</span>
+      </a>
+      <div class="nav-actions">
+        <a class="button ghost" href="#atlas">Concept atlas</a>
+        <a class="button ghost" href="#readiness">Checks</a>
+        <a class="button primary" href="/app">Launch IDE</a>
+      </div>
+    </nav>
+
+    <main>
+      <section class="hero" aria-label="NorthStar landing">
+        <div class="hero-copy">
+          <div class="eyebrow">Agentic Manim IDE</div>
+          <h1>Physics concepts, rendered as stories.</h1>
+          <p>NorthStar turns diffraction, relativity, spectra, pendulums, waves, fields, and 100+ other ideas into storyboarded Manim animations you can inspect and repair.</p>
+          <div class="hero-actions">
+            <a class="button primary" href="/app">Open the IDE</a>
+            <a class="button ghost" href="#atlas">See the concept grid</a>
+          </div>
+          <div class="hero-mini">
+            <span>Plan</span>
+            <span>Audit</span>
+            <span>Code</span>
+            <span>Render</span>
+            <span>Repair</span>
+          </div>
+        </div>
+
+        <div class="physics-stage" aria-label="Animated physics concept field">
+          <canvas id="physicsCanvas"></canvas>
+          <div class="concept-field" id="conceptField"></div>
+          <div class="focus-readout">
+            <div class="focus-label" id="focusFamily">Optics</div>
+            <div class="focus-title" id="focusTitle">Diffraction</div>
+            <div class="focus-note" id="focusNote">Wavefronts bend through an aperture, becoming a clean Manim scene with labeled interference bands.</div>
+            <div class="focus-actions">
+              <button class="button primary" id="useFocusConcept" type="button">Use this concept</button>
+              <button class="button ghost" id="nextFocusConcept" type="button">Next</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="atlas">
+        <div class="section-head">
+          <div class="eyebrow">Concept atlas</div>
+          <h2>A grid that keeps opening new lessons.</h2>
+          <p>Click any tile to load a complete story prompt into the IDE. The animated field keeps cycling through the same concept library so the page feels like a living physics wall.</p>
+        </div>
+        <div class="concept-atlas" id="conceptAtlas" aria-label="Physics concept atlas"></div>
+      </section>
+
+      <section class="section alt">
+        <div class="section-head">
+          <div class="eyebrow">Studio loop</div>
+          <h2>One surface from concept to render.</h2>
+          <p>The product promise is not generic AI video. It is an inspectable Manim pipeline with a visible plan, code, timeline, render logs, captions, and repair status.</p>
+        </div>
+        <div class="workflow-grid" aria-label="NorthStar workflow">
+          <div class="workflow-step"><span>01</span><strong>Prompt a concept</strong></div>
+          <div class="workflow-step"><span>02</span><strong>Approve the scene plan</strong></div>
+          <div class="workflow-step"><span>03</span><strong>Generate Manim code</strong></div>
+          <div class="workflow-step"><span>04</span><strong>Render the MP4</strong></div>
+          <div class="workflow-step"><span>05</span><strong>Diagnose and repair</strong></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="proof-grid">
+          <div class="product-shot" role="img" aria-label="NorthStar IDE screenshot"></div>
+          <div>
+            <div class="section-head">
+              <div class="eyebrow">IDE proof</div>
+              <h2>The landing page now matches the app.</h2>
+              <p>Same dark workspace, same blue action color, same green success language, and less of the yellow-green beta-product palette.</p>
+            </div>
+            <div class="proof-list">
+              <div class="proof-item">
+                <b>A</b>
+                <div><strong>Storyboard first</strong><p>Every lesson starts as editable scene structure before code generation.</p></div>
+              </div>
+              <div class="proof-item">
+                <b>B</b>
+                <div><strong>Concept breadth</strong><p>Physics, math, and engineering ideas are surfaced as short promptable animation seeds.</p></div>
+              </div>
+              <div class="proof-item">
+                <b>C</b>
+                <div><strong>Repair with evidence</strong><p>Failed renders show logs, diagnosis, retry state, and code diff instead of hiding the failure.</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section alt" id="readiness">
+        <div class="readiness">
+          <div class="section-head">
+            <div class="eyebrow">Local readiness</div>
+            <h2>Keep the demo path honest.</h2>
+            <p>The page checks the same backend preflight used by the IDE: Gemini key, Manim, ffmpeg, and writable output.</p>
+            <div><button id="runChecks">Run checks</button></div>
+          </div>
+          <div class="check-panel" aria-live="polite">
+            <div class="check-row"><span>Gemini API key</span><span id="checkApi" class="status-pill">waiting</span></div>
+            <div class="check-row"><span>Manim renderer</span><span id="checkManim" class="status-pill">waiting</span></div>
+            <div class="check-row"><span>ffmpeg</span><span id="checkFfmpeg" class="status-pill">waiting</span></div>
+            <div class="check-row"><span>Output folder</span><span id="checkOutput" class="status-pill">waiting</span></div>
+            <p id="checkDetail" style="color: var(--muted); line-height: 1.5; margin: 18px 0 0;">Open the IDE settings if a check fails.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section final">
+        <div class="final-copy">
+          <div class="eyebrow">Next render</div>
+          <h2>Pick one concept and make it move.</h2>
+          <p>Open the IDE, choose a concept from the atlas, and render a short scene before worrying about polish, domain, or Stripe.</p>
+          <a class="button primary" href="/app">Launch NorthStar</a>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const concepts = [
+        ["Diffraction", "Optics", "Wavefronts bend through an aperture into labeled interference bands."],
+        ["Interference", "Optics", "Two waves overlap, cancel, and reinforce with phase labels."],
+        ["Visibility principle", "Optics", "Fringe visibility tracks contrast between bright and dark bands."],
+        ["Refraction", "Optics", "A beam bends at a boundary while the normal and angles stay visible."],
+        ["Reflection", "Optics", "Incident and reflected rays animate across a mirrored surface."],
+        ["Spectrum", "Optics", "White light separates into a clean frequency map."],
+        ["Polarization", "Optics", "A vector field filters through aligned slits."],
+        ["Lens equation", "Optics", "Object, focal point, and image distance appear on a labeled axis."],
+        ["Snell law", "Optics", "Angles and media indices update as a ray enters glass."],
+        ["Photoelectric effect", "Quantum", "Photons eject electrons only above threshold frequency."],
+        ["Wave packet", "Quantum", "A localized pulse spreads while probability density changes."],
+        ["Tunneling", "Quantum", "A wavefunction leaks through a potential barrier."],
+        ["Bohr orbit", "Quantum", "Electrons jump levels and emit spectral lines."],
+        ["Spin", "Quantum", "A state vector precesses through measurement axes."],
+        ["Superposition", "Quantum", "Two basis states combine, then collapse under measurement."],
+        ["Entanglement", "Quantum", "Paired states stay correlated across separated panels."],
+        ["Uncertainty", "Quantum", "Position narrows as momentum spread widens."],
+        ["Pendulum", "Mechanics", "Energy trades between height and speed over one swing."],
+        ["Spring oscillator", "Mechanics", "Mass, spring, velocity, and restoring force cycle in phase."],
+        ["Projectile motion", "Mechanics", "Horizontal and vertical motion separate along a parabolic path."],
+        ["Circular motion", "Mechanics", "Velocity stays tangent while acceleration points inward."],
+        ["Torque", "Mechanics", "A lever arm rotates as force and pivot labels appear."],
+        ["Conservation momentum", "Mechanics", "Colliding carts exchange velocity while total momentum remains fixed."],
+        ["Friction", "Mechanics", "Normal force, applied force, and friction vectors balance."],
+        ["Inclined plane", "Mechanics", "Gravity decomposes along and into the ramp."],
+        ["Relativity", "Spacetime", "A light cone anchors cause and effect across spacetime."],
+        ["Time dilation", "Spacetime", "Two clocks separate as velocity increases."],
+        ["Length contraction", "Spacetime", "A moving ruler compresses along its direction of travel."],
+        ["Twin paradox", "Spacetime", "Worldlines split and reunite with proper time labels."],
+        ["Lorentz transform", "Spacetime", "Axes shear into a moving frame."],
+        ["Gravitational lensing", "Spacetime", "Light curves around a mass and forms duplicated images."],
+        ["Escape velocity", "Gravity", "Energy climbs from bound orbit to escape path."],
+        ["Kepler orbit", "Gravity", "Equal areas sweep across an elliptical orbit."],
+        ["Electric field", "Fields", "Field arrows flow from charge into space."],
+        ["Magnetic field", "Fields", "Field loops wrap around a current."],
+        ["Gauss law", "Fields", "Flux crosses a closed surface around charge."],
+        ["Faraday induction", "Fields", "Changing magnetic flux drives a current loop."],
+        ["Lenz law", "Fields", "The induced field opposes the changing flux."],
+        ["Capacitor", "Circuits", "Charge builds across plates and stores field energy."],
+        ["RC circuit", "Circuits", "Voltage rises and decays on an exponential curve."],
+        ["RLC resonance", "Circuits", "Current peaks as frequency matches the circuit response."],
+        ["Ohm law", "Circuits", "Voltage, current, and resistance lock into one slope."],
+        ["Kirchhoff loop", "Circuits", "Voltage drops sum to zero around a circuit path."],
+        ["Waves", "Wave", "Amplitude, wavelength, phase, and speed animate together."],
+        ["Standing wave", "Wave", "Nodes stay fixed while antinodes pulse."],
+        ["Doppler effect", "Wave", "Wavefronts bunch ahead of a moving source."],
+        ["Beat frequency", "Wave", "Two nearby tones create a slow amplitude envelope."],
+        ["Fourier series", "Math", "Sine waves stack into a square wave approximation."],
+        ["Gradient", "Math", "Arrows climb a surface toward steepest increase."],
+        ["Divergence", "Math", "Vector flow expands from a source."],
+        ["Curl", "Math", "A local paddle wheel spins in a vector field."],
+        ["Eigenvector", "Math", "A vector keeps direction while a transform stretches it."],
+        ["Matrix transform", "Math", "Grid lines shear, rotate, and scale under a matrix."],
+        ["Derivative", "Math", "A tangent line tracks instantaneous slope."],
+        ["Integral", "Math", "Accumulated area fills beneath a curve."],
+        ["Phase space", "Math", "State traces a loop through position and momentum."],
+        ["Gradient descent", "Math", "A point steps down a loss surface."],
+        ["Normal distribution", "Statistics", "Samples accumulate into a bell curve."],
+        ["Bayes rule", "Statistics", "Prior, evidence, and posterior update in sequence."],
+        ["Entropy", "Thermo", "Microstates multiply as order disperses."],
+        ["Heat equation", "Thermo", "Temperature smooths across a rod over time."],
+        ["Carnot cycle", "Thermo", "A loop travels through pressure and volume states."],
+        ["Blackbody radiation", "Thermo", "Emission curves shift with temperature."],
+        ["Brownian motion", "Thermo", "A particle jitters under random molecular impacts."],
+        ["Sound wave", "Acoustics", "Compression bands travel through air."],
+        ["Resonance", "Acoustics", "Driven oscillation grows near natural frequency."],
+        ["Harmonics", "Acoustics", "Integer modes stack along a vibrating string."],
+        ["Mach cone", "Fluids", "A supersonic source forms a cone of pressure waves."],
+        ["Bernoulli principle", "Fluids", "Pressure falls where flow speed rises."],
+        ["Viscosity", "Fluids", "Internal friction turns fast and slow layers into a velocity profile."],
+        ["Reynolds number", "Fluids", "Flow shifts from smooth layers to unstable eddies as inertia wins."],
+        ["Vortex", "Fluids", "Streamlines spiral around a rotating core."],
+        ["Laminar flow", "Fluids", "Smooth layers slide past each other."],
+        ["Turbulence", "Fluids", "Eddies cascade into smaller structures."],
+        ["Buoyancy", "Fluids", "Displaced fluid pushes an object upward."],
+        ["Archimedes principle", "Fluids", "Weight and displaced volume balance on screen."],
+        ["Stress strain", "Materials", "A curve reveals elastic and plastic response."],
+        ["Young modulus", "Materials", "Slope of the elastic region becomes stiffness."],
+        ["Crystal lattice", "Materials", "Atoms repeat through a unit cell."],
+        ["Band gap", "Materials", "Electrons jump from valence to conduction band."],
+        ["Semiconductor", "Materials", "Doping shifts carrier population and energy levels."],
+        ["Transistor", "Electronics", "Gate voltage controls current through a channel."],
+        ["Logic gate", "Electronics", "Inputs switch and produce an output truth table."],
+        ["PID control", "Systems", "Error, correction, and overshoot settle into control."],
+        ["Feedback loop", "Systems", "Output returns to shape the next input."],
+        ["Nyquist sampling", "Signals", "Samples capture or alias a moving wave."],
+        ["Aliasing", "Signals", "A high frequency masquerades as a lower one."],
+        ["Convolution", "Signals", "One function slides across another to build a response."],
+        ["Filter response", "Signals", "Frequencies pass or fade across a response curve."],
+        ["Neuron spike", "Biophysics", "Voltage crosses threshold and resets."],
+        ["Membrane potential", "Biophysics", "Ion gradients set a voltage across a membrane."],
+        ["DNA helix", "Biophysics", "Base pairs rotate through a helical structure."],
+        ["Protein folding", "Biophysics", "A chain collapses into lower energy shape."],
+        ["Solar spectrum", "Astro", "Absorption lines reveal stellar composition."],
+        ["Redshift", "Astro", "Spectral lines slide as space expands."],
+        ["Hubble law", "Astro", "Galaxy speed grows with distance."],
+        ["Black hole", "Astro", "An event horizon traps paths inside a boundary."],
+        ["Accretion disk", "Astro", "Matter spirals inward and heats around a compact object."],
+        ["Neutron star", "Astro", "Dense matter and magnetic beams rotate."],
+        ["Supernova", "Astro", "A stellar core collapses then ejects shells."],
+        ["Tides", "Gravity", "Differential gravity stretches water toward and away from the moon."],
+        ["Lagrange point", "Gravity", "Forces balance in a rotating two-body frame."],
+        ["Rocket equation", "Aerospace", "Mass ratio turns into changing velocity."],
+        ["Orbital transfer", "Aerospace", "A burn changes one orbit into another."],
+        ["Lift", "Aerospace", "Airflow and pressure create upward force."],
+        ["Drag", "Aerospace", "Resistance grows as velocity increases."],
+        ["Gyroscope", "Rotation", "Angular momentum resists a change in axis."],
+        ["Precession", "Rotation", "A spinning top slowly turns under torque."],
+        ["Rigid body", "Rotation", "Multiple points rotate around a shared center."],
+        ["Moment inertia", "Rotation", "Mass distribution changes rotational response."],
+        ["Chaos", "Nonlinear", "Nearby starting points split into different futures."],
+        ["Bifurcation", "Nonlinear", "A stable path branches as a parameter changes."],
+        ["Logistic map", "Nonlinear", "Population dynamics move from order to chaos."],
+        ["Double pendulum", "Nonlinear", "Coupled arms create sensitive motion."],
+        ["Cellular automata", "Complexity", "Simple local rules generate large-scale patterns."],
+        ["Percolation", "Complexity", "Connected clusters suddenly span the grid."],
+        ["Random walk", "Statistics", "Step-by-step noise becomes a spreading distribution."],
+        ["Monte Carlo", "Statistics", "Random samples estimate area or probability."],
+        ["Least squares", "Statistics", "A best-fit line minimizes squared error."],
+        ["Kalman filter", "Systems", "Noisy measurements and predictions combine into one estimate."]
+      ];
+
+      const familyColors = {
+        Optics: "#6aa9ff",
+        Quantum: "#a78bfa",
+        Mechanics: "#22c55e",
+        Spacetime: "#f59e0b",
+        Gravity: "#60a5fa",
+        Fields: "#34d399",
+        Circuits: "#fb7185",
+        Wave: "#38bdf8",
+        Math: "#c084fc",
+        Statistics: "#f472b6",
+        Thermo: "#f97316",
+        Acoustics: "#2dd4bf",
+        Fluids: "#93c5fd",
+        Materials: "#facc15",
+        Electronics: "#818cf8",
+        Systems: "#4ade80",
+        Signals: "#67e8f9",
+        Biophysics: "#86efac",
+        Astro: "#c4b5fd",
+        Aerospace: "#7dd3fc",
+        Rotation: "#fbbf24",
+        Nonlinear: "#f87171",
+        Complexity: "#e879f9"
+      };
+
+      const field = document.getElementById("conceptField");
+      const atlas = document.getElementById("conceptAtlas");
+      const focusTitle = document.getElementById("focusTitle");
+      const focusFamily = document.getElementById("focusFamily");
+      const focusNote = document.getElementById("focusNote");
+      const useFocusConcept = document.getElementById("useFocusConcept");
+      const nextFocusConcept = document.getElementById("nextFocusConcept");
+      const canvas = document.getElementById("physicsCanvas");
+      const ctx = canvas.getContext("2d");
+      const nodes = [];
+      let activeIndex = 0;
+      let lastSwitch = 0;
+      let reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      function normalizeIndex(index) {
+        return ((index % concepts.length) + concepts.length) % concepts.length;
+      }
+
+      function buildConceptDraft(index) {
+        const [name, family, note] = concepts[normalizeIndex(index)];
+        return {
+          version: 1,
+          concept: name,
+          family,
+          note,
+          prompt: `Create a short Manim storytelling animation about ${name}. Start with a visual hook, show the physical intuition, reveal the equation or labels only when needed, and end with one clear takeaway. Concept note: ${note}`,
+          director_brief: `Concept: ${name}\nFamily: ${family}\nStory arc: hook -> mechanism -> equation or diagram -> takeaway.\nKeep the animation inspectable, grid-aligned, and readable in 9:16.\nKey intuition: ${note}`,
+          target_seconds: 45,
+          max_scenes: 5,
+          max_objects: 7,
+          audience: "high school",
+          tone: "calm",
+          style: "clean",
+          palette: "cool",
+          include_equations: true,
+          include_graphs: true,
+          include_narration: true
+        };
+      }
+
+      function openConcept(index) {
+        const next = normalizeIndex(index);
+        setFocus(next);
+        const draft = buildConceptDraft(next);
+        try {
+          localStorage.setItem("northstar:conceptDraft", JSON.stringify(draft));
+        } catch {}
+        const params = new URLSearchParams({
+          concept: draft.concept,
+          family: draft.family
+        });
+        window.location.href = `/app?${params.toString()}`;
+      }
+
+      function makeAtlas() {
+        const frag = document.createDocumentFragment();
+        concepts.forEach((concept, index) => {
+          const cell = document.createElement("button");
+          cell.className = "atlas-cell";
+          cell.type = "button";
+          cell.title = `Open ${concept[0]} in the IDE`;
+          cell.innerHTML = `<b>${concept[0]}</b><span>${concept[1]}</span>`;
+          cell.addEventListener("click", () => openConcept(index));
+          frag.appendChild(cell);
+        });
+        atlas.appendChild(frag);
+      }
+
+      function makeField() {
+        const count = Math.min(34, concepts.length);
+        for (let i = 0; i < count; i += 1) {
+          const concept = concepts[i];
+          const el = document.createElement("div");
+          el.className = "concept-node";
+          el.innerHTML = `${concept[0]}<em>${concept[1]}</em>`;
+          el.addEventListener("click", () => openConcept(nodes[i]?.conceptIndex ?? i));
+          field.appendChild(el);
+          nodes.push({
+            el,
+            conceptIndex: i,
+            x: Math.random(),
+            y: Math.random(),
+            vx: (Math.random() * 0.12 + 0.04) * (Math.random() > 0.5 ? 1 : -1),
+            vy: (Math.random() * 0.10 + 0.035) * (Math.random() > 0.5 ? 1 : -1)
+          });
+        }
+      }
+
+      function resizeCanvas() {
+        const rect = canvas.getBoundingClientRect();
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+        canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      function setFocus(index) {
+        activeIndex = normalizeIndex(index);
+        const [name, family, note] = concepts[activeIndex];
+        focusTitle.textContent = name;
+        focusFamily.textContent = family;
+        focusNote.textContent = note;
+        nodes.forEach((node, i) => {
+          if (i === activeIndex % nodes.length) node.conceptIndex = activeIndex;
+          node.el.classList.toggle("active", node.conceptIndex === activeIndex);
+          const concept = concepts[node.conceptIndex];
+          node.el.innerHTML = `${concept[0]}<em>${concept[1]}</em>`;
+          node.el.style.borderColor = node.conceptIndex === activeIndex
+            ? familyColors[family] || "#22c55e"
+            : "rgba(106, 169, 255, 0.26)";
+        });
+      }
+
+      function drawPhysics(t) {
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        ctx.clearRect(0, 0, width, height);
+        ctx.lineWidth = 1;
+
+        const family = concepts[activeIndex][1];
+        const color = familyColors[family] || "#6aa9ff";
+
+        ctx.globalAlpha = 0.28;
+        ctx.strokeStyle = color;
+        for (let wave = 0; wave < 7; wave += 1) {
+          ctx.beginPath();
+          const yBase = height * (0.18 + wave * 0.1);
+          for (let x = -20; x <= width + 20; x += 8) {
+            const y = yBase + Math.sin((x * 0.02) + t * 0.0016 + wave) * (18 + wave * 2);
+            if (x === -20) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+        }
+
+        ctx.globalAlpha = 0.22;
+        ctx.strokeStyle = "#e6e9ef";
+        const cx = width * 0.62;
+        const cy = height * 0.42;
+        for (let orbit = 1; orbit < 5; orbit += 1) {
+          ctx.beginPath();
+          ctx.ellipse(cx, cy, 64 * orbit, 28 * orbit, t * 0.00016 * orbit, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        ctx.globalAlpha = 0.72;
+        ctx.fillStyle = color;
+        const bobX = width * 0.2 + Math.sin(t * 0.0012) * 72;
+        const bobY = height * 0.58 + Math.cos(t * 0.0012) * 22;
+        ctx.beginPath();
+        ctx.moveTo(width * 0.2, height * 0.18);
+        ctx.lineTo(bobX, bobY);
+        ctx.strokeStyle = "rgba(230, 233, 239, 0.42)";
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(bobX, bobY, 8, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.globalAlpha = 0.28;
+        const bars = ["#6aa9ff", "#22c55e", "#f59e0b", "#a78bfa", "#ef4444"];
+        bars.forEach((bar, i) => {
+          ctx.fillStyle = bar;
+          ctx.fillRect(width * 0.1 + i * 34, height * 0.82, 22, 74 + Math.sin(t * 0.001 + i) * 18);
+        });
+        ctx.globalAlpha = 1;
+      }
+
+      function animate(t) {
+        const rect = field.getBoundingClientRect();
+        if (!reduceMotion) {
+          nodes.forEach((node, i) => {
+            node.x += node.vx / Math.max(rect.width, 1);
+            node.y += node.vy / Math.max(rect.height, 1);
+            if (node.x < 0.02 || node.x > 0.82) node.vx *= -1;
+            if (node.y < 0.04 || node.y > 0.86) node.vy *= -1;
+            const drift = Math.sin(t * 0.0009 + i) * 8;
+            node.el.style.transform = `translate(${node.x * rect.width}px, ${node.y * rect.height + drift}px)`;
+          });
+          if (t - lastSwitch > 1900) {
+            lastSwitch = t;
+            setFocus(activeIndex + 1);
+          }
+        }
+        drawPhysics(t);
+        requestAnimationFrame(animate);
+      }
+
+      const labels = {
+        api_key: document.getElementById("checkApi"),
+        manim: document.getElementById("checkManim"),
+        ffmpeg: document.getElementById("checkFfmpeg"),
+        output_writable: document.getElementById("checkOutput")
+      };
+      const detail = document.getElementById("checkDetail");
+      const runChecks = document.getElementById("runChecks");
+
+      function setStatus(el, ok) {
+        if (!el) return;
+        el.textContent = ok ? "ready" : "needs setup";
+        el.classList.toggle("ok", !!ok);
+        el.classList.toggle("bad", !ok);
+      }
+
+      async function refreshReadiness() {
+        if (detail) detail.textContent = "Checking local backend...";
+        try {
+          const resp = await fetch("/api/preflight", { cache: "no-store" });
+          const data = await resp.json();
+          const checks = data.checks || {};
+          setStatus(labels.api_key, checks.api_key);
+          setStatus(labels.manim, checks.manim);
+          setStatus(labels.ffmpeg, checks.ffmpeg);
+          setStatus(labels.output_writable, checks.output_writable);
+          const missing = Array.isArray(data.missing) ? data.missing : [];
+          detail.textContent = missing.length
+            ? `Needs setup: ${missing.join(", ")}. Open /app -> Settings to fix.`
+            : "All local checks passed. The render path is ready.";
+        } catch (error) {
+          Object.values(labels).forEach((el) => setStatus(el, false));
+          detail.textContent = "Backend is not reachable. Start uvicorn, then run checks again.";
+        }
+      }
+
+      makeAtlas();
+      makeField();
+      resizeCanvas();
+      setFocus(0);
+      refreshReadiness();
+      requestAnimationFrame(animate);
+      window.addEventListener("resize", resizeCanvas);
+      if (runChecks) runChecks.addEventListener("click", refreshReadiness);
+      if (useFocusConcept) useFocusConcept.addEventListener("click", () => openConcept(activeIndex));
+      if (nextFocusConcept) nextFocusConcept.addEventListener("click", () => setFocus(activeIndex + 1));
+    </script>
+  </body>
+</html>

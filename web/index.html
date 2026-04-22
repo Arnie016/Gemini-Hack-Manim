@@ -84,6 +84,9 @@
         display: flex;
         gap: 8px;
       }
+      .topbar-actions a.icon-btn {
+        text-decoration: none;
+      }
       .icon-btn {
         background: #0f141d;
         border: 1px solid var(--border);
@@ -2660,11 +2663,14 @@
         <span class="dot green"></span>
       </div>
       <div class="topbar-title">
-        NorthStar
-        <span class="badge">NorthStar • Gemini Hackathon 2026</span>
-        <span class="topbar-credit">Built by Arnav Salkade</span>
+        NorthStar Studio
+        <span class="badge">Agentic Manim IDE</span>
+        <span class="topbar-credit">Plan -> Audit -> Code -> Render</span>
       </div>
       <div class="topbar-actions">
+        <a href="/" class="icon-btn" title="Landing page" aria-label="Landing page" data-tip="Landing page">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>
+        </a>
         <button id="backBtn" class="icon-btn" title="Back" aria-label="Back" data-tip="Back">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
         </button>
@@ -3256,8 +3262,8 @@
                       <option value="eleven_turbo_v2_5">eleven_turbo_v2_5</option>
                     </select>
                     <label for="voiceoverScript">Optional script override</label>
-                    <textarea id="voiceoverScript" placeholder="Leave blank to auto-generate a natural script (Gemini)."></textarea>
-                    <label><input id="voiceoverUseGemini" type="checkbox" checked /> Use Gemini to draft a more natural voiceover</label>
+                    <textarea id="voiceoverScript" placeholder="Leave blank to auto-generate a natural script."></textarea>
+                    <label><input id="voiceoverUseGemini" type="checkbox" checked /> Use the selected text model to draft a more natural voiceover</label>
                     <label><input id="voiceoverUseContext" type="checkbox" checked /> Include chat context for narration cues</label>
                     <button id="voiceoverApply" class="secondary">Apply voiceover</button>
                     <hr style="border:none; border-top:1px solid var(--line); margin:10px 0;" />
@@ -3382,21 +3388,37 @@
                 <div class="settings-section active" data-stab="api">
                   <div class="drawer-section">
                     <div class="drawer-title">API & Models</div>
-                    <label for="settingsApiKey">Gemini API key</label>
-                    <input id="settingsApiKey" type="password" placeholder="Paste key" />
-                    <button id="settingsShowKey" class="ghost" style="margin-top:6px;">Show/Hide Gemini key</button>
-                    <button id="settingsShowAllKeys" class="ghost" style="margin-top:6px;">Show/Hide all keys</button>
-
-                    <div class="row" style="margin-top:10px;">
+                    <div class="row">
+                      <div>
+                        <label for="settingsTextProvider">Text provider</label>
+                        <select id="settingsTextProvider">
+                          <option value="openai">OpenAI</option>
+                          <option value="gemini">Gemini</option>
+                        </select>
+                      </div>
                       <div>
                         <label for="settingsTextModel">Default text model</label>
                         <select id="settingsTextModel">
+                          <option value="gpt-5-mini">gpt-5-mini</option>
+                          <option value="gpt-5">gpt-5</option>
+                          <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+                          <option value="gpt-4.1">gpt-4.1</option>
                           <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
                           <option value="gemini-3-pro-preview">gemini-3-pro-preview</option>
                           <option value="gemini-2.5-flash">gemini-2.5-flash</option>
                           <option value="gemini-2.5-pro">gemini-2.5-pro</option>
                         </select>
                       </div>
+                    </div>
+
+                    <label for="settingsOpenAIApiKey" style="margin-top:10px;">OpenAI API key</label>
+                    <input id="settingsOpenAIApiKey" type="password" placeholder="Paste key" />
+                    <label for="settingsApiKey" style="margin-top:10px;">Gemini API key (images or Gemini text)</label>
+                    <input id="settingsApiKey" type="password" placeholder="Paste key" />
+                    <button id="settingsShowKey" class="ghost" style="margin-top:6px;">Show/Hide text keys</button>
+                    <button id="settingsShowAllKeys" class="ghost" style="margin-top:6px;">Show/Hide all keys</button>
+
+                    <div class="row" style="margin-top:10px;">
                       <div>
                         <label for="settingsImageModel">Default image model</label>
                         <select id="settingsImageModel">
@@ -3567,7 +3589,7 @@
             </div>
             <div class="context-panel-shell">
               <div class="context-panel active" data-ctx="memory" role="tabpanel">
-                <div class="muted" style="margin-bottom:6px;">Save key facts you want Gemini to remember for this run.</div>
+                <div class="muted" style="margin-bottom:6px;">Save key facts you want the model to remember for this run.</div>
                 <div class="context-memory-grid">
                   <div class="field">
                     <label for="memoryTitle">Title</label>
@@ -3635,6 +3657,10 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
             </button>
             <select id="chatModel" class="compose-model" title="Model" aria-label="Model">
+              <option value="gpt-5-mini">gpt-5-mini</option>
+              <option value="gpt-5">gpt-5</option>
+              <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+              <option value="gpt-4.1">gpt-4.1</option>
               <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
               <option value="gemini-3-pro-preview">gemini-3-pro-preview</option>
               <option value="gemini-2.5-flash">gemini-2.5-flash</option>
@@ -3653,12 +3679,12 @@
               <span class="mode-icon" aria-hidden="true">⚡</span>
               <span class="mode-label">Crazy</span>
             </label>
-            <label class="mode-chip" title="Gemini assist (auto-polish prompt before planning)">
+            <label class="mode-chip" title="Model assist (auto-polish prompt before planning)">
               <input id="geminiAssist" type="checkbox" checked />
               <span class="mode-icon" aria-hidden="true">✦</span>
               <span class="mode-label">Assist</span>
             </label>
-            <button id="polishPromptBtn" class="ghost compose-polish" title="Polish prompt + brief with Gemini" aria-label="Polish prompt + brief with Gemini">
+            <button id="polishPromptBtn" class="ghost compose-polish" title="Polish prompt + brief with the selected model" aria-label="Polish prompt + brief with the selected model">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.2 4.5L19 10l-4.8 2.5L12 17l-2.2-4.5L5 10l4.8-2.5L12 3z"/><path d="M4 19l1.5-3L9 14.5 7.5 18 4 19z"/><path d="M16.5 18 15 14.5 18.5 16 20 19.5 16.5 18z"/></svg>
             </button>
             <div id="crazyCountdown" class="crazy-countdown hidden" aria-live="polite">
@@ -3752,8 +3778,8 @@
             </div>
             <div id="tourHurray" class="tour-hurray hidden">Hurray. You are ready to create.</div>
             <div class="tour-actions">
-              <button id="tourRefreshBtn" class="ghost" title="Regenerate guide with Gemini + Nano Banana">
-                Refresh with Gemini + Nano Banana
+              <button id="tourRefreshBtn" class="ghost" title="Regenerate guide with the selected model and image generator">
+                Refresh guide
               </button>
               <div class="tour-nav">
                 <button id="tourPrevBtn" class="ghost" title="Previous step">Back</button>
@@ -3774,8 +3800,8 @@
           </button>
         </div>
         <div class="modal-body">
-          <div class="muted">No login. No paywall. Judges can use this immediately.</div>
-          <div class="welcome-subline">Idea in -> Scene plan -> Manim code -> Rendered MP4</div>
+          <div class="muted">A local studio for storyboarded, inspectable Manim video generation.</div>
+          <div class="welcome-subline">Idea in -> Scene plan -> Audit -> Manim code -> Rendered MP4</div>
           <div class="welcome-flow">
             <span class="flow-step">Create plan</span>
             <span class="flow-arrow">-></span>
@@ -3787,7 +3813,7 @@
             <div class="welcome-card">
               <div class="welcome-kicker">Step 1</div>
               <div><strong>Create Plan</strong></div>
-              <div class="muted">Describe the topic. Gemini builds the scene plan.</div>
+              <div class="muted">Describe the topic. The model builds the scene plan.</div>
             </div>
             <div class="welcome-card">
               <div class="welcome-kicker">Step 2</div>
@@ -3796,8 +3822,8 @@
             </div>
             <div class="welcome-card">
               <div class="welcome-kicker">Step 3</div>
-              <div><strong>Approve & Render</strong></div>
-              <div class="muted">Gemini writes Manim code and renders MP4 end-to-end.</div>
+              <div><strong>Audit & Render</strong></div>
+              <div class="muted">Review the plan, generate code, render MP4, and inspect repair output if Manim fails.</div>
             </div>
             <div class="welcome-card">
               <div class="welcome-kicker">Agentic edits</div>
@@ -4235,8 +4261,10 @@
       const welcomeDemoBtn = document.getElementById('welcomeDemoBtn');
       const welcomeStartBtn = document.getElementById('welcomeStartBtn');
       const settingsApiKeyEl = document.getElementById('settingsApiKey');
+      const settingsOpenAIApiKeyEl = document.getElementById('settingsOpenAIApiKey');
       const settingsShowKeyBtn = document.getElementById('settingsShowKey');
       const settingsShowAllKeysBtn = document.getElementById('settingsShowAllKeys');
+      const settingsTextProviderEl = document.getElementById('settingsTextProvider');
       const settingsTextModelEl = document.getElementById('settingsTextModel');
       const settingsImageModelEl = document.getElementById('settingsImageModel');
       const settingsManimPyEl = document.getElementById('settingsManimPy');
@@ -4951,7 +4979,7 @@
           },
           {
             title: 'Write the core prompt',
-            body: 'Describe the concept in one line so Gemini can generate a precise scene plan.',
+            body: 'Describe the concept in one line so the model can generate a precise scene plan.',
             hint: 'Right panel -> Prompt',
             target: '#chatInput',
             icon_prompt: 'Prompt input icon dark ui',
@@ -4975,7 +5003,7 @@
           },
           {
             title: 'Approve and render',
-            body: 'Run plan, code, and render. Gemini can diagnose failures and retry once.',
+            body: 'Run plan, code, and render. The model can diagnose failures and retry once.',
             hint: 'Middle panel -> Preview',
             target: '#previewSlot',
             icon_prompt: 'Render pipeline icon dark ui',
@@ -5226,7 +5254,7 @@
             name: String(s.name || makeSessionName(i + 1)),
             color: String(s.color || SESSION_COLORS[i % SESSION_COLORS.length]),
             prompt: String(s.prompt || ''),
-            model: String(s.model || (chatModelEl?.value || 'gemini-3-flash-preview')),
+            model: String(s.model || (chatModelEl?.value || 'gpt-5-mini')),
             messages_html: String(s.messages_html || ''),
             last_sig: String(s.last_sig || ''),
             context_lock: !!s.context_lock,
@@ -5257,6 +5285,83 @@
         if (Array.isArray(snap.timeline)) { timelineState = snap.timeline; renderTimeline(); }
         if (typeof snap.code === 'string') { codeEl.value = snap.code; refreshGutter(); if (highlightOn) refreshHighlight(); }
         syncComposeModeChips();
+        return true;
+      }
+
+      const CONCEPT_DRAFT_KEY = 'northstar:conceptDraft';
+
+      function readInboundConceptDraft() {
+        let draft = null;
+        try {
+          const raw = localStorage.getItem(CONCEPT_DRAFT_KEY) || '';
+          if (raw) draft = JSON.parse(raw);
+        } catch {
+          draft = null;
+        }
+        try {
+          const params = new URLSearchParams(window.location.search || '');
+          const concept = params.get('concept');
+          if (concept) {
+            draft = {
+              ...(draft || {}),
+              concept,
+              family: params.get('family') || (draft && draft.family) || 'Physics',
+              note: (draft && draft.note) || ''
+            };
+          }
+        } catch {}
+        return draft && draft.concept ? draft : null;
+      }
+
+      function setControlValue(el, value) {
+        if (!el || value === undefined || value === null) return;
+        const next = String(value);
+        const options = Array.from(el.options || []);
+        if (options.length && !options.some((opt) => opt.value === next)) return;
+        el.value = next;
+      }
+
+      function applyInboundConceptDraft(draft) {
+        if (!draft || !draft.concept) return false;
+        const concept = String(draft.concept || '').trim();
+        const family = String(draft.family || 'Physics').trim();
+        const note = String(draft.note || '').trim();
+        const prompt = String(draft.prompt || '').trim()
+          || `Create a 45-second Manim storytelling animation about ${concept}. Start with a visual hook, show the core intuition, reveal the equation or labels only when they help, and end with one clear takeaway.${note ? ` Concept note: ${note}` : ''}`;
+        const brief = String(draft.director_brief || '').trim()
+          || `Concept: ${concept}\nFamily: ${family}\nStory arc: hook -> mechanism -> equation or diagram -> takeaway.\nKeep it inspectable, with one idea on screen at a time.${note ? `\nKey intuition: ${note}` : ''}`;
+
+        if (chatInputEl) chatInputEl.value = prompt;
+        if (directorBriefEl) directorBriefEl.value = brief;
+        if (targetSecondsEl) targetSecondsEl.value = String(draft.target_seconds || '45');
+        if (maxScenesEl) maxScenesEl.value = String(draft.max_scenes || '5');
+        if (maxObjectsEl) maxObjectsEl.value = String(draft.max_objects || '7');
+        setControlValue(audienceEl, draft.audience || 'high school');
+        setControlValue(toneEl, draft.tone || 'calm');
+        setControlValue(styleEl, draft.style || 'clean');
+        setControlValue(paceEl, draft.pace || 'medium');
+        setControlValue(paletteEl, draft.palette || 'cool');
+        setControlValue(equationsEl, draft.include_equations === false ? 'false' : 'true');
+        setControlValue(graphsEl, draft.include_graphs === false ? 'false' : 'true');
+        setControlValue(narrationEl, draft.include_narration === false ? 'false' : 'true');
+        setControlValue(includeImagesEl, 'true');
+        setControlValue(imageModeEl, 'background');
+        if (imagePromptEl) {
+          imagePromptEl.value = `Dark educational physics stage for ${concept}, subtle grid, clean cinematic lighting, no text, no logos`;
+        }
+        if (vibeEnableEl) vibeEnableEl.checked = true;
+        setControlValue(vibePresetEl, 'cinematic_science');
+        if (vibeTitleEl) vibeTitleEl.value = concept;
+        if (statusEl) statusEl.textContent = `Loaded concept: ${concept}. Create plan when ready.`;
+        showToast(`Loaded ${concept}.`, 'ok');
+        addChat('agent', 'Concept loaded', `${concept} is ready in the IDE prompt and director brief.`);
+        setActiveTab('canvas');
+        scheduleAutosave();
+        updateFirst60Checklist();
+        try { localStorage.removeItem(CONCEPT_DRAFT_KEY); } catch {}
+        try {
+          window.history.replaceState({}, '', '/app');
+        } catch {}
         return true;
       }
 
@@ -5953,7 +6058,7 @@
         if (tourPrevBtn) tourPrevBtn.disabled = onboardingLoading || onboardingIndex <= 0;
         if (tourNextBtn) tourNextBtn.disabled = onboardingLoading;
         if (onboardingLoading) {
-          if (tourStepTitleEl) tourStepTitleEl.textContent = 'Building guide with Gemini...';
+          if (tourStepTitleEl) tourStepTitleEl.textContent = 'Building guide with the model...';
           if (tourStepBodyEl) tourStepBodyEl.textContent = msg;
           if (tourStepHintEl) tourStepHintEl.textContent = 'Generating step copy and icons';
           if (tourStepCountEl) tourStepCountEl.textContent = '...';
@@ -6183,13 +6288,27 @@
       });
 
       safeOn(settingsShowKeyBtn, 'click', () => {
-        const isHidden = settingsApiKeyEl.type === 'password';
-        settingsApiKeyEl.type = isHidden ? 'text' : 'password';
+        const isHidden = (settingsOpenAIApiKeyEl?.type || 'password') === 'password' || (settingsApiKeyEl?.type || 'password') === 'password';
+        if (settingsOpenAIApiKeyEl) settingsOpenAIApiKeyEl.type = isHidden ? 'text' : 'password';
+        if (settingsApiKeyEl) settingsApiKeyEl.type = isHidden ? 'text' : 'password';
       });
       safeOn(settingsShowAllKeysBtn, 'click', () => {
-        const reveal = settingsApiKeyEl.type === 'password' || settingsElevenApiKeyEl.type === 'password';
-        settingsApiKeyEl.type = reveal ? 'text' : 'password';
-        settingsElevenApiKeyEl.type = reveal ? 'text' : 'password';
+        const reveal = (settingsOpenAIApiKeyEl?.type || 'password') === 'password'
+          || (settingsApiKeyEl?.type || 'password') === 'password'
+          || (settingsElevenApiKeyEl?.type || 'password') === 'password';
+        if (settingsOpenAIApiKeyEl) settingsOpenAIApiKeyEl.type = reveal ? 'text' : 'password';
+        if (settingsApiKeyEl) settingsApiKeyEl.type = reveal ? 'text' : 'password';
+        if (settingsElevenApiKeyEl) settingsElevenApiKeyEl.type = reveal ? 'text' : 'password';
+      });
+      safeOn(settingsTextProviderEl, 'change', () => {
+        const nextModel = settingsTextProviderEl.value === 'gemini' ? 'gemini-3-flash-preview' : 'gpt-5-mini';
+        if (settingsTextModelEl) settingsTextModelEl.value = nextModel;
+        if (chatModelEl) chatModelEl.value = nextModel;
+      });
+      safeOn(settingsTextModelEl, 'change', () => {
+        const model = settingsTextModelEl.value || '';
+        if (settingsTextProviderEl) settingsTextProviderEl.value = model.startsWith('gemini-') ? 'gemini' : 'openai';
+        if (chatModelEl) chatModelEl.value = model;
       });
       safeOn(sessionPrevBtn, 'click', () => cycleSession(-1));
       safeOn(sessionNextBtn, 'click', () => cycleSession(1));
@@ -8939,10 +9058,11 @@
       async function loadSettings() {
         const resp = await fetch('/api/settings');
         const data = await resp.json();
-        if (data.text_model) {
-          settingsTextModelEl.value = data.text_model;
-          chatModelEl.value = data.text_model;
-        }
+        const textProvider = data.text_provider || 'openai';
+        const textModel = data.text_model || (textProvider === 'gemini' ? 'gemini-3-flash-preview' : 'gpt-5-mini');
+        if (settingsTextProviderEl) settingsTextProviderEl.value = textProvider;
+        if (settingsTextModelEl) settingsTextModelEl.value = textModel;
+        if (chatModelEl) chatModelEl.value = textModel;
         if (data.image_model) settingsImageModelEl.value = data.image_model;
         if (data.manim_py) settingsManimPyEl.value = data.manim_py;
         if (settingsProjectRootEl) settingsProjectRootEl.textContent = data.project_root || '—';
@@ -8958,16 +9078,20 @@
           const hasModel = Array.from(voiceoverModelSelectEl.options || []).some((o) => o.value === data.elevenlabs_model_id);
           voiceoverModelSelectEl.value = hasModel ? data.elevenlabs_model_id : '';
         }
+        if (settingsOpenAIApiKeyEl) {
+          settingsOpenAIApiKeyEl.placeholder = data.has_openai_api_key ? 'Saved (hidden)' : 'Paste key';
+          settingsOpenAIApiKeyEl.value = data.has_openai_api_key ? SETTINGS_SAVED_MASK : '';
+        }
         if (settingsApiKeyEl) {
-          settingsApiKeyEl.placeholder = data.has_api_key ? 'Saved (hidden)' : 'Paste key';
-          settingsApiKeyEl.value = data.has_api_key ? SETTINGS_SAVED_MASK : '';
+          settingsApiKeyEl.placeholder = data.has_gemini_api_key ? 'Saved (hidden)' : 'Paste key';
+          settingsApiKeyEl.value = data.has_gemini_api_key ? SETTINGS_SAVED_MASK : '';
         }
         if (settingsElevenApiKeyEl) {
           settingsElevenApiKeyEl.placeholder = data.has_elevenlabs_key ? 'Saved (hidden)' : 'Paste key';
           settingsElevenApiKeyEl.value = data.has_elevenlabs_key ? SETTINGS_SAVED_MASK : '';
         }
-        if (!data.has_api_key) {
-          statusEl.textContent = 'Hackathon tip: open Settings and paste your Gemini API key.';
+        if (!data.has_text_api_key) {
+          statusEl.textContent = 'Open Settings and paste an OpenAI or Gemini text API key.';
           try {
             const seen = localStorage.getItem('seenApiKeyHint');
             if (!seen) {
@@ -8980,14 +9104,18 @@
 
       async function saveSettings() {
         const apiKeyValue = settingsApiKeyEl ? settingsApiKeyEl.value.trim() : '';
+        const openAIKeyValue = settingsOpenAIApiKeyEl ? settingsOpenAIApiKeyEl.value.trim() : '';
         const elevenKeyValue = settingsElevenApiKeyEl ? settingsElevenApiKeyEl.value.trim() : '';
         const apiKey = apiKeyValue && apiKeyValue !== SETTINGS_SAVED_MASK ? apiKeyValue : null;
+        const openAIKey = openAIKeyValue && openAIKeyValue !== SETTINGS_SAVED_MASK ? openAIKeyValue : null;
         const elevenKey = elevenKeyValue && elevenKeyValue !== SETTINGS_SAVED_MASK ? elevenKeyValue : null;
         const resp = await fetch('/api/settings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             api_key: apiKey,
+            openai_api_key: openAIKey,
+            text_provider: settingsTextProviderEl ? settingsTextProviderEl.value : 'openai',
             text_model: settingsTextModelEl.value || null,
             image_model: settingsImageModelEl.value || null,
             manim_py: settingsManimPyEl.value || null,
@@ -9000,7 +9128,11 @@
         const data = await resp.json();
         if (data.ok) {
           statusEl.textContent = 'Settings saved.';
-          if (settingsApiKeyEl && data.has_api_key) {
+          if (settingsOpenAIApiKeyEl && data.has_openai_api_key) {
+            settingsOpenAIApiKeyEl.placeholder = 'Saved (hidden)';
+            settingsOpenAIApiKeyEl.value = SETTINGS_SAVED_MASK;
+          }
+          if (settingsApiKeyEl && data.has_gemini_api_key) {
             settingsApiKeyEl.placeholder = 'Saved (hidden)';
             settingsApiKeyEl.value = SETTINGS_SAVED_MASK;
           }
@@ -10407,7 +10539,7 @@
           return null;
         }
         if (!silent) {
-          statusEl.textContent = 'Gemini assist: polishing prompt and brief…';
+          statusEl.textContent = 'Model assist: polishing prompt and brief...';
         }
         let data = null;
         try {
@@ -10426,14 +10558,14 @@
               model: chatModelEl.value || null
             })
           });
-          data = await parseApiResponse(resp, 'Gemini assist failed.');
+          data = await parseApiResponse(resp, 'Model assist failed.');
         } catch {
-          data = { ok: false, error: 'Gemini assist failed: backend not reachable.' };
+          data = { ok: false, error: 'Model assist failed: backend not reachable.' };
         }
         if (!data?.ok) {
           if (!silent) {
-            statusEl.textContent = data?.error || 'Gemini assist failed.';
-            showToast(data?.error || 'Gemini assist failed.', 'err');
+            statusEl.textContent = data?.error || 'Model assist failed.';
+            showToast(data?.error || 'Model assist failed.', 'err');
           }
           return data;
         }
@@ -10453,7 +10585,7 @@
           panel.className = 'drawer-section';
           const intro = document.createElement('div');
           intro.className = 'muted';
-          intro.textContent = 'Prompt, brief, and image prompt were refined with Gemini.';
+          intro.textContent = 'Prompt, brief, and image prompt were refined with the selected text model.';
           panel.appendChild(intro);
           if (checklist.length) {
             const ul = document.createElement('ul');
@@ -10464,9 +10596,9 @@
             });
             panel.appendChild(ul);
           }
-          addChat('agent', 'Gemini Assist', 'Refinement complete.', panel);
-          statusEl.textContent = 'Gemini assist complete.';
-          showToast('Gemini assist applied.', 'ok');
+          addChat('agent', 'Model Assist', 'Refinement complete.', panel);
+          statusEl.textContent = 'Model assist complete.';
+          showToast('Model assist applied.', 'ok');
         }
         return data;
       }
@@ -10511,7 +10643,7 @@
       async function createPlan() {
         resetSteps();
         setStep('plan', 'active');
-        setStepNote('plan', 'Sending prompt to Gemini for scene planning…');
+        setStepNote('plan', 'Sending prompt to the model for scene planning...');
 
         let idea = chatInputEl.value.trim();
         if (!idea) return;
@@ -10523,7 +10655,7 @@
           const refined = await runGeminiPromptPolish({ silent: true });
           if (refined?.ok) {
             idea = chatInputEl.value.trim();
-            setStepNote('plan', 'Gemini assist refined prompt. Sending plan request…');
+            setStepNote('plan', 'Model assist refined prompt. Sending plan request...');
           }
         }
 
@@ -10681,7 +10813,7 @@
           name: name || makeSessionName(nextIndex),
           color: SESSION_COLORS[(nextIndex - 1) % SESSION_COLORS.length],
           prompt: '',
-          model: chatModelEl?.value || 'gemini-3-flash-preview',
+          model: chatModelEl?.value || 'gpt-5-mini',
           messages_html: '',
           last_sig: '',
           context_lock: false,
@@ -11002,7 +11134,7 @@
               const diag = document.createElement('details');
               diag.open = true;
               const diagSum = document.createElement('summary');
-              diagSum.textContent = 'Gemini diagnosis';
+              diagSum.textContent = 'Model diagnosis';
               const diagBody = document.createElement('pre');
               diagBody.style.whiteSpace = 'pre-wrap';
               diagBody.textContent = (st.diagnosis || 'Diagnosis unavailable.').slice(0, 4000);
@@ -11111,7 +11243,7 @@
           setStep('code', 'active');
           setStep('render', 'active');
           setStepNote('approve', 'Approved. Generating code…');
-          setStepNote('code', 'Gemini is writing Manim code…');
+          setStepNote('code', 'The model is writing Manim code...');
           setStepNote('render', 'Renderer is queued…');
           setActiveTab('code');
           await new Promise(requestAnimationFrame);
@@ -11559,7 +11691,7 @@
         setSourceStatus(
           looksYoutube
             ? 'Indexing YouTube source (fetching transcript/description)…'
-            : 'Indexing source with Gemini…',
+            : 'Indexing source with the model...',
           'loading'
         );
         const indexBtnLabel = indexSourceBtn.textContent || 'Index source';
@@ -11570,7 +11702,7 @@
           sourceCardsEl.innerHTML = `
             <div class="saved-card index-skeleton">
               <div class="saved-card-title">Preparing source summary…</div>
-              <div class="saved-card-body">Gemini is extracting context and key points.</div>
+              <div class="saved-card-body">The model is extracting context and key points.</div>
             </div>
           `;
         }
@@ -11766,7 +11898,8 @@
 
       // Boot
       // Keep the button clickable; if there's no job_id yet we'll show a hint toast.
-      loadTemplates();
+      const inboundConceptDraft = readInboundConceptDraft();
+      const templatesPromise = loadTemplates();
       loadSettings();
       loadMemories();
       loadSkills();
@@ -11778,8 +11911,8 @@
       startSessionPoller();
       updateEditorMode();
       applyLayoutColumns();
-      const didRestore = restoreProject();
-      if (!didRestore) seedDemoDefaults();
+      const didRestore = inboundConceptDraft ? false : restoreProject();
+      if (!didRestore && !inboundConceptDraft) seedDemoDefaults();
       syncComposeModeChips();
       refreshTimelineVisibility();
       refreshCreativeReadouts();
@@ -11808,7 +11941,15 @@
         setFirst60Visible(true, false);
       }
       updateFirst60Checklist();
-      maybeOpenWelcome();
+      templatesPromise.catch(() => {}).finally(() => {
+        if (inboundConceptDraft) {
+          applyInboundConceptDraft(inboundConceptDraft);
+          refreshCreativeReadouts();
+          refreshSceneTargetPlaceholders();
+          updateFirst60Checklist();
+        }
+      });
+      if (!inboundConceptDraft) maybeOpenWelcome();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
   </body>

@@ -5,6 +5,7 @@ import concurrent.futures
 import html
 import json
 import logging
+import os
 import re
 import secrets
 import time
@@ -63,14 +64,93 @@ ROOT = Path(__file__).resolve().parents[1]
 WORK = ROOT / "work"
 JOBS = WORK / "jobs"
 WEB = ROOT / "web"
+DEFAULT_TEXT_PROVIDER = "openai"
+DEFAULT_OPENAI_TEXT_MODEL = "gpt-5-mini"
+DEFAULT_GEMINI_TEXT_MODEL = "gemini-3-flash-preview"
 
 WORK.mkdir(parents=True, exist_ok=True)
 JOBS.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI()
 app.mount("/work", StaticFiles(directory=WORK), name="work")
+app.mount("/screenshot", StaticFiles(directory=ROOT / "screenshot"), name="screenshot")
 job_manager = JobManager()
 logger = logging.getLogger("northstar.api")
+
+
+def _provider_for_text_model(settings: Dict[str, Any], model: Optional[str]) -> str:
+    raw_model = (model or "").strip().lower()
+    if raw_model.startswith("gemini-"):
+        return "gemini"
+    if raw_model.startswith(("gpt-", "o")):
+        return "openai"
+    provider = str(settings.get("text_provider") or os.getenv("TEXT_PROVIDER") or DEFAULT_TEXT_PROVIDER).lower()
+    return provider if provider in {"openai", "gemini"} else DEFAULT_TEXT_PROVIDER
+
+
+def _model_matches_provider(model: Optional[str], provider: str) -> bool:
+    raw_model = (model or "").strip().lower()
+    if not raw_model:
+        return False
+    if provider == "gemini":
+        return raw_model.startswith("gemini-")
+    return raw_model.startswith(("gpt-", "o"))
+
+
+def _text_generation_settings(
+    settings: Dict[str, Any],
+    model: Optional[str] = None,
+) -> tuple[str, Optional[str], str]:
+    explicit_model = (model or "").strip() or None
+    if explicit_model:
+        provider = _provider_for_text_model(settings, explicit_model)
+    else:
+        provider = str(settings.get("text_provider") or os.getenv("TEXT_PROVIDER") or DEFAULT_TEXT_PROVIDER).lower()
+        provider = provider if provider in {"openai", "gemini"} else DEFAULT_TEXT_PROVIDER
+    saved_model = settings.get("text_model") if _model_matches_provider(settings.get("text_model"), provider) else None
+    if provider == "gemini":
+        selected_model = (
+            explicit_model
+            or saved_model
+            or os.getenv("GEMINI_MODEL")
+            or DEFAULT_GEMINI_TEXT_MODEL
+        )
+        api_key = settings.get("api_key") or os.environ.get("GEMINI_API_KEY")
+        return provider, api_key, selected_model
+    selected_model = (
+        explicit_model
+        or saved_model
+        or os.getenv("OPENAI_MODEL")
+        or DEFAULT_OPENAI_TEXT_MODEL
+    )
+    api_key = settings.get("openai_api_key") or os.environ.get("OPENAI_API_KEY")
+    return provider, api_key, selected_model
+
+
+def _has_text_api_key(settings: Dict[str, Any]) -> bool:
+    _provider, api_key, _model = _text_generation_settings(settings)
+    return bool((api_key or "").strip())
+
+
+def _settings_payload(settings: Dict[str, Any]) -> Dict[str, Any]:
+    text_provider, _text_api_key, text_model = _text_generation_settings(settings)
+    return {
+        "has_api_key": _has_text_api_key(settings),
+        "has_text_api_key": _has_text_api_key(settings),
+        "has_openai_api_key": bool(settings.get("openai_api_key") or os.environ.get("OPENAI_API_KEY")),
+        "has_gemini_api_key": bool(settings.get("api_key") or os.environ.get("GEMINI_API_KEY")),
+        "has_image_api_key": bool(settings.get("api_key") or os.environ.get("GEMINI_API_KEY")),
+        "text_provider": text_provider,
+        "text_model": text_model,
+        "image_model": settings.get("image_model"),
+        "manim_py": settings.get("manim_py"),
+        "output_copy_dir": settings.get("output_copy_dir") or "",
+        "has_elevenlabs_key": bool(settings.get("elevenlabs_api_key")),
+        "elevenlabs_voice_id": settings.get("elevenlabs_voice_id") or "",
+        "elevenlabs_model_id": settings.get("elevenlabs_model_id") or "",
+        "project_root": str(ROOT),
+        "work_root": str(WORK),
+    }
 
 
 @app.middleware("http")
@@ -123,6 +203,8 @@ class TerminalReq(BaseModel):
 
 class SettingsReq(BaseModel):
     api_key: Optional[str] = None
+    openai_api_key: Optional[str] = None
+    text_provider: Optional[str] = None
     text_model: Optional[str] = None
     image_model: Optional[str] = None
     manim_py: Optional[str] = None
@@ -293,6 +375,21 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
     return JSONResponse({"detail": exc.errors()}, status_code=422)
 
 
+@app.exception_handler(ValueError)
+async def value_error_handler(request: Request, exc: ValueError):
+    request_id = getattr(request.state, "request_id", "")
+    if request.url.path.startswith("/api/"):
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": str(exc) or "Invalid request",
+                "request_id": request_id,
+            },
+            status_code=400,
+        )
+    return JSONResponse({"detail": str(exc) or "Invalid request"}, status_code=400)
+
+
 @app.exception_handler(Exception)
 async def unhandled_error_handler(request: Request, exc: Exception):
     request_id = getattr(request.state, "request_id", "")
@@ -362,6 +459,7 @@ def _index_source_with_gemini(
     video_id: Optional[str],
     api_key: Optional[str],
     model: Optional[str],
+    provider: Optional[str],
 ) -> Dict[str, Any]:
     system = (
         "You index external learning sources for animation planning. "
@@ -398,6 +496,7 @@ def _index_source_with_gemini(
         },
         api_key=api_key,
         model=model,
+        provider=provider,
     )
     return _parse_json(text)
 
@@ -1039,6 +1138,7 @@ def _multilingual_script_packs(
     languages: list[str],
     api_key: Optional[str],
     model: Optional[str],
+    provider: Optional[str],
 ) -> dict[str, Any]:
     scenes = list(plan.get("scenes") or [])
     base_lines = [str(sc.get("narration") or "").strip() for sc in scenes]
@@ -1093,6 +1193,7 @@ def _multilingual_script_packs(
             },
             api_key=api_key,
             model=model,
+            provider=provider,
         )
         parsed = _parse_json(raw)
         packs = list(parsed.get("packs") or [])
@@ -1136,6 +1237,7 @@ def _voiceover_script_with_gemini(
     paths,
     api_key: str,
     model: Optional[str],
+    provider: Optional[str],
     chat_context: str,
 ) -> str:
     plan_text = ""
@@ -1166,7 +1268,13 @@ def _voiceover_script_with_gemini(
     user += "Write the final voiceover script now."
 
     try:
-        script = generate_content(user, system_text=system, api_key=api_key, model=model)
+        script = generate_content(
+            user,
+            system_text=system,
+            api_key=api_key,
+            model=model,
+            provider=provider,
+        )
     except Exception:
         script = ""
     return (script or "").strip()
@@ -1225,6 +1333,11 @@ def _add_elevenlabs_voiceover(*, paths, api_key: str, voice_id: str, model_id: O
 
 @app.get("/")
 def index():
+    return FileResponse(WEB / "landing.html")
+
+
+@app.get("/app")
+def app_index():
     return FileResponse(WEB / "index.html")
 
 
@@ -1405,7 +1518,8 @@ def _output_path_writable() -> tuple[bool, str]:
 def _preflight_payload(settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     settings = settings or load_settings()
     health_data = _health_snapshot(settings)
-    api_ok = bool((settings.get("api_key") or "").strip())
+    text_provider, text_api_key, text_model = _text_generation_settings(settings)
+    api_ok = bool((text_api_key or "").strip())
     write_ok, write_error = _output_path_writable()
     checks = {
         "api_key": api_ok,
@@ -1428,6 +1542,8 @@ def _preflight_payload(settings: Optional[Dict[str, Any]] = None) -> Dict[str, A
         "output_root": str(JOBS),
         "write_error": write_error,
         "fix_action": fix_action,
+        "text_provider": text_provider,
+        "text_model": text_model,
         "health": health_data,
     }
 
@@ -1440,25 +1556,19 @@ def preflight():
 @app.get("/api/settings")
 def get_settings():
     settings = load_settings()
-    return {
-        "has_api_key": bool(settings.get("api_key")),
-        "text_model": settings.get("text_model"),
-        "image_model": settings.get("image_model"),
-        "manim_py": settings.get("manim_py"),
-        "output_copy_dir": settings.get("output_copy_dir") or "",
-        "has_elevenlabs_key": bool(settings.get("elevenlabs_api_key")),
-        "elevenlabs_voice_id": settings.get("elevenlabs_voice_id") or "",
-        "elevenlabs_model_id": settings.get("elevenlabs_model_id") or "",
-        "project_root": str(ROOT),
-        "work_root": str(WORK),
-    }
+    return _settings_payload(settings)
 
 
 @app.post("/api/settings")
 def set_settings(req: SettingsReq):
+    provider = (req.text_provider or "").strip().lower() or None
+    if provider not in {None, "openai", "gemini"}:
+        provider = DEFAULT_TEXT_PROVIDER
     settings = update_settings(
         {
             "api_key": req.api_key,
+            "openai_api_key": req.openai_api_key,
+            "text_provider": provider,
             "text_model": req.text_model,
             "image_model": req.image_model,
             "manim_py": req.manim_py,
@@ -1468,17 +1578,7 @@ def set_settings(req: SettingsReq):
             "elevenlabs_model_id": req.elevenlabs_model_id,
         }
     )
-    return {
-        "ok": True,
-        "has_api_key": bool(settings.get("api_key")),
-        "text_model": settings.get("text_model"),
-        "image_model": settings.get("image_model"),
-        "manim_py": settings.get("manim_py"),
-        "output_copy_dir": settings.get("output_copy_dir") or "",
-        "has_elevenlabs_key": bool(settings.get("elevenlabs_api_key")),
-        "elevenlabs_voice_id": settings.get("elevenlabs_voice_id") or "",
-        "elevenlabs_model_id": settings.get("elevenlabs_model_id") or "",
-    }
+    return {"ok": True, **_settings_payload(settings)}
 
 
 @app.post("/api/terminal/run")
@@ -1625,8 +1725,7 @@ def docs_index(req: SourceIndexReq):
         )
     kind, video_id = _normalize_source_kind(url, req.source_type)
     settings = load_settings()
-    api_key = settings.get("api_key")
-    text_model = req.model or settings.get("text_model")
+    text_provider, api_key, text_model = _text_generation_settings(settings, req.model)
 
     index_notes = notes
     yt_title: Optional[str] = None
@@ -1674,6 +1773,7 @@ def docs_index(req: SourceIndexReq):
             video_id=video_id,
             api_key=api_key,
             model=text_model,
+            provider=text_provider,
         )
         title = str(indexed.get("title", "")).strip()
         summary = str(indexed.get("summary", "")).strip()
@@ -1858,13 +1958,19 @@ def generate_skill(payload: Dict[str, Any]):
     if not idea:
         return JSONResponse({"ok": False, "error": "Idea required"}, status_code=400)
     settings = load_settings()
-    api_key = settings.get("api_key")
+    text_provider, api_key, text_model = _text_generation_settings(settings)
     system = (
         "You write concise Markdown instructions for a custom skill. "
         "Return ONLY Markdown. Start with a short title line."
     )
     try:
-        text = generate_content(idea, system_text=system, api_key=api_key)
+        text = generate_content(
+            idea,
+            system_text=system,
+            api_key=api_key,
+            model=text_model,
+            provider=text_provider,
+        )
         skill = save_skill(name, text)
         return {"ok": True, "skill": skill}
     except GeminiError as exc:
@@ -1896,8 +2002,7 @@ def gemini_refine(req: GeminiRefineReq):
         return JSONResponse({"ok": False, "error": reason}, status_code=400)
 
     settings = load_settings()
-    api_key = settings.get("api_key")
-    text_model = req.model or settings.get("text_model")
+    text_provider, api_key, text_model = _text_generation_settings(settings, req.model)
 
     schema = {
         "type": "OBJECT",
@@ -1938,10 +2043,11 @@ def gemini_refine(req: GeminiRefineReq):
             },
             api_key=api_key,
             model=text_model,
+            provider=text_provider,
         )
         obj = _parse_json(out)
     except (GeminiError, json.JSONDecodeError) as exc:
-        return JSONResponse({"ok": False, "error": f"Gemini refine failed: {exc}"}, status_code=400)
+        return JSONResponse({"ok": False, "error": f"Model refine failed: {exc}"}, status_code=400)
 
     return {
         "ok": True,
@@ -1961,8 +2067,8 @@ def onboarding_quickstart(req: OnboardingReq):
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
 
     settings = load_settings()
-    api_key = settings.get("api_key")
-    text_model = req.model or settings.get("text_model")
+    text_provider, text_api_key, text_model = _text_generation_settings(settings, req.model)
+    gemini_api_key = settings.get("api_key") or os.environ.get("GEMINI_API_KEY")
     image_model = req.image_model or settings.get("image_model")
 
     steps = _default_onboarding_steps()
@@ -1972,7 +2078,7 @@ def onboarding_quickstart(req: OnboardingReq):
     outro_body = "Press Create plan, generate assets, approve, and render your first scene."
     warnings: list[str] = []
 
-    if api_key:
+    if text_api_key:
         schema = {
             "type": "OBJECT",
             "properties": {
@@ -2025,8 +2131,9 @@ def onboarding_quickstart(req: OnboardingReq):
                     "response_mime_type": "application/json",
                     "response_schema": schema,
                 },
-                api_key=api_key,
+                api_key=text_api_key,
                 model=text_model,
+                provider=text_provider,
             )
             obj = _parse_json(out)
             intro_title = str(obj.get("intro_title") or intro_title).strip()[:120]
@@ -2035,9 +2142,9 @@ def onboarding_quickstart(req: OnboardingReq):
             outro_body = str(obj.get("outro_body") or outro_body).strip()[:260]
             steps = _normalize_onboarding_steps(obj.get("steps"))
         except (GeminiError, json.JSONDecodeError, ValueError) as exc:
-            warnings.append(f"Gemini onboarding copy fallback: {exc}")
+            warnings.append(f"Model onboarding copy fallback: {exc}")
     else:
-        warnings.append("GEMINI_API_KEY is not set; using built-in onboarding copy and placeholders.")
+        warnings.append("Text API key is not set; using built-in onboarding copy and placeholders.")
 
     tour_id = f"{int(time.time())}-{secrets.token_hex(4)}"
     tour_dir = WORK / "onboarding" / tour_id
@@ -2045,13 +2152,13 @@ def onboarding_quickstart(req: OnboardingReq):
 
     for idx, step in enumerate(steps, start=1):
         step["icon_url"] = ""
-        if not api_key:
+        if not gemini_api_key:
             continue
         icon_prompt = str(step.get("icon_prompt") or "").strip()
         if not icon_prompt:
             continue
         try:
-            img = generate_image(icon_prompt, model=image_model, api_key=api_key)
+            img = generate_image(icon_prompt, model=image_model, api_key=gemini_api_key)
             out_path = tour_dir / f"step-{idx}.png"
             out_path.write_bytes(img)
             step["icon_url"] = f"/work/onboarding/{tour_id}/{out_path.name}"
@@ -2097,8 +2204,7 @@ def plan(req: PlanReq):
     paths.job_dir.mkdir(parents=True, exist_ok=True)
 
     settings = load_settings()
-    api_key = settings.get("api_key")
-    text_model = req.model or settings.get("text_model")
+    text_provider, api_key, text_model = _text_generation_settings(settings, req.model)
 
     try:
         plan_text = generate_content(
@@ -2110,6 +2216,7 @@ def plan(req: PlanReq):
             },
             api_key=api_key,
             model=text_model,
+            provider=text_provider,
         )
         plan_obj = _parse_json(plan_text)
         paths.plan_path.write_text(json.dumps(plan_obj, indent=2), encoding="utf-8")
@@ -2166,8 +2273,8 @@ def approve(req: ApproveReq):
             },
             status_code=400,
         )
-    api_key = settings.get("api_key")
-    text_model = req.model or settings.get("text_model")
+    text_provider, api_key, text_model = _text_generation_settings(settings, req.model)
+    image_api_key = settings.get("api_key") or os.environ.get("GEMINI_API_KEY")
     manim_py = settings.get("manim_py")
     if manim_py:
         # If the user saved "python" on macOS (often missing), don't hard-fail renders.
@@ -2201,7 +2308,7 @@ def approve(req: ApproveReq):
                 job_dir=paths.job_dir,
                 image_prompt=req.image_prompt,
                 image_mode=req.image_mode,
-                api_key=api_key,
+                api_key=image_api_key,
                 image_model=req.image_model or settings.get("image_model"),
                 variants=max(1, int(req.image_variants or 1)),
             )
@@ -2243,6 +2350,7 @@ def approve(req: ApproveReq):
         manim_py=manim_py,
         api_key=api_key,
         text_model=text_model,
+        text_provider=text_provider,
     )
 
     return {"ok": True, "job_id": req.job_id}
@@ -2280,7 +2388,7 @@ def job_status(job_id: str):
     captions = paths.job_dir / "captions.srt"
     if captions.exists():
         resp["captions_path"] = str(captions.relative_to(ROOT))
-    resp["job_files"] = _job_files(paths) + ([str(captions.relative_to(ROOT))] if captions.exists() else [])
+    resp["job_files"] = _job_files(paths)
     return resp
 
 
@@ -2387,8 +2495,7 @@ def add_voiceover(job_id: str, req: Optional[VoiceoverReq] = None):
     api_key = (settings.get("elevenlabs_api_key") or "").strip()
     voice_id = (req.voice_id or settings.get("elevenlabs_voice_id") or "").strip()
     model_id = (req.model_id or settings.get("elevenlabs_model_id") or "").strip() or None
-    gemini_key = (settings.get("api_key") or "").strip()
-    gemini_model = settings.get("text_model")
+    text_provider, text_api_key, text_model = _text_generation_settings(settings)
     if not api_key or not voice_id:
         return JSONResponse(
             {
@@ -2410,11 +2517,12 @@ def add_voiceover(job_id: str, req: Optional[VoiceoverReq] = None):
         text = _srt_to_plain_text(paths.job_dir / "captions.srt")
         if not text:
             text = _voiceover_text_from_plan(paths)
-        if req.use_gemini_script and gemini_key:
+        if req.use_gemini_script and text_api_key:
             text = _voiceover_script_with_gemini(
                 paths=paths,
-                api_key=gemini_key,
-                model=gemini_model,
+                api_key=text_api_key,
+                model=text_model,
+                provider=text_provider,
                 chat_context=chat_context if req.include_chat_context else "",
             ) or text
 
@@ -2460,14 +2568,14 @@ def build_script_packs(job_id: str, req: Optional[ScriptPackReq] = None):
         return JSONResponse({"ok": False, "error": f"Invalid plan JSON: {exc}"}, status_code=400)
 
     settings = load_settings()
-    api_key = settings.get("api_key")
-    model = req.model or settings.get("text_model")
+    text_provider, api_key, model = _text_generation_settings(settings, req.model)
     languages = [str(x).strip().lower() for x in (req.languages or []) if str(x).strip()]
     packs_data = _multilingual_script_packs(
         plan=plan,
         languages=languages,
         api_key=api_key,
         model=model,
+        provider=text_provider,
     )
 
     scripts_dir = paths.job_dir / "scripts"
@@ -2531,8 +2639,8 @@ def crazy_run(req: CrazyRunReq):
             status_code=400,
         )
 
-    api_key = settings.get("api_key")
-    text_model = req.model or settings.get("text_model")
+    text_provider, api_key, text_model = _text_generation_settings(settings, req.model)
+    image_api_key = settings.get("api_key") or os.environ.get("GEMINI_API_KEY")
     image_model = req.image_model or settings.get("image_model")
     manim_py = settings.get("manim_py")
     if manim_py:
@@ -2574,6 +2682,7 @@ def crazy_run(req: CrazyRunReq):
                 },
                 api_key=api_key,
                 model=text_model,
+                provider=text_provider,
             )
             plan_obj = _parse_json(plan_text)
             paths.plan_path.write_text(json.dumps(plan_obj, indent=2), encoding="utf-8")
@@ -2584,7 +2693,7 @@ def crazy_run(req: CrazyRunReq):
                     job_dir=paths.job_dir,
                     image_prompt=req.image_prompt,
                     image_mode=req.image_mode,
-                    api_key=api_key,
+                    api_key=image_api_key,
                     image_model=image_model,
                     variants=max(1, int(req.image_variants or 1)),
                 )
@@ -2618,6 +2727,7 @@ def crazy_run(req: CrazyRunReq):
                 manim_py=manim_py,
                 api_key=api_key,
                 text_model=text_model,
+                text_provider=text_provider,
             )
             return (
                 i,
@@ -2793,8 +2903,8 @@ def animate(req: AnimateReq):
     paths.job_dir.mkdir(parents=True, exist_ok=True)
     image_warning: Optional[str] = None
     settings = load_settings()
-    api_key = settings.get("api_key")
-    text_model = settings.get("text_model")
+    text_provider, api_key, text_model = _text_generation_settings(settings)
+    image_api_key = settings.get("api_key") or os.environ.get("GEMINI_API_KEY")
     image_model = req.image_model or settings.get("image_model")
     manim_py = settings.get("manim_py")
 
@@ -2809,6 +2919,7 @@ def animate(req: AnimateReq):
             },
             api_key=api_key,
             model=text_model,
+            provider=text_provider,
         )
         plan = _parse_json(plan_text)
         paths.plan_path.write_text(json.dumps(plan, indent=2), encoding="utf-8")
@@ -2832,7 +2943,7 @@ def animate(req: AnimateReq):
                 job_dir=paths.job_dir,
                 image_prompt=req.image_prompt,
                 image_mode=req.image_mode,
-                api_key=api_key,
+                api_key=image_api_key,
                 image_model=image_model,
                 variants=max(1, int(req.image_variants or 1)),
             )
@@ -2852,6 +2963,7 @@ def animate(req: AnimateReq):
             system_text=MANIM_CODE_SYSTEM,
             api_key=api_key,
             model=text_model,
+            provider=text_provider,
         )
         code = sanitize_manim_code(code)
         paths.scene_path.write_text(code, encoding="utf-8")
@@ -2886,7 +2998,13 @@ def animate(req: AnimateReq):
             "Return a fixed full python file."
         )
         try:
-            code2 = generate_content(repair_user, system_text=REPAIR_SYSTEM, api_key=api_key)
+            code2 = generate_content(
+                repair_user,
+                system_text=REPAIR_SYSTEM,
+                api_key=api_key,
+                model=text_model,
+                provider=text_provider,
+            )
             code2 = sanitize_manim_code(code2)
             paths.scene_path.write_text(code2, encoding="utf-8")
             ok, logs = render_with_manim(

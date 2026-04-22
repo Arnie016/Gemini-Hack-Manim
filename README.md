@@ -2,34 +2,34 @@
 
 # NorthStar
 
-NorthStar turns one prompt into a rendered Manim explainer with an agentic flow:
-`Plan -> Approve -> Code -> Render`.
+NorthStar is an agentic IDE for Manim storytelling animations. It turns one
+prompt into a scene plan, lets you audit/edit the plan, generates Manim code,
+renders the animation, and attempts a repair pass when rendering fails:
+`Plan -> Audit -> Approve -> Code -> Render -> Repair`.
 
 Built by **Arnav Salkade**.
-
-![NorthStar UI](docs/northstar-ui.png)
 
 ## Links
 - Demo UI: https://skill-deploy-c6ioczee1j-codex-agent-deploys.vercel.app
 - Repo: https://github.com/Arnie016/Gemini-Hack-Manim
 
-## Why Gemini matters
-- Plans scenes (structured JSON)
-- Writes Manim code from the approved plan
-- Diagnoses render failures and repairs/retries
+## Model providers
+- OpenAI is the default text provider for planning, code generation, diagnosis, and repair.
+- Gemini is still supported as an alternate text provider and for Gemini image generation.
+- The IDE stores provider/model settings locally through the Settings panel.
 
 ## Run (local backend)
 ```bash
-cd "/Users/hema/Desktop/Gemini-Hack-Manim"
+cd Gemini-Hack-Manim
 python3 -m venv .venv && source .venv/bin/activate
+brew install cairo pango pkg-config ffmpeg
 python -m pip install -U pip -r requirements.txt
-python -m pip install manim
-brew install ffmpeg
-export GEMINI_API_KEY="YOUR_KEY"
+export OPENAI_API_KEY="YOUR_KEY"
+# Optional: export GEMINI_API_KEY="YOUR_KEY" for Gemini text or image generation.
 python -m uvicorn backend.main:app --reload --port 8000
 ```
 
-Open `http://127.0.0.1:8000`  
+Open `http://127.0.0.1:8000` for the landing page or `http://127.0.0.1:8000/app` for the IDE.  
 Output files: `work/jobs/<job_id>/`  
 Credits: Manim by Grant Sanderson (3Blue1Brown) + Manim Community.
 

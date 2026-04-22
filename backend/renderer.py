@@ -137,28 +137,85 @@ def concat_videos(
             pass
         return True, logs_all
 
+    def _has_audio(path: Path) -> bool:
+        ffprobe = shutil.which("ffprobe")
+        if not ffprobe:
+            return False
+        try:
+            probe = subprocess.run(
+                [
+                    ffprobe,
+                    "-v",
+                    "error",
+                    "-select_streams",
+                    "a:0",
+                    "-show_entries",
+                    "stream=index",
+                    "-of",
+                    "csv=p=0",
+                    str(path),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+            return probe.returncode == 0 and bool((probe.stdout or "").strip())
+        except Exception:
+            return False
+
     # Fallback: re-encode concat filter.
-    cmd_reencode = [
-        ffmpeg,
-        "-y",
-        "-i",
-        str(first_video),
-        "-i",
-        str(second_video),
-        "-filter_complex",
-        "[0:v:0][1:v:0]concat=n=2:v=1:a=0[v]",
-        "-map",
-        "[v]",
-        "-c:v",
-        "libx264",
-        "-preset",
-        "veryfast",
-        "-crf",
-        "20",
-        "-pix_fmt",
-        "yuv420p",
-        str(tmp_out),
-    ]
+    first_has_audio = _has_audio(first_video)
+    second_has_audio = _has_audio(second_video)
+    if first_has_audio and second_has_audio:
+        cmd_reencode = [
+            ffmpeg,
+            "-y",
+            "-i",
+            str(first_video),
+            "-i",
+            str(second_video),
+            "-filter_complex",
+            "[0:v:0][0:a:0][1:v:0][1:a:0]concat=n=2:v=1:a=1[v][a]",
+            "-map",
+            "[v]",
+            "-map",
+            "[a]",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-crf",
+            "20",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "192k",
+            str(tmp_out),
+        ]
+    else:
+        cmd_reencode = [
+            ffmpeg,
+            "-y",
+            "-i",
+            str(first_video),
+            "-i",
+            str(second_video),
+            "-filter_complex",
+            "[0:v:0][1:v:0]concat=n=2:v=1:a=0[v]",
+            "-map",
+            "[v]",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-crf",
+            "20",
+            "-pix_fmt",
+            "yuv420p",
+            str(tmp_out),
+        ]
     try:
         proc2 = subprocess.run(
             cmd_reencode,
@@ -184,3 +241,190 @@ def concat_videos(
         return True, logs_all
 
     return False, logs_all or "ffmpeg concat failed"
+
+
+def cut_video_range(
+    input_video: Path,
+    *,
+    start_s: float,
+    end_s: float,
+    out_video: Path,
+    timeout_s: int = 240,
+) -> Tuple[bool, str]:
+    """Remove the time range [start_s, end_s] from an MP4 with ffmpeg."""
+    ffmpeg = shutil.which("ffmpeg")
+    ffprobe = shutil.which("ffprobe")
+    if not ffmpeg:
+        return False, "ffmpeg not found on PATH"
+    if not input_video.exists():
+        return False, f"Missing video: {input_video}"
+
+    try:
+        start_s = max(0.0, float(start_s))
+        end_s = float(end_s)
+    except (TypeError, ValueError):
+        return False, "Invalid cut timestamps"
+    if end_s <= start_s:
+        return False, "Invalid cut range"
+
+    out_video.parent.mkdir(parents=True, exist_ok=True)
+    tmp_out = out_video.parent / f".cut-{out_video.stem}.mp4"
+    logs_all = ""
+
+    def _run(cmd: list[str]) -> tuple[bool, str]:
+        try:
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=timeout_s,
+            )
+        except subprocess.TimeoutExpired as exc:
+            logs = (exc.stdout or "") + "\n" + (exc.stderr or "")
+            return False, logs + "\nffmpeg cut timed out"
+        logs = (proc.stdout or "") + "\n" + (proc.stderr or "")
+        return proc.returncode == 0, logs
+
+    def _probe_duration() -> float | None:
+        if not ffprobe:
+            return None
+        ok, out = _run(
+            [
+                ffprobe,
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                str(input_video),
+            ]
+        )
+        if not ok:
+            return None
+        try:
+            value = float(out.strip().splitlines()[-1])
+        except (IndexError, ValueError):
+            return None
+        return value if value > 0 else None
+
+    def _has_audio() -> bool:
+        if not ffprobe:
+            return False
+        ok, out = _run(
+            [
+                ffprobe,
+                "-v",
+                "error",
+                "-select_streams",
+                "a:0",
+                "-show_entries",
+                "stream=index",
+                "-of",
+                "csv=p=0",
+                str(input_video),
+            ]
+        )
+        return ok and bool(out.strip())
+
+    duration = _probe_duration()
+    has_audio = _has_audio()
+
+    keep_head = start_s > 0.05
+    keep_tail = True
+    if duration is not None:
+        end_s = min(end_s, duration)
+        keep_tail = end_s < duration - 0.05
+
+    if not keep_head and not keep_tail:
+        return False, "Cut range removes the entire video"
+
+    base_cmd = [
+        ffmpeg,
+        "-y",
+        "-i",
+        str(input_video),
+    ]
+    encode_args = [
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "20",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+    ]
+
+    if keep_head and keep_tail:
+        if has_audio:
+            graph = (
+                f"[0:v]trim=start=0:end={start_s:.3f},setpts=PTS-STARTPTS[v0];"
+                f"[0:a]atrim=start=0:end={start_s:.3f},asetpts=PTS-STARTPTS[a0];"
+                f"[0:v]trim=start={end_s:.3f},setpts=PTS-STARTPTS[v1];"
+                f"[0:a]atrim=start={end_s:.3f},asetpts=PTS-STARTPTS[a1];"
+                "[v0][a0][v1][a1]concat=n=2:v=1:a=1[v][a]"
+            )
+            cmd = base_cmd + [
+                "-filter_complex",
+                graph,
+                "-map",
+                "[v]",
+                "-map",
+                "[a]",
+            ] + encode_args + ["-c:a", "aac", "-b:a", "192k", str(tmp_out)]
+        else:
+            graph = (
+                f"[0:v]trim=start=0:end={start_s:.3f},setpts=PTS-STARTPTS[v0];"
+                f"[0:v]trim=start={end_s:.3f},setpts=PTS-STARTPTS[v1];"
+                "[v0][v1]concat=n=2:v=1:a=0[v]"
+            )
+            cmd = base_cmd + [
+                "-filter_complex",
+                graph,
+                "-map",
+                "[v]",
+                "-an",
+            ] + encode_args + [str(tmp_out)]
+    elif keep_head:
+        cmd = [
+            ffmpeg,
+            "-y",
+            "-i",
+            str(input_video),
+            "-t",
+            f"{start_s:.3f}",
+        ] + encode_args
+        if has_audio:
+            cmd += ["-c:a", "aac", "-b:a", "192k"]
+        else:
+            cmd += ["-an"]
+        cmd.append(str(tmp_out))
+    else:
+        cmd = [
+            ffmpeg,
+            "-y",
+            "-ss",
+            f"{end_s:.3f}",
+            "-i",
+            str(input_video),
+        ] + encode_args
+        if has_audio:
+            cmd += ["-c:a", "aac", "-b:a", "192k"]
+        else:
+            cmd += ["-an"]
+        cmd.append(str(tmp_out))
+
+    ok, logs = _run(cmd)
+    logs_all += logs
+    if ok and tmp_out.exists():
+        tmp_out.replace(out_video)
+        return True, logs_all
+
+    try:
+        tmp_out.unlink(missing_ok=True)
+    except Exception:
+        pass
+    return False, logs_all or "ffmpeg cut failed"
