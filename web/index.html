@@ -3734,7 +3734,7 @@
               </div>
               <div id="first60ItemImage" class="first60-item">
                 <span class="first60-dot">3</span>
-                <span>Generate/select image</span>
+                <span id="first60ItemImageLabel">Generate/select image</span>
                 <span class="first60-state">pending</span>
               </div>
               <div id="first60ItemRender" class="first60-item">
@@ -3770,7 +3770,7 @@
         </div>
         <div class="modal-body">
           <div id="tourIntroLine" class="tour-headline">
-            Fast path: Create plan -> Generate images -> Approve & Render.
+            Fast path: Create plan -> Add visuals if needed -> Approve & Render.
           </div>
           <div class="tour-shell">
             <div class="tour-progress-row">
@@ -3819,7 +3819,7 @@
           <div class="welcome-flow">
             <span class="flow-step">Create plan</span>
             <span class="flow-arrow">-></span>
-            <span class="flow-step">Generate images</span>
+            <span id="welcomeFlowStep2" class="flow-step">Add visuals</span>
             <span class="flow-arrow">-></span>
             <span class="flow-step">Approve & Render</span>
           </div>
@@ -3831,8 +3831,8 @@
             </div>
             <div class="welcome-card">
               <div class="welcome-kicker">Step 2</div>
-              <div><strong>Generate Images</strong></div>
-              <div class="muted">Create BG/FG assets and drag them into timeline scenes.</div>
+              <div><strong id="welcomeStep2Title">Add Visuals</strong></div>
+              <div id="welcomeStep2Body" class="muted">Generate visuals when ready, or use your own assets before rendering.</div>
             </div>
             <div class="welcome-card">
               <div class="welcome-kicker">Step 3</div>
@@ -4342,6 +4342,7 @@
       const first60ItemPromptEl = document.getElementById('first60ItemPrompt');
       const first60ItemPlanEl = document.getElementById('first60ItemPlan');
       const first60ItemImageEl = document.getElementById('first60ItemImage');
+      const first60ItemImageLabelEl = document.getElementById('first60ItemImageLabel');
       const first60ItemRenderEl = document.getElementById('first60ItemRender');
       const tourIntroLineEl = document.getElementById('tourIntroLine');
       const tourStepCountEl = document.getElementById('tourStepCount');
@@ -4356,6 +4357,9 @@
       const tourPrevBtn = document.getElementById('tourPrevBtn');
       const tourNextBtn = document.getElementById('tourNextBtn');
       const tourHighlightEl = document.getElementById('tourHighlight');
+      const welcomeFlowStep2El = document.getElementById('welcomeFlowStep2');
+      const welcomeStep2TitleEl = document.getElementById('welcomeStep2Title');
+      const welcomeStep2BodyEl = document.getElementById('welcomeStep2Body');
 
       const videoEl = document.createElement('video');
       videoEl.controls = true;
@@ -4989,11 +4993,24 @@
       const WELCOME_SEEN_KEY = 'northstar.welcome_seen.v1';
       const FIRST60_HIDE_KEY = 'northstar.first60_hide.v1';
       const TOUR_SEEN_KEY = 'northstar.tour_seen.v2';
+      function includeImagesEnabled() {
+        return !!(includeImagesEl && includeImagesEl.value === 'true');
+      }
+
+      function hasReadyImageProvider() {
+        return !!lastSettingsData?.has_image_api_key;
+      }
+
+      function getImageOnboardingMode() {
+        if (!includeImagesEnabled()) return 'off';
+        return hasReadyImageProvider() ? 'generate' : 'manual';
+      }
+
       const DEFAULT_ONBOARDING = {
         intro_title: 'NorthStar quick tour',
-        intro_body: 'Follow these steps to go from prompt to cinematic explainer.',
+        intro_body: 'Follow these steps to go from prompt to rendered explainer.',
         outro_title: 'You are ready to create',
-        outro_body: 'Press Create plan, generate assets, approve, and render your first video.',
+        outro_body: 'Press Create plan, add visuals if needed, approve, and render your first video.',
         steps: [
           {
             title: 'Choose a starter template',
@@ -5012,8 +5029,8 @@
             icon_url: '',
           },
           {
-            title: 'Generate image assets',
-            body: 'Create Nano Banana variants, then drag chosen assets into scene cards on timeline.',
+            title: 'Add visuals if needed',
+            body: 'Generate image variants when ready, or use your own assets before rendering.',
             hint: 'Middle panel -> Images',
             target: '#imageGenDetails',
             icon_prompt: 'Image variation icon dark ui',
@@ -5045,12 +5062,41 @@
           },
         ],
       };
+      function buildDefaultOnboarding() {
+        const next = JSON.parse(JSON.stringify(DEFAULT_ONBOARDING));
+        const mode = getImageOnboardingMode();
+        if (mode === 'manual') {
+          next.intro_body = 'Follow these steps to go from prompt to rendered explainer. Use your own visuals if needed, or continue text-only.';
+          next.outro_body = 'Press Create plan, add your own visuals if needed, approve, and render your first video.';
+          next.steps[2] = {
+            title: 'Use existing visuals',
+            body: 'Drop your own background or foreground assets into scenes, or continue text-only until image generation is configured.',
+            hint: 'Middle panel -> Images',
+            target: '#imageGenDetails',
+            icon_prompt: 'Asset upload and scene card icon dark ui',
+            icon_url: '',
+          };
+        } else if (mode === 'off') {
+          next.intro_body = 'Follow these steps to go from prompt to rendered explainer. Start text-only and add visuals later if needed.';
+          next.outro_body = 'Press Create plan, approve, and render your first video. Turn visuals on later when you want them.';
+          next.steps[2] = {
+            title: 'Skip visuals for now',
+            body: 'Start with a text-only render now. Turn Include images on later when you want background or foreground assets.',
+            hint: 'Middle panel -> Include images',
+            target: '#includeImages',
+            icon_prompt: 'Toggle switch with image icon dark ui',
+            icon_url: '',
+          };
+        }
+        return next;
+      }
       let autosaveTimer = null;
       let pendingRestore = null;
-      let onboardingData = JSON.parse(JSON.stringify(DEFAULT_ONBOARDING));
+      let onboardingData = cloneOnboardingDefaults();
       let onboardingIndex = 0;
       let onboardingLoading = false;
       let onboardingFetched = false;
+      let onboardingWorkflowMode = '';
 
       function updateSliderReadout(inputEl, readoutEl) {
         if (!inputEl || !readoutEl) return;
@@ -6005,7 +6051,7 @@
       }
 
       function cloneOnboardingDefaults() {
-        return JSON.parse(JSON.stringify(DEFAULT_ONBOARDING));
+        return buildDefaultOnboarding();
       }
 
       function normalizeOnboardingPayload(payload) {
@@ -6107,6 +6153,7 @@
           clearTourHighlight();
           return;
         }
+        const fallbackOnboarding = cloneOnboardingDefaults();
         const steps = getOnboardingSteps();
         if (!steps.length) return;
         onboardingIndex = Math.max(0, Math.min(onboardingIndex, steps.length - 1));
@@ -6119,7 +6166,7 @@
           tourProgressFillEl.style.width = `${pct}%`;
         }
         if (tourIntroLineEl) {
-          tourIntroLineEl.textContent = onboardingData?.intro_body || DEFAULT_ONBOARDING.intro_body;
+          tourIntroLineEl.textContent = onboardingData?.intro_body || fallbackOnboarding.intro_body;
         }
         if (tourStepTitleEl) tourStepTitleEl.textContent = step.title || `Step ${onboardingIndex + 1}`;
         if (tourStepBodyEl) tourStepBodyEl.textContent = step.body || '';
@@ -6158,6 +6205,7 @@
           audience: 'first-time creators',
           model: chatModelEl ? chatModelEl.value : '',
           image_model: settingsImageModelEl ? settingsImageModelEl.value : '',
+          include_images: includeImagesEnabled(),
         };
         try {
           const resp = await fetch('/api/onboarding/quickstart', {
@@ -6187,8 +6235,9 @@
 
       function playTourHurray() {
         if (!tourHurrayEl) return;
-        const title = String(onboardingData?.outro_title || DEFAULT_ONBOARDING.outro_title).trim();
-        const body = String(onboardingData?.outro_body || DEFAULT_ONBOARDING.outro_body).trim();
+        const fallbackOnboarding = cloneOnboardingDefaults();
+        const title = String(onboardingData?.outro_title || fallbackOnboarding.outro_title).trim();
+        const body = String(onboardingData?.outro_body || fallbackOnboarding.outro_body).trim();
         tourHurrayEl.textContent = `${title}: ${body}`;
         tourHurrayEl.classList.remove('hidden');
       }
@@ -7348,11 +7397,47 @@
         if (stateEl) stateEl.textContent = label || 'pending';
       }
 
+      function refreshProviderAwareOnboardingSurface() {
+        const imageMode = getImageOnboardingMode();
+        if (onboardingWorkflowMode !== imageMode) {
+          onboardingWorkflowMode = imageMode;
+          onboardingData = cloneOnboardingDefaults();
+          onboardingFetched = false;
+        }
+        if (first60ItemImageLabelEl) {
+          first60ItemImageLabelEl.textContent = imageMode === 'generate'
+            ? 'Generate/select image'
+            : (imageMode === 'manual' ? 'Use existing visuals' : 'Images off');
+        }
+        if (welcomeFlowStep2El) {
+          welcomeFlowStep2El.textContent = imageMode === 'generate'
+            ? 'Generate images'
+            : (imageMode === 'manual' ? 'Use existing visuals' : 'Skip visuals');
+        }
+        if (welcomeStep2TitleEl) {
+          welcomeStep2TitleEl.textContent = imageMode === 'generate'
+            ? 'Generate Images'
+            : (imageMode === 'manual' ? 'Use Existing Visuals' : 'Skip Visuals');
+        }
+        if (welcomeStep2BodyEl) {
+          welcomeStep2BodyEl.textContent = imageMode === 'generate'
+            ? 'Create BG/FG assets and drag them into timeline scenes.'
+            : (imageMode === 'manual'
+              ? 'Drop your own BG/FG assets into scenes, or continue text-only until image generation is configured.'
+              : 'Start with a text-only render now. Turn Include images back on later when you want visuals.');
+        }
+        if (infoModal && infoModal.classList.contains('open') && !onboardingLoading) {
+          renderOnboardingStep();
+        }
+      }
+
       function updateFirst60Checklist() {
         if (!first60PanelEl) return;
+        refreshProviderAwareOnboardingSurface();
         const hasPrompt = !!(chatInputEl && String(chatInputEl.value || '').trim());
         const hasPlan = !!(currentJobId && currentPlanText);
-        const needsImages = !!(includeImagesEl && includeImagesEl.value === 'true');
+        const imageMode = getImageOnboardingMode();
+        const requiresGeneratedImages = imageMode === 'generate';
         const hasImages = !!(getThumbAsset('background') || getThumbAsset('foreground'));
         const hasRender = !!(lastVideoUrl || (videoEl && videoEl.src));
 
@@ -7362,27 +7447,29 @@
           hasPlan ? 'done' : (hasPrompt ? 'active' : ''),
           hasPlan ? 'done' : (hasPrompt ? 'click plan' : 'pending')
         );
-        if (!needsImages) {
-          setFirst60Item(first60ItemImageEl, 'done', 'optional off');
-        } else {
+        if (requiresGeneratedImages) {
           setFirst60Item(
             first60ItemImageEl,
             hasImages ? 'done' : (hasPlan ? 'active' : ''),
             hasImages ? 'done' : (hasPlan ? 'generate' : 'wait')
           );
+        } else if (imageMode === 'manual') {
+          setFirst60Item(first60ItemImageEl, 'done', hasImages ? 'manual ready' : 'text-only ok');
+        } else {
+          setFirst60Item(first60ItemImageEl, 'done', 'optional off');
         }
-        const renderReady = hasPlan && (!needsImages || hasImages);
+        const renderReady = hasPlan && (!requiresGeneratedImages || hasImages);
         setFirst60Item(
           first60ItemRenderEl,
           hasRender ? 'done' : (renderReady ? 'active' : ''),
           hasRender ? 'done' : (renderReady ? 'approve' : 'pending')
         );
 
-        const total = needsImages ? 4 : 3;
+        const total = requiresGeneratedImages ? 4 : 3;
         let done = 0;
         if (hasPrompt) done += 1;
         if (hasPlan) done += 1;
-        if (needsImages && hasImages) done += 1;
+        if (requiresGeneratedImages && hasImages) done += 1;
         if (hasRender) done += 1;
         done = Math.min(done, total);
         const pct = total > 0 ? Math.round((done / total) * 100) : 0;
@@ -9284,6 +9371,7 @@
             ? 'Generate background/foreground previews using the configured Gemini image model.'
             : 'Add a Gemini API key in Settings to enable image generation.';
         }
+        refreshProviderAwareOnboardingSurface();
       }
 
       function renderSidebarHealth(healthData, preflightData) {

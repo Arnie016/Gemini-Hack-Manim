@@ -330,6 +330,7 @@ class OnboardingReq(BaseModel):
     audience: Optional[str] = None
     model: Optional[str] = None
     image_model: Optional[str] = None
+    include_images: Optional[bool] = None
 
 
 class CrazyRunReq(BaseModel):
@@ -836,7 +837,44 @@ def _policy_block_reason(*texts: Optional[str]) -> Optional[str]:
     return None
 
 
-def _default_onboarding_steps() -> list[Dict[str, str]]:
+def _default_onboarding_steps(image_mode: str = "generate") -> list[Dict[str, str]]:
+    image_step: Dict[str, str]
+    if image_mode == "manual":
+        image_step = {
+            "id": "images",
+            "target": "#imageGenDetails",
+            "title": "Use existing visuals",
+            "body": "Drop your own background and foreground assets into scene cards, or continue text-only until image generation is configured.",
+            "hint": "Middle panel -> Images",
+            "icon_prompt": (
+                "Minimal icon showing asset upload into timeline card, dark matte background, "
+                "subtle blue green accent"
+            ),
+        }
+    elif image_mode == "off":
+        image_step = {
+            "id": "images",
+            "target": "#includeImages",
+            "title": "Skip visuals for now",
+            "body": "Start text-only now. Turn Include images on later when you want background or foreground assets.",
+            "hint": "Middle panel -> Include images",
+            "icon_prompt": (
+                "Minimal icon showing an image toggle switched off, dark matte background, "
+                "subtle slate accent"
+            ),
+        }
+    else:
+        image_step = {
+            "id": "images",
+            "target": "#imageGenDetails",
+            "title": "Generate image assets",
+            "body": "Create background and foreground variants, then drag the chosen assets into scene cards.",
+            "hint": "Middle panel -> Image generation",
+            "icon_prompt": (
+                "Minimal icon showing image variants and drag and drop to timeline card, "
+                "dark matte background, subtle green accent"
+            ),
+        }
     return [
         {
             "id": "template",
@@ -853,24 +891,14 @@ def _default_onboarding_steps() -> list[Dict[str, str]]:
             "id": "plan",
             "target": "#chatInput",
             "title": "Describe the idea",
-            "body": "Type the concept in one line. Gemini will turn it into a scene-by-scene plan.",
+            "body": "Type the concept in one line. NorthStar will turn it into a scene-by-scene plan.",
             "hint": "Right panel -> Prompt box",
             "icon_prompt": (
                 "Minimal line icon of a prompt box with spark cursor, dark matte background, "
                 "electric blue and teal accent"
             ),
         },
-        {
-            "id": "images",
-            "target": "#imageGenDetails",
-            "title": "Generate image assets",
-            "body": "Use Nano Banana to create background and foreground variants, then drag into scene cards.",
-            "hint": "Middle panel -> Image generation",
-            "icon_prompt": (
-                "Minimal icon showing image variants and drag and drop to timeline card, "
-                "dark matte background, subtle green accent"
-            ),
-        },
+        image_step,
         {
             "id": "timeline",
             "target": "#timelineTrack",
@@ -886,7 +914,7 @@ def _default_onboarding_steps() -> list[Dict[str, str]]:
             "id": "preview",
             "target": "#previewSlot",
             "title": "Approve and render",
-            "body": "Run plan -> code -> render. If a render fails, Gemini diagnoses and retries automatically.",
+            "body": "Run plan -> code -> render. If a render fails, NorthStar diagnoses and retries automatically.",
             "hint": "Middle panel -> Preview area",
             "icon_prompt": (
                 "Minimal icon for render pipeline plan code render with play symbol, "
@@ -2077,12 +2105,20 @@ def onboarding_quickstart(req: OnboardingReq):
     text_provider, text_api_key, text_model = _text_generation_settings(settings, req.model)
     gemini_api_key = settings.get("api_key") or os.environ.get("GEMINI_API_KEY")
     image_model = req.image_model or settings.get("image_model")
+    include_images = True if req.include_images is None else bool(req.include_images)
+    image_mode = "off" if not include_images else ("generate" if gemini_api_key else "manual")
 
-    steps = _default_onboarding_steps()
+    steps = _default_onboarding_steps(image_mode=image_mode)
     intro_title = "NorthStar quick tour"
     intro_body = "Follow the highlights to go from idea to rendered explainer in under a minute."
     outro_title = "You are ready to create"
-    outro_body = "Press Create plan, generate assets, approve, and render your first scene."
+    outro_body = "Press Create plan, add visuals if needed, approve, and render your first scene."
+    if image_mode == "manual":
+        intro_body = "Follow the highlights to go from idea to rendered explainer. Use your own visuals if needed, or continue text-only."
+        outro_body = "Press Create plan, add your own visuals if needed, approve, and render your first scene."
+    elif image_mode == "off":
+        intro_body = "Follow the highlights to go from idea to rendered explainer. Start text-only and add visuals later if needed."
+        outro_body = "Press Create plan, approve, and render your first scene. Turn visuals on later when you want them."
     warnings: list[str] = []
 
     if text_api_key:
@@ -2110,13 +2146,23 @@ def onboarding_quickstart(req: OnboardingReq):
             },
             "required": ["intro_title", "intro_body", "outro_title", "outro_body", "steps"],
         }
-        targets = [step["target"] for step in _default_onboarding_steps()]
+        targets = [step["target"] for step in _default_onboarding_steps(image_mode=image_mode)]
         user = (
             "Write a concise, premium onboarding walkthrough for a Manim creator studio.\n"
             "Audience: "
             + audience
             + "\n"
             + ("Current user intent:\n" + prompt + "\n\n" if prompt else "")
+            + (
+                "Current image workflow: image generation is ready, so the guide can tell the user to generate visuals.\n\n"
+                if image_mode == "generate"
+                else (
+                    "Current image workflow: include images is on, but image generation is not configured. "
+                    "The guide should recommend existing visuals or text-only rendering instead of generated images.\n\n"
+                    if image_mode == "manual"
+                    else "Current image workflow: include images is off. The guide should not tell the user to generate images.\n\n"
+                )
+            )
             + "Use exactly six steps mapped to these targets in order:\n"
             + "\n".join([f"{idx + 1}. {target}" for idx, target in enumerate(targets)])
             + "\n\n"
@@ -2125,6 +2171,7 @@ def onboarding_quickstart(req: OnboardingReq):
             + "- body (max 24 words)\n"
             + "- hint (max 6 words)\n"
             + "- icon_prompt (max 20 words)\n"
+            + "Do not mention unavailable providers.\n"
             + "Return strict JSON only."
         )
         try:
