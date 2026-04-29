@@ -1408,7 +1408,14 @@ def _generate_assets(
                 (assets_dir / name).write_bytes(fg_bytes)
                 fg_rel.append(f"assets/{name}")
     except GeminiError as exc:
-        warning = f"Image generation failed: {exc}"
+        raw = str(exc).strip()
+        if "GEMINI_API_KEY is not set" in raw:
+            warning = (
+                "Image generation skipped: Gemini API key not configured. "
+                "Continuing without generated images."
+            )
+        else:
+            warning = f"Image generation failed: {raw}"
         bg_rel = []
         fg_rel = []
 
@@ -2300,11 +2307,12 @@ def approve(req: ApproveReq):
 
     # Describe any pre-generated assets already present on disk (created via /api/images/generate).
     assets_description = ""
+    image_warning: Optional[str] = None
     bg_candidates = sorted((paths.job_dir / "assets").glob("background*.png"))
     fg_candidates = sorted((paths.job_dir / "assets").glob("foreground*.png"))
     if not bg_candidates and not fg_candidates and req.include_images and req.image_prompt and req.image_prompt.strip():
         try:
-            bg_rel, fg_rel, _warning, desc = _generate_assets(
+            bg_rel, fg_rel, image_warning, desc = _generate_assets(
                 job_dir=paths.job_dir,
                 image_prompt=req.image_prompt,
                 image_mode=req.image_mode,
@@ -2353,7 +2361,10 @@ def approve(req: ApproveReq):
         text_provider=text_provider,
     )
 
-    return {"ok": True, "job_id": req.job_id}
+    response = {"ok": True, "job_id": req.job_id}
+    if image_warning:
+        response["image_warning"] = image_warning
+    return response
 
 
 @app.get("/api/jobs/{job_id}")
@@ -2666,8 +2677,9 @@ def crazy_run(req: CrazyRunReq):
 
     jobs_by_index: list[Optional[Dict[str, Any]]] = [None] * count
     errors: list[str] = []
+    warnings: list[str] = []
 
-    def run_variant(i: int) -> tuple[int, Optional[Dict[str, Any]], Optional[str]]:
+    def run_variant(i: int) -> tuple[int, Optional[Dict[str, Any]], Optional[str], Optional[str]]:
         job_id = new_job_id()
         paths = job_paths(JOBS, job_id)
         paths.job_dir.mkdir(parents=True, exist_ok=True)
@@ -2688,8 +2700,9 @@ def crazy_run(req: CrazyRunReq):
             paths.plan_path.write_text(json.dumps(plan_obj, indent=2), encoding="utf-8")
 
             assets_description = ""
+            image_warning: Optional[str] = None
             if req.include_images and req.image_prompt and req.image_prompt.strip():
-                bg_rel, fg_rel, _warning, desc = _generate_assets(
+                bg_rel, fg_rel, image_warning, desc = _generate_assets(
                     job_dir=paths.job_dir,
                     image_prompt=req.image_prompt,
                     image_mode=req.image_mode,
@@ -2738,24 +2751,28 @@ def crazy_run(req: CrazyRunReq):
                     "plan": plan_obj,
                     "plan_text": json.dumps(plan_obj, indent=2),
                     "job_files": _job_files(paths),
+                    "image_warning": image_warning,
                 },
                 None,
+                image_warning,
             )
         except Exception as exc:
-            return (i, None, f"Variant {i + 1}: {exc}")
+            return (i, None, f"Variant {i + 1}: {exc}", None)
 
     max_workers = max(1, min(count, 5))
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = [pool.submit(run_variant, i) for i in range(count)]
         for fut in concurrent.futures.as_completed(futures):
             try:
-                idx, payload, err = fut.result()
+                idx, payload, err, warning = fut.result()
             except Exception as exc:
                 errors.append(f"Variant worker failed: {exc}")
                 continue
             if err:
                 errors.append(err)
                 continue
+            if warning:
+                warnings.append(f"Variant {idx + 1}: {warning}")
             if payload is not None and 0 <= idx < len(jobs_by_index):
                 jobs_by_index[idx] = payload
 
@@ -2766,7 +2783,7 @@ def crazy_run(req: CrazyRunReq):
             {"ok": False, "error": "Crazy mode failed.", "errors": errors},
             status_code=500,
         )
-    return {"ok": True, "jobs": jobs, "errors": errors}
+    return {"ok": True, "jobs": jobs, "errors": errors, "warnings": warnings}
 
 
 @app.post("/api/jobs/append")

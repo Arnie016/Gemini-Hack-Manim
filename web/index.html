@@ -10951,6 +10951,14 @@
           setStepNote('plan', msg);
           return;
         }
+        if (Array.isArray(data.warnings) && data.warnings.length) {
+          const warning = String(data.warnings[0] || '').trim();
+          if (warning) {
+            showToast(warning, 'err');
+            statusEl.textContent = warning;
+            setStepNote('render', `${warning} Continuing with text-only or existing assets.`);
+          }
+        }
 
         const jobs = Array.isArray(data.jobs) ? data.jobs : [];
         if (!jobs.length) {
@@ -11328,6 +11336,12 @@
               logsEl.textContent = data.error || 'Render failed.';
               finish(data);
               return;
+            }
+            if (data.image_warning) {
+              const warning = String(data.image_warning).trim();
+              showToast(warning, 'err');
+              statusEl.textContent = warning;
+              setStepNote('approve', `${warning} Continuing without generated images.`);
             }
             if (data.status === 'already_running') {
               setStepNote('render', 'Render already in progress. Streaming live state…');
