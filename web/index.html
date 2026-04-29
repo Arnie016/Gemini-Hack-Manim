@@ -3420,8 +3420,10 @@
 
                     <label for="settingsOpenAIApiKey" style="margin-top:10px;">OpenAI API key</label>
                     <input id="settingsOpenAIApiKey" type="password" placeholder="Paste key" />
+                    <button id="clearOpenAIKey" class="ghost" style="margin-top:6px;">Clear saved OpenAI key</button>
                     <label for="settingsApiKey" style="margin-top:10px;">Gemini API key (images or Gemini text)</label>
                     <input id="settingsApiKey" type="password" placeholder="Paste key" />
+                    <button id="clearGeminiKey" class="ghost" style="margin-top:6px;">Clear saved Gemini key</button>
                     <button id="settingsShowKey" class="ghost" style="margin-top:6px;">Show/Hide text keys</button>
                     <button id="settingsShowAllKeys" class="ghost" style="margin-top:6px;">Show/Hide all keys</button>
 
@@ -3445,6 +3447,7 @@
                         <div>
                           <label for="settingsElevenApiKey">ElevenLabs API key</label>
                           <input id="settingsElevenApiKey" type="password" placeholder="Paste key" />
+                          <button id="clearElevenKey" class="ghost" style="margin-top:6px;">Clear saved ElevenLabs key</button>
                         </div>
                         <div>
                           <label for="settingsElevenVoiceId">Voice ID</label>
@@ -4273,6 +4276,9 @@
       const welcomeStartBtn = document.getElementById('welcomeStartBtn');
       const settingsApiKeyEl = document.getElementById('settingsApiKey');
       const settingsOpenAIApiKeyEl = document.getElementById('settingsOpenAIApiKey');
+      const clearOpenAIKeyBtn = document.getElementById('clearOpenAIKey');
+      const clearGeminiKeyBtn = document.getElementById('clearGeminiKey');
+      const clearElevenKeyBtn = document.getElementById('clearElevenKey');
       const settingsShowKeyBtn = document.getElementById('settingsShowKey');
       const settingsShowAllKeysBtn = document.getElementById('settingsShowAllKeys');
       const settingsTextProviderEl = document.getElementById('settingsTextProvider');
@@ -4868,6 +4874,9 @@
       let lastHealthData = null;
       let lastPreflightData = null;
       let lastSettingsData = null;
+      let clearOpenAIKeyPending = false;
+      let clearGeminiKeyPending = false;
+      let clearElevenKeyPending = false;
       let currentPlanText = null;
       let lastPlanBox = null;
       let timelineState = [];
@@ -6317,6 +6326,9 @@
         if (settingsApiKeyEl) settingsApiKeyEl.type = reveal ? 'text' : 'password';
         if (settingsElevenApiKeyEl) settingsElevenApiKeyEl.type = reveal ? 'text' : 'password';
       });
+      safeOn(clearOpenAIKeyBtn, 'click', () => stageKeyClear('openai'));
+      safeOn(clearGeminiKeyBtn, 'click', () => stageKeyClear('gemini'));
+      safeOn(clearElevenKeyBtn, 'click', () => stageKeyClear('eleven'));
       safeOn(settingsTextProviderEl, 'change', () => {
         const nextModel = settingsTextProviderEl.value === 'gemini' ? 'gemini-3-flash-preview' : 'gpt-5-mini';
         if (settingsTextModelEl) settingsTextModelEl.value = nextModel;
@@ -9072,10 +9084,69 @@
 
       const SETTINGS_SAVED_MASK = '******';
 
+      function resetKeyClearState() {
+        clearOpenAIKeyPending = false;
+        clearGeminiKeyPending = false;
+        clearElevenKeyPending = false;
+      }
+
+      function renderKeyClearButtons(data) {
+        const hasOpenAIKey = !!data?.has_openai_api_key;
+        const hasGeminiKey = !!data?.has_gemini_api_key;
+        const hasElevenKey = !!data?.has_elevenlabs_key;
+
+        if (clearOpenAIKeyBtn) {
+          clearOpenAIKeyBtn.textContent = clearOpenAIKeyPending ? 'Undo clear OpenAI key' : 'Clear saved OpenAI key';
+          clearOpenAIKeyBtn.disabled = !hasOpenAIKey && !clearOpenAIKeyPending;
+        }
+        if (clearGeminiKeyBtn) {
+          clearGeminiKeyBtn.textContent = clearGeminiKeyPending ? 'Undo clear Gemini key' : 'Clear saved Gemini key';
+          clearGeminiKeyBtn.disabled = !hasGeminiKey && !clearGeminiKeyPending;
+        }
+        if (clearElevenKeyBtn) {
+          clearElevenKeyBtn.textContent = clearElevenKeyPending ? 'Undo clear ElevenLabs key' : 'Clear saved ElevenLabs key';
+          clearElevenKeyBtn.disabled = !hasElevenKey && !clearElevenKeyPending;
+        }
+      }
+
+      function stageKeyClear(kind) {
+        if (kind === 'openai') {
+          clearOpenAIKeyPending = !clearOpenAIKeyPending;
+          if (settingsOpenAIApiKeyEl) {
+            settingsOpenAIApiKeyEl.type = 'password';
+            settingsOpenAIApiKeyEl.value = '';
+            settingsOpenAIApiKeyEl.placeholder = clearOpenAIKeyPending ? 'Will clear on save' : (lastSettingsData?.has_openai_api_key ? 'Saved (hidden)' : 'Paste key');
+          }
+          renderKeyClearButtons(lastSettingsData);
+          showToast(clearOpenAIKeyPending ? 'OpenAI key will be cleared on save.' : 'OpenAI key clear undone.', clearOpenAIKeyPending ? 'ok' : '');
+          return;
+        }
+        if (kind === 'gemini') {
+          clearGeminiKeyPending = !clearGeminiKeyPending;
+          if (settingsApiKeyEl) {
+            settingsApiKeyEl.type = 'password';
+            settingsApiKeyEl.value = '';
+            settingsApiKeyEl.placeholder = clearGeminiKeyPending ? 'Will clear on save' : (lastSettingsData?.has_gemini_api_key ? 'Saved (hidden)' : 'Paste key');
+          }
+          renderKeyClearButtons(lastSettingsData);
+          showToast(clearGeminiKeyPending ? 'Gemini key will be cleared on save.' : 'Gemini key clear undone.', clearGeminiKeyPending ? 'ok' : '');
+          return;
+        }
+        clearElevenKeyPending = !clearElevenKeyPending;
+        if (settingsElevenApiKeyEl) {
+          settingsElevenApiKeyEl.type = 'password';
+          settingsElevenApiKeyEl.value = '';
+          settingsElevenApiKeyEl.placeholder = clearElevenKeyPending ? 'Will clear on save' : (lastSettingsData?.has_elevenlabs_key ? 'Saved (hidden)' : 'Paste key');
+        }
+        renderKeyClearButtons(lastSettingsData);
+        showToast(clearElevenKeyPending ? 'ElevenLabs key will be cleared on save.' : 'ElevenLabs key clear undone.', clearElevenKeyPending ? 'ok' : '');
+      }
+
       async function loadSettings() {
         const resp = await fetch('/api/settings');
         const data = await resp.json();
         lastSettingsData = data;
+        resetKeyClearState();
         const textProvider = data.text_provider || 'openai';
         const textModel = data.text_model || (textProvider === 'gemini' ? 'gemini-3-flash-preview' : 'gpt-5-mini');
         if (settingsTextProviderEl) settingsTextProviderEl.value = textProvider;
@@ -9108,6 +9179,7 @@
           settingsElevenApiKeyEl.placeholder = data.has_elevenlabs_key ? 'Saved (hidden)' : 'Paste key';
           settingsElevenApiKeyEl.value = data.has_elevenlabs_key ? SETTINGS_SAVED_MASK : '';
         }
+        renderKeyClearButtons(data);
         if (!data.has_text_api_key) {
           statusEl.textContent = 'Open Settings and paste an OpenAI or Gemini text API key.';
           try {
@@ -9125,9 +9197,9 @@
         const apiKeyValue = settingsApiKeyEl ? settingsApiKeyEl.value.trim() : '';
         const openAIKeyValue = settingsOpenAIApiKeyEl ? settingsOpenAIApiKeyEl.value.trim() : '';
         const elevenKeyValue = settingsElevenApiKeyEl ? settingsElevenApiKeyEl.value.trim() : '';
-        const apiKey = apiKeyValue && apiKeyValue !== SETTINGS_SAVED_MASK ? apiKeyValue : null;
-        const openAIKey = openAIKeyValue && openAIKeyValue !== SETTINGS_SAVED_MASK ? openAIKeyValue : null;
-        const elevenKey = elevenKeyValue && elevenKeyValue !== SETTINGS_SAVED_MASK ? elevenKeyValue : null;
+        const apiKey = clearGeminiKeyPending ? '' : (apiKeyValue && apiKeyValue !== SETTINGS_SAVED_MASK ? apiKeyValue : null);
+        const openAIKey = clearOpenAIKeyPending ? '' : (openAIKeyValue && openAIKeyValue !== SETTINGS_SAVED_MASK ? openAIKeyValue : null);
+        const elevenKey = clearElevenKeyPending ? '' : (elevenKeyValue && elevenKeyValue !== SETTINGS_SAVED_MASK ? elevenKeyValue : null);
         const resp = await fetch('/api/settings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -9137,16 +9209,17 @@
             text_provider: settingsTextProviderEl ? settingsTextProviderEl.value : 'openai',
             text_model: settingsTextModelEl.value || null,
             image_model: settingsImageModelEl.value || null,
-            manim_py: settingsManimPyEl.value || null,
-            output_copy_dir: settingsOutputCopyDirEl ? (settingsOutputCopyDirEl.value || null) : null,
+            manim_py: settingsManimPyEl ? settingsManimPyEl.value.trim() : null,
+            output_copy_dir: settingsOutputCopyDirEl ? settingsOutputCopyDirEl.value.trim() : null,
             elevenlabs_api_key: elevenKey,
-            elevenlabs_voice_id: settingsElevenVoiceIdEl ? (settingsElevenVoiceIdEl.value || null) : null,
-            elevenlabs_model_id: settingsElevenModelIdEl ? (settingsElevenModelIdEl.value || null) : null
+            elevenlabs_voice_id: settingsElevenVoiceIdEl ? settingsElevenVoiceIdEl.value.trim() : null,
+            elevenlabs_model_id: settingsElevenModelIdEl ? settingsElevenModelIdEl.value.trim() : null
           })
         });
         const data = await resp.json();
         if (data.ok) {
           lastSettingsData = data;
+          resetKeyClearState();
           statusEl.textContent = 'Settings saved.';
           if (settingsOpenAIApiKeyEl && data.has_openai_api_key) {
             settingsOpenAIApiKeyEl.placeholder = 'Saved (hidden)';
@@ -9159,8 +9232,20 @@
           if (settingsElevenApiKeyEl && data.has_elevenlabs_key) {
             settingsElevenApiKeyEl.placeholder = 'Saved (hidden)';
             settingsElevenApiKeyEl.value = SETTINGS_SAVED_MASK;
+          } else if (settingsElevenApiKeyEl) {
+            settingsElevenApiKeyEl.placeholder = 'Paste key';
+            settingsElevenApiKeyEl.value = '';
+          }
+          if (settingsOpenAIApiKeyEl && !data.has_openai_api_key) {
+            settingsOpenAIApiKeyEl.placeholder = 'Paste key';
+            settingsOpenAIApiKeyEl.value = '';
+          }
+          if (settingsApiKeyEl && !data.has_gemini_api_key) {
+            settingsApiKeyEl.placeholder = 'Paste key';
+            settingsApiKeyEl.value = '';
           }
           if (data.text_model) chatModelEl.value = data.text_model;
+          renderKeyClearButtons(data);
           renderProviderReadiness(data, lastPreflightData);
           showToast('Settings saved.', 'ok');
           pushHistory('Saved settings');
