@@ -2982,6 +2982,13 @@
                       Nano Banana Pro flow: pick preset -> (optional) minor edits -> generate -> click best variant -> drag into scenes.
                     </div>
                   </div>
+                  <div class="health-badges" style="margin-top:8px;">
+                    <div id="imageProviderBadge" class="badge-pill">Images: checking…</div>
+                    <div id="textProviderBadge" class="badge-pill">Text: checking…</div>
+                  </div>
+                  <div class="muted" id="imageProviderHint" style="margin-top:8px;">
+                    Checking provider readiness…
+                  </div>
 
                   <div class="asset-tray">
                     <div class="asset-slot">
@@ -3426,6 +3433,10 @@
                           <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
                         </select>
                       </div>
+                    </div>
+                    <div class="health-badges" style="margin-top:8px;">
+                      <div id="settingsTextProviderBadge" class="badge-pill">Text provider: checking…</div>
+                      <div id="settingsImageProviderBadge" class="badge-pill">Image provider: checking…</div>
                     </div>
                     <div class="muted" style="margin-top:6px;">Nano Banana = <code>gemini-2.5-flash-image</code></div>
                     <div class="drawer-section" style="margin-top:10px;">
@@ -4303,6 +4314,11 @@
       const sidebarBadgeOutputEl = document.getElementById('sidebarBadgeOutput');
       const sidebarHealthTextEl = document.getElementById('sidebarHealthText');
       const refreshSidebarHealthBtn = document.getElementById('refreshSidebarHealth');
+      const imageProviderBadgeEl = document.getElementById('imageProviderBadge');
+      const textProviderBadgeEl = document.getElementById('textProviderBadge');
+      const imageProviderHintEl = document.getElementById('imageProviderHint');
+      const settingsTextProviderBadgeEl = document.getElementById('settingsTextProviderBadge');
+      const settingsImageProviderBadgeEl = document.getElementById('settingsImageProviderBadge');
       const crazyModeEl = document.getElementById('crazyMode');
       const geminiAssistEl = document.getElementById('geminiAssist');
       const crazyCountdownEl = document.getElementById('crazyCountdown');
@@ -4851,6 +4867,7 @@
       let appendFromJobId = null;
       let lastHealthData = null;
       let lastPreflightData = null;
+      let lastSettingsData = null;
       let currentPlanText = null;
       let lastPlanBox = null;
       let timelineState = [];
@@ -8497,7 +8514,7 @@
           showToast('Backend not reachable.', 'err');
         } finally {
           setBusy(false);
-          if (genImagesBtn) genImagesBtn.disabled = false;
+          renderProviderReadiness(lastSettingsData, lastPreflightData);
         }
       }
 
@@ -9058,6 +9075,7 @@
       async function loadSettings() {
         const resp = await fetch('/api/settings');
         const data = await resp.json();
+        lastSettingsData = data;
         const textProvider = data.text_provider || 'openai';
         const textModel = data.text_model || (textProvider === 'gemini' ? 'gemini-3-flash-preview' : 'gpt-5-mini');
         if (settingsTextProviderEl) settingsTextProviderEl.value = textProvider;
@@ -9100,6 +9118,7 @@
             }
           } catch {}
         }
+        renderProviderReadiness(data, lastPreflightData);
       }
 
       async function saveSettings() {
@@ -9127,6 +9146,7 @@
         });
         const data = await resp.json();
         if (data.ok) {
+          lastSettingsData = data;
           statusEl.textContent = 'Settings saved.';
           if (settingsOpenAIApiKeyEl && data.has_openai_api_key) {
             settingsOpenAIApiKeyEl.placeholder = 'Saved (hidden)';
@@ -9141,6 +9161,7 @@
             settingsElevenApiKeyEl.value = SETTINGS_SAVED_MASK;
           }
           if (data.text_model) chatModelEl.value = data.text_model;
+          renderProviderReadiness(data, lastPreflightData);
           showToast('Settings saved.', 'ok');
           pushHistory('Saved settings');
         }
@@ -9151,6 +9172,33 @@
         el.textContent = `${label}: ${ok ? 'OK' : 'Missing'}`;
         el.classList.toggle('ok', !!ok);
         el.classList.toggle('bad', !ok);
+      }
+
+      function renderProviderReadiness(settingsData, preflightData) {
+        const textProvider = settingsData?.text_provider || preflightData?.text_provider || 'openai';
+        const textModel = settingsData?.text_model || preflightData?.text_model || '';
+        const imageModel = settingsData?.image_model || 'gemini-2.5-flash-image';
+        const textReady = !!(settingsData?.has_text_api_key || preflightData?.checks?.api_key);
+        const imageReady = !!settingsData?.has_image_api_key;
+        const textLabel = `Text: ${textProvider} ${textModel ? `· ${textModel}` : ''}`.trim();
+        const imageLabel = `Images: Gemini ${imageReady ? 'ready' : 'key missing'}`;
+        const settingsTextLabel = `Text provider: ${textProvider} ${textModel ? `· ${textModel}` : ''}`.trim();
+        const settingsImageLabel = `Image provider: Gemini ${imageReady ? `· ${imageModel}` : 'needs key'}`;
+        const hint = imageReady
+          ? `Image generation is ready through Gemini (${imageModel}).`
+          : 'Image generation uses Gemini image models. Add a Gemini API key in Settings, or turn Include images off for text-only runs.';
+
+        setSidebarHealthBadge(textProviderBadgeEl, textLabel, textReady);
+        setSidebarHealthBadge(imageProviderBadgeEl, imageLabel, imageReady);
+        setSidebarHealthBadge(settingsTextProviderBadgeEl, settingsTextLabel, textReady);
+        setSidebarHealthBadge(settingsImageProviderBadgeEl, settingsImageLabel, imageReady);
+        if (imageProviderHintEl) imageProviderHintEl.textContent = hint;
+        if (genImagesBtn) {
+          genImagesBtn.disabled = !imageReady;
+          genImagesBtn.title = imageReady
+            ? 'Generate background/foreground previews using the configured Gemini image model.'
+            : 'Add a Gemini API key in Settings to enable image generation.';
+        }
       }
 
       function renderSidebarHealth(healthData, preflightData) {
@@ -9170,6 +9218,10 @@
         const lines = [];
         if (healthData?.manim_version) lines.push(healthData.manim_version);
         if (healthData?.ffmpeg_version) lines.push(healthData.ffmpeg_version);
+        if (preflightData?.text_provider || preflightData?.text_model) {
+          lines.push(`Text provider: ${preflightData?.text_provider || 'openai'}${preflightData?.text_model ? ` (${preflightData.text_model})` : ''}`);
+        }
+        lines.push(`Image provider: Gemini ${lastSettingsData?.has_image_api_key ? 'ready' : 'needs API key'}`);
         if (preflightData?.output_root) lines.push(`Output root: ${preflightData.output_root}`);
         if (Array.isArray(preflightData?.missing) && preflightData.missing.length) {
           lines.push(`Missing: ${preflightData.missing.join(', ')}`);
@@ -9177,6 +9229,7 @@
           lines.push('Preflight: all checks passed.');
         }
         sidebarHealthTextEl.textContent = lines.join('\n');
+        renderProviderReadiness(lastSettingsData, preflightData);
       }
 
       async function refreshSidebarHealth() {
