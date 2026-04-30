@@ -132,8 +132,91 @@ def _has_text_api_key(settings: Dict[str, Any]) -> bool:
     return bool((api_key or "").strip())
 
 
+def _command_exists(cmd: str) -> bool:
+    try:
+        p = Path(cmd)
+        if p.is_absolute() or "/" in cmd:
+            return p.exists()
+    except Exception:
+        pass
+    return shutil.which(cmd) is not None
+
+
+def _manim_python_candidates(settings: Optional[Dict[str, Any]] = None) -> list[tuple[str, str]]:
+    settings = settings or load_settings()
+    raw: list[tuple[str, str]] = []
+    manim_py_setting = str(settings.get("manim_py") or "").strip()
+    if manim_py_setting:
+        raw.append((manim_py_setting, "saved"))
+    env_py = str(os.getenv("MANIM_PY") or "").strip()
+    if env_py:
+        raw.append((env_py, "env"))
+
+    for root_dir, source_name in ((ROOT, "project_venv"), (ROOT.parent, "workspace_venv")):
+        for rel in (".venv/bin/python", "venv/bin/python", ".venv/Scripts/python.exe", "venv/Scripts/python.exe"):
+            raw.append((str(root_dir / rel), source_name))
+
+    raw.extend([("python3", "path_python3"), ("python", "path_python")])
+
+    seen: set[str] = set()
+    out: list[tuple[str, str]] = []
+    for cmd, source in raw:
+        if not cmd or cmd in seen:
+            continue
+        seen.add(cmd)
+        if _command_exists(cmd):
+            out.append((cmd, source))
+    return out
+
+
+def _probe_manim_python(cmd: str, *, timeout_s: float = 10) -> tuple[bool, str]:
+    return _probe_cmd([cmd, "-m", "manim", "--version"], timeout_s=timeout_s)
+
+
+def _probe_cmd(cmd: list[str], *, timeout_s: float = 10) -> tuple[bool, str]:
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s)
+        out = ((proc.stdout or "") + (proc.stderr or "")).strip()
+        return proc.returncode == 0, out
+    except Exception as exc:
+        return False, str(exc)
+
+
+def _resolve_manim_runtime(settings: Optional[Dict[str, Any]] = None, *, probe: bool = False) -> Dict[str, Any]:
+    settings = settings or load_settings()
+    candidates = _manim_python_candidates(settings)
+    selected_py = candidates[0][0] if candidates else (str(settings.get("manim_py") or "").strip() or str(os.getenv("MANIM_PY") or "").strip() or "python3")
+    selected_source = candidates[0][1] if candidates else ("saved" if settings.get("manim_py") else ("env" if os.getenv("MANIM_PY") else "fallback"))
+
+    info: Dict[str, Any] = {
+        "manim_py": selected_py,
+        "manim_py_source": selected_source,
+        "python_candidates": [cmd for cmd, _source in candidates],
+    }
+    if not probe:
+        return info
+
+    manim_ok = False
+    manim_out = ""
+    for cand, source in candidates:
+        ok, out = _probe_manim_python(cand)
+        if ok:
+            info["manim_py"] = cand
+            info["manim_py_source"] = source
+            info["manim_ok"] = True
+            info["manim_version"] = out.splitlines()[0] if out else ""
+            return info
+        if not manim_out:
+            manim_out = out
+
+    info["manim_ok"] = False
+    info["manim_version"] = manim_out.splitlines()[0] if manim_out else ""
+    return info
+
+
 def _settings_payload(settings: Dict[str, Any]) -> Dict[str, Any]:
     text_provider, _text_api_key, text_model = _text_generation_settings(settings)
+    runtime = _resolve_manim_runtime(settings, probe=False)
     return {
         "has_api_key": _has_text_api_key(settings),
         "has_text_api_key": _has_text_api_key(settings),
@@ -144,6 +227,8 @@ def _settings_payload(settings: Dict[str, Any]) -> Dict[str, Any]:
         "text_model": text_model,
         "image_model": settings.get("image_model"),
         "manim_py": settings.get("manim_py"),
+        "detected_manim_py": runtime.get("manim_py") or "",
+        "detected_manim_py_source": runtime.get("manim_py_source") or "",
         "output_copy_dir": settings.get("output_copy_dir") or "",
         "has_elevenlabs_key": bool(settings.get("elevenlabs_api_key")),
         "elevenlabs_voice_id": settings.get("elevenlabs_voice_id") or "",
@@ -1461,60 +1546,15 @@ def health():
 
 
 def _health_snapshot(settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    import subprocess
     import shutil
 
-    def _run(cmd: list[str], *, timeout_s: float = 10) -> tuple[bool, str]:
-        try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s)
-            ok = proc.returncode == 0
-            out = (proc.stdout or "") + (proc.stderr or "")
-            return ok, out.strip()
-        except Exception as exc:
-            return False, str(exc)
-
     settings = settings or load_settings()
-    manim_py_setting = settings.get("manim_py")
-    candidates: list[str] = []
-    if manim_py_setting:
-        candidates.append(manim_py_setting)
-    venv_py = ROOT / ".venv" / "bin" / "python"
-    if venv_py.exists():
-        candidates.append(str(venv_py))
-    candidates.extend(["python3", "python"])
-    seen = set()
-    candidates = [c for c in candidates if not (c in seen or seen.add(c))]
-
-    def _exists(cmd: str) -> bool:
-        # Filter out non-existent executables so the UI doesn't show confusing
-        # "[Errno 2] No such file or directory: 'python'".
-        try:
-            p = Path(cmd)
-            if p.is_absolute() or "/" in cmd:
-                return p.exists()
-        except Exception:
-            pass
-        return shutil.which(cmd) is not None
-
-    candidates = [c for c in candidates if _exists(c)]
-
-    manim_ok = False
-    manim_out = ""
-    used_py = candidates[0] if candidates else (manim_py_setting or "python3")
-    for cand in candidates:
-        ok, out = _run([cand, "-m", "manim", "--version"])
-        if ok:
-            manim_ok = True
-            manim_out = out
-            used_py = cand
-            break
-        if not manim_out:
-            manim_out = out
+    runtime = _resolve_manim_runtime(settings, probe=True)
 
     ffmpeg_path = shutil.which("ffmpeg")
     if ffmpeg_path:
         # Some builds are surprisingly slow to print version info.
-        ffmpeg_ok, ffmpeg_out = _run([ffmpeg_path, "-version"], timeout_s=20)
+        ffmpeg_ok, ffmpeg_out = _probe_cmd([ffmpeg_path, "-version"], timeout_s=20)
     else:
         ffmpeg_ok, ffmpeg_out = False, "ffmpeg not found on PATH"
     eleven_api = (settings.get("elevenlabs_api_key") or "").strip()
@@ -1522,13 +1562,14 @@ def _health_snapshot(settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any
     eleven_model = (settings.get("elevenlabs_model_id") or "").strip() or "eleven_multilingual_v2"
 
     return {
-        "manim_ok": manim_ok,
-        "manim_version": manim_out.splitlines()[0] if manim_out else "",
+        "manim_ok": bool(runtime.get("manim_ok")),
+        "manim_version": runtime.get("manim_version") or "",
         "ffmpeg_ok": ffmpeg_ok,
         "ffmpeg_version": ffmpeg_out.splitlines()[0] if ffmpeg_out else "",
         "ffmpeg_path": ffmpeg_path or "",
-        "manim_py": used_py or manim_py_setting or "python3",
-        "python_candidates": candidates,
+        "manim_py": runtime.get("manim_py") or "python3",
+        "manim_py_source": runtime.get("manim_py_source") or "",
+        "python_candidates": runtime.get("python_candidates") or [],
         "elevenlabs_ready": bool(eleven_api and eleven_voice),
         "elevenlabs_voice_id": eleven_voice,
         "elevenlabs_model_id": eleven_model,
@@ -1620,7 +1661,8 @@ def set_settings(req: SettingsReq):
 def terminal_run(req: TerminalReq):
     settings = load_settings()
     try:
-        out = run_terminal_command(req.command, manim_py=settings.get("manim_py") or "python3")
+        runtime = _resolve_manim_runtime(settings, probe=False)
+        out = run_terminal_command(req.command, manim_py=runtime.get("manim_py") or "python3")
         return {"ok": True, "output": out}
     except TerminalError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
@@ -2329,19 +2371,7 @@ def approve(req: ApproveReq):
         )
     text_provider, api_key, text_model = _text_generation_settings(settings, req.model)
     image_api_key = settings.get("api_key") or os.environ.get("GEMINI_API_KEY")
-    manim_py = settings.get("manim_py")
-    if manim_py:
-        # If the user saved "python" on macOS (often missing), don't hard-fail renders.
-        import shutil
-        from pathlib import Path as _Path
-
-        try:
-            p = _Path(str(manim_py))
-            exists = (p.exists() if (p.is_absolute() or "/" in str(manim_py)) else False) or (shutil.which(str(manim_py)) is not None)
-        except Exception:
-            exists = False
-        if not exists:
-            manim_py = None
+    manim_py = _resolve_manim_runtime(settings, probe=False).get("manim_py")
 
     try:
         plan_obj = _parse_json(req.plan_text)
@@ -2700,18 +2730,7 @@ def crazy_run(req: CrazyRunReq):
     text_provider, api_key, text_model = _text_generation_settings(settings, req.model)
     image_api_key = settings.get("api_key") or os.environ.get("GEMINI_API_KEY")
     image_model = req.image_model or settings.get("image_model")
-    manim_py = settings.get("manim_py")
-    if manim_py:
-        import shutil
-        from pathlib import Path as _Path
-
-        try:
-            p = _Path(str(manim_py))
-            exists = (p.exists() if (p.is_absolute() or "/" in str(manim_py)) else False) or (shutil.which(str(manim_py)) is not None)
-        except Exception:
-            exists = False
-        if not exists:
-            manim_py = None
+    manim_py = _resolve_manim_runtime(settings, probe=False).get("manim_py")
 
     count = max(1, min(5, int(req.variants or 3)))
     variant_briefs = [
@@ -2970,7 +2989,7 @@ def animate(req: AnimateReq):
     text_provider, api_key, text_model = _text_generation_settings(settings)
     image_api_key = settings.get("api_key") or os.environ.get("GEMINI_API_KEY")
     image_model = req.image_model or settings.get("image_model")
-    manim_py = settings.get("manim_py")
+    manim_py = _resolve_manim_runtime(settings, probe=False).get("manim_py")
 
     # 1) Plan
     try:
@@ -3138,11 +3157,12 @@ def render_code(req: RenderCodeReq):
         )
     paths.scene_path.write_text(clean_code, encoding="utf-8")
     settings = load_settings()
+    manim_py = _resolve_manim_runtime(settings, probe=False).get("manim_py")
     ok, logs = render_with_manim(
         paths.scene_path,
         paths.out_mp4,
         quality=req.quality,
-        manim_py=settings.get("manim_py"),
+        manim_py=manim_py,
     )
     paths.logs_path.write_text(logs, encoding="utf-8")
 

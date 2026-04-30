@@ -3470,6 +3470,7 @@
                       This is the python executable used to run <code>python -m manim</code>. Leave blank to auto-detect.
                       Outputs are saved under <code>work/jobs/&lt;job_id&gt;/out.mp4</code>.
                     </div>
+                    <div id="settingsManimAutoHint" class="muted" style="margin-top:6px;">Auto-detected runtime: checking…</div>
                     <div class="health-badges">
                       <span id="badgeManim" class="badge-pill bad">Manim: —</span>
                       <span id="badgeFfmpeg" class="badge-pill bad">ffmpeg: —</span>
@@ -4285,6 +4286,7 @@
       const settingsTextModelEl = document.getElementById('settingsTextModel');
       const settingsImageModelEl = document.getElementById('settingsImageModel');
       const settingsManimPyEl = document.getElementById('settingsManimPy');
+      const settingsManimAutoHintEl = document.getElementById('settingsManimAutoHint');
       const saveSettingsBtn = document.getElementById('saveSettings');
       const runHealthBtn = document.getElementById('runHealth');
       const healthEl = document.getElementById('health');
@@ -9240,7 +9242,7 @@
         if (settingsTextModelEl) settingsTextModelEl.value = textModel;
         if (chatModelEl) chatModelEl.value = textModel;
         if (data.image_model) settingsImageModelEl.value = data.image_model;
-        if (data.manim_py) settingsManimPyEl.value = data.manim_py;
+        if (settingsManimPyEl) settingsManimPyEl.value = data.manim_py || '';
         if (settingsProjectRootEl) settingsProjectRootEl.textContent = data.project_root || '—';
         if (settingsWorkRootEl) settingsWorkRootEl.textContent = data.work_root || '—';
         if (settingsOutputCopyDirEl) settingsOutputCopyDirEl.value = data.output_copy_dir || '';
@@ -9277,6 +9279,7 @@
             }
           } catch {}
         }
+        renderManimPythonHint(data, lastHealthData);
         renderProviderReadiness(data, lastPreflightData);
       }
 
@@ -9308,6 +9311,7 @@
           lastSettingsData = data;
           resetKeyClearState();
           statusEl.textContent = 'Settings saved.';
+          if (settingsManimPyEl) settingsManimPyEl.value = data.manim_py || '';
           if (settingsOpenAIApiKeyEl && data.has_openai_api_key) {
             settingsOpenAIApiKeyEl.placeholder = 'Saved (hidden)';
             settingsOpenAIApiKeyEl.value = SETTINGS_SAVED_MASK;
@@ -9333,6 +9337,7 @@
           }
           if (data.text_model) chatModelEl.value = data.text_model;
           renderKeyClearButtons(data);
+          renderManimPythonHint(data, lastHealthData);
           renderProviderReadiness(data, lastPreflightData);
           showToast('Settings saved.', 'ok');
           pushHistory('Saved settings');
@@ -9344,6 +9349,38 @@
         el.textContent = `${label}: ${ok ? 'OK' : 'Missing'}`;
         el.classList.toggle('ok', !!ok);
         el.classList.toggle('bad', !ok);
+      }
+
+      function formatManimSourceLabel(source) {
+        switch (String(source || '').trim()) {
+          case 'saved': return 'saved setting';
+          case 'env': return 'MANIM_PY env';
+          case 'project_venv': return 'project .venv';
+          case 'workspace_venv': return 'workspace .venv';
+          case 'path_python3': return 'python3 on PATH';
+          case 'path_python': return 'python on PATH';
+          default: return String(source || '').trim();
+        }
+      }
+
+      function renderManimPythonHint(settingsData, healthData = null) {
+        if (!settingsManimAutoHintEl) return;
+        const savedPy = String(settingsData?.manim_py || '').trim();
+        const detectedPy = String(settingsData?.detected_manim_py || healthData?.manim_py || '').trim();
+        const detectedSource = formatManimSourceLabel(settingsData?.detected_manim_py_source || healthData?.manim_py_source || '');
+        if (savedPy && detectedPy && savedPy !== detectedPy) {
+          settingsManimAutoHintEl.textContent = `Saved runtime unavailable. Using ${detectedPy}${detectedSource ? ` (${detectedSource})` : ''}.`;
+          return;
+        }
+        if (savedPy) {
+          settingsManimAutoHintEl.textContent = `Saved runtime: ${savedPy}`;
+          return;
+        }
+        if (detectedPy) {
+          settingsManimAutoHintEl.textContent = `Auto-detected runtime: ${detectedPy}${detectedSource ? ` (${detectedSource})` : ''}.`;
+          return;
+        }
+        settingsManimAutoHintEl.textContent = 'Auto-detect has not found a Python yet.';
       }
 
       function renderProviderReadiness(settingsData, preflightData) {
@@ -9449,12 +9486,14 @@
         const voiceReady = !!data.elevenlabs_ready;
         const voiceId = data.elevenlabs_voice_id || '';
         const voiceModel = data.elevenlabs_model_id || '';
+        const pySource = formatManimSourceLabel(data.manim_py_source || '');
         const lines = [
           `Manim: ${manimStatus}`,
           `ffmpeg: ${ffmpegStatus}`,
           `ElevenLabs narrator: ${voiceReady ? 'Ready' : 'Not configured'}`,
           `python: ${py}`,
         ];
+        if (pySource) lines.push(`python source: ${pySource}`);
         if (data.manim_version) lines.push(data.manim_version);
         if (cands) lines.push(`python candidates: ${cands}`);
         if (ffmpegPath) lines.push(`ffmpeg path: ${ffmpegPath}`);
@@ -9480,6 +9519,7 @@
         }
         healthEl.textContent = lines.join('\n');
         lastHealthData = data;
+        renderManimPythonHint(lastSettingsData, data);
         renderSidebarHealth(data, lastPreflightData);
         return data;
       }
