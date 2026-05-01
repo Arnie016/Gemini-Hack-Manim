@@ -1354,17 +1354,78 @@
         scroll-snap-align: center;
       }
       .chat-messages {
-        flex: 1;
+        flex: 0 1 auto;
+        max-height: min(280px, 34vh);
         overflow: auto;
         display: flex;
         flex-direction: column;
         gap: 10px;
         padding: 4px;
       }
-      .chat-compose {
+      .chat-messages:empty { display: none; }
+      .composer-card {
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 8px;
+        background: rgba(8, 12, 20, 0.72);
+        padding: 10px;
+        display: grid;
+        gap: 9px;
+        transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+      }
+      .composer-card:focus-within {
+        border-color: rgba(106, 169, 255, 0.72);
+        background: rgba(9, 14, 23, 0.88);
+        box-shadow: 0 0 0 1px rgba(106, 169, 255, 0.24), 0 14px 34px rgba(2, 6, 23, 0.42);
+      }
+      .composer-head {
         display: flex;
+        align-items: start;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .composer-label {
+        margin: 0;
+        color: var(--text);
+        font-size: 13px;
+        line-height: 1.2;
+        font-weight: 800;
+      }
+      .composer-sub {
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.35;
+      }
+      .composer-state {
+        flex: 0 0 auto;
+        border: 1px solid rgba(106, 169, 255, 0.28);
+        border-radius: 999px;
+        background: rgba(59, 130, 246, 0.1);
+        color: #bfdbfe;
+        font-size: 11px;
+        font-weight: 800;
+        padding: 4px 8px;
+        white-space: nowrap;
+      }
+      #chatInput {
+        min-height: 136px;
+        resize: vertical;
+        border-radius: 8px;
+        border-color: rgba(148, 163, 184, 0.24);
+        background: rgba(3, 7, 18, 0.72);
+        font-size: 13px;
+        line-height: 1.43;
+      }
+      #chatInput:focus {
+        outline: none;
+        border-color: rgba(106, 169, 255, 0.78);
+        box-shadow: 0 0 0 1px rgba(106, 169, 255, 0.2);
+      }
+      .chat-compose {
+        display: grid;
+        grid-template-columns: 40px minmax(80px, 1fr) 40px auto;
         align-items: center;
-        gap: 8px;
+        gap: 7px;
       }
       .compose-mode-row {
         display: flex;
@@ -1613,9 +1674,10 @@
         color: var(--text);
       }
       .compose-btn, .compose-send {
-        width: auto;
-        padding: 10px;
-        border-radius: 12px;
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        border-radius: 10px;
         border: 1px solid var(--border);
         background: #0f141d;
         color: var(--text);
@@ -1626,16 +1688,26 @@
       }
       .compose-btn svg, .compose-send svg { width: 18px; height: 18px; }
       .compose-send {
+        width: auto;
+        min-width: 106px;
+        padding: 0 12px;
+        gap: 7px;
         background: var(--accent);
         color: #0b0f14;
         border: none;
+        white-space: nowrap;
+      }
+      .compose-send span {
+        color: #0b0f14;
+        font-size: 12px;
+        font-weight: 900;
       }
       .compose-send svg { stroke: #0b0f14; }
       .compose-model {
-        width: auto;
-        flex: 0 0 auto;
+        width: 100%;
         min-width: 0;
         max-width: 220px;
+        height: 40px;
         padding: 8px 10px;
         border-radius: 12px;
         border: 1px solid rgba(255,255,255,0.10);
@@ -1834,16 +1906,16 @@
       }
 
       .context-block {
-        margin: 4px 0 6px;
+        margin: 2px 0 6px;
       }
       .context-block summary {
         cursor: pointer;
         color: var(--muted);
         font-size: 12px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 1px;
+        font-weight: 800;
+        letter-spacing: 0;
         margin-bottom: 4px;
+        min-height: 24px;
       }
       .context-tabs {
         display: flex;
@@ -3593,7 +3665,7 @@
       <div class="splitter" id="splitterRight"></div>
 
       <aside class="panel" id="rightPanel">
-        <div class="panel-header">Chat & Agent</div>
+        <div class="panel-header">Create Animation</div>
         <div class="panel-body chat">
           <div class="chat-carousel" id="chatCarousel">
             <button id="sessionPrev" class="chat-carousel-btn" title="Previous session">◀</button>
@@ -3611,8 +3683,61 @@
 
           <div class="chat-messages" id="chatMessages"></div>
 
+          <div class="composer-card">
+            <div class="composer-head">
+              <div>
+                <label class="composer-label" for="chatInput">Animation prompt</label>
+                <div class="composer-sub">Topic, length, audience, and required ideas.</div>
+              </div>
+              <div id="composerState" class="composer-state">Ready</div>
+            </div>
+            <textarea id="chatInput" placeholder="Explain the photoelectric effect in 60 seconds for high-school physics. Show red vs blue light, threshold frequency, and Einstein's equation."></textarea>
+            <div class="chat-compose">
+              <input id="filePicker" type="file" class="hidden" multiple />
+              <button id="attachBtn" class="compose-btn" title="Attach file (+)" aria-label="Attach file">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+              </button>
+              <select id="chatModel" class="compose-model" title="Model" aria-label="Model">
+                <option value="gpt-5-mini">gpt-5-mini</option>
+                <option value="gpt-5">gpt-5</option>
+                <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+                <option value="gpt-4.1">gpt-4.1</option>
+                <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
+                <option value="gemini-3-pro-preview">gemini-3-pro-preview</option>
+                <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+              </select>
+              <button id="voiceBtn" class="compose-btn" title="Voice input" aria-label="Voice input">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v4"/><path d="M8 23h8"/></svg>
+              </button>
+              <button id="planBtn" class="compose-send" title="Create plan" aria-label="Create plan">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                <span>Create plan</span>
+              </button>
+            </div>
+            <div class="compose-mode-row">
+              <label class="mode-chip" title="Crazy mode: run 3 parallel plan+render variants">
+                <input id="crazyMode" type="checkbox" />
+                <span class="mode-icon" aria-hidden="true">⚡</span>
+                <span class="mode-label">Crazy</span>
+              </label>
+              <label class="mode-chip" title="Model assist (auto-polish prompt before planning)">
+                <input id="geminiAssist" type="checkbox" checked />
+                <span class="mode-icon" aria-hidden="true">✦</span>
+                <span class="mode-label">Assist</span>
+              </label>
+              <button id="polishPromptBtn" class="ghost compose-polish" title="Polish prompt + brief with the selected model" aria-label="Polish prompt + brief with the selected model">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.2 4.5L19 10l-4.8 2.5L12 17l-2.2-4.5L5 10l4.8-2.5L12 3z"/><path d="M4 19l1.5-3L9 14.5 7.5 18 4 19z"/><path d="M16.5 18 15 14.5 18.5 16 20 19.5 16.5 18z"/></svg>
+              </button>
+              <div id="crazyCountdown" class="crazy-countdown hidden" aria-live="polite">
+                <span id="crazyCountdownText" class="crazy-countdown-text">Crazy in 10s</span>
+                <button id="crazyUndoBtn" class="ghost" title="Undo crazy mode launch">Undo</button>
+              </div>
+            </div>
+          </div>
+
           <details class="context-block">
-            <summary>Context</summary>
+            <summary>Sources & context</summary>
             <div class="context-tabs" role="tablist" aria-label="Context tabs">
               <button class="ctx-tab active" data-ctx="memory" role="tab" aria-selected="true" title="Memory facts for this run">Memory</button>
               <button class="ctx-tab" data-ctx="docs" role="tab" aria-selected="false" title="Indexed links, transcripts, and source summaries">Docs</button>
@@ -3620,7 +3745,7 @@
             </div>
             <div class="context-panel-shell">
               <div class="context-panel active" data-ctx="memory" role="tabpanel">
-                <div class="muted" style="margin-bottom:6px;">Save key facts you want the model to remember for this run.</div>
+                <div class="muted" style="margin-bottom:6px;">Facts saved here are included with the next plan.</div>
                 <div class="context-memory-grid">
                   <div class="field">
                     <label for="memoryTitle">Title</label>
@@ -3636,7 +3761,7 @@
               </div>
 
               <div class="context-panel" data-ctx="docs" role="tabpanel">
-                <div class="muted" style="margin-bottom:6px;">Paste a YouTube/web link + notes. Indexing creates a short source summary you can drag into prompt or timeline.</div>
+                <div class="muted" style="margin-bottom:6px;">Links, transcripts, and cheat sheets are attached to the next plan.</div>
                 <div class="context-doc-grid">
                   <div>
                     <label for="sourceUrl">Link</label>
@@ -3664,14 +3789,14 @@
                 <div class="source-upload-strip">
                   <input id="sourceFilePicker" type="file" class="hidden" accept=".md,.txt,.csv,.json,.yaml,.yml,.srt,.vtt,.tex,.py,.rst,text/*" multiple />
                   <button id="uploadSourceFile" class="ghost">Upload cheat sheet</button>
-                  <span class="muted">Turns text notes into reusable source cards for prompt and scene grounding.</span>
+                  <span class="muted">Saved as source cards for prompt and scene grounding.</span>
                 </div>
                 <div id="sourceCards" class="saved-grid" style="margin-top:10px;"></div>
                 <div id="sourceStatus" class="source-status muted">No sources yet.</div>
               </div>
 
               <div class="context-panel" data-ctx="skills" role="tabpanel">
-                <div class="context-skill-help">Tap to enable per run. Hover to preview instruction; drag references into prompt.</div>
+                <div class="context-skill-help">Enable reusable direction for this run.</div>
                 <div class="skill-rail-shell">
                   <button id="skillRailPrev" class="skill-rail-btn" title="Scroll skills left">◀</button>
                   <div id="skillList" class="skill-rail"></div>
@@ -3681,53 +3806,6 @@
               </div>
             </div>
           </details>
-
-          <div class="muted">
-            Tip: use <code>/</code> commands like <code>/health</code> and drag files into the prompt.
-          </div>
-
-          <textarea id="chatInput" placeholder="Type a prompt… (or /health, /settings, /attach notes/outline.md)"></textarea>
-          <div class="chat-compose">
-            <input id="filePicker" type="file" class="hidden" multiple />
-            <button id="attachBtn" class="compose-btn" title="Attach file (+)" aria-label="Attach file">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-            </button>
-            <select id="chatModel" class="compose-model" title="Model" aria-label="Model">
-              <option value="gpt-5-mini">gpt-5-mini</option>
-              <option value="gpt-5">gpt-5</option>
-              <option value="gpt-4.1-mini">gpt-4.1-mini</option>
-              <option value="gpt-4.1">gpt-4.1</option>
-              <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
-              <option value="gemini-3-pro-preview">gemini-3-pro-preview</option>
-              <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-              <option value="gemini-2.5-pro">gemini-2.5-pro</option>
-            </select>
-            <button id="voiceBtn" class="compose-btn" title="Voice input" aria-label="Voice input">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v4"/><path d="M8 23h8"/></svg>
-            </button>
-            <button id="planBtn" class="compose-send" title="Send / Create plan" aria-label="Send">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
-            </button>
-          </div>
-          <div class="compose-mode-row">
-            <label class="mode-chip" title="Crazy mode: run 3 parallel plan+render variants">
-              <input id="crazyMode" type="checkbox" />
-              <span class="mode-icon" aria-hidden="true">⚡</span>
-              <span class="mode-label">Crazy</span>
-            </label>
-            <label class="mode-chip" title="Model assist (auto-polish prompt before planning)">
-              <input id="geminiAssist" type="checkbox" checked />
-              <span class="mode-icon" aria-hidden="true">✦</span>
-              <span class="mode-label">Assist</span>
-            </label>
-            <button id="polishPromptBtn" class="ghost compose-polish" title="Polish prompt + brief with the selected model" aria-label="Polish prompt + brief with the selected model">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.2 4.5L19 10l-4.8 2.5L12 17l-2.2-4.5L5 10l4.8-2.5L12 3z"/><path d="M4 19l1.5-3L9 14.5 7.5 18 4 19z"/><path d="M16.5 18 15 14.5 18.5 16 20 19.5 16.5 18z"/></svg>
-            </button>
-            <div id="crazyCountdown" class="crazy-countdown hidden" aria-live="polite">
-              <span id="crazyCountdownText" class="crazy-countdown-text">Crazy in 10s</span>
-              <button id="crazyUndoBtn" class="ghost" title="Undo crazy mode launch">Undo</button>
-            </div>
-          </div>
           <div id="first60Panel" class="first60-panel">
             <div class="first60-head">
               <div>
@@ -4272,6 +4350,7 @@
 
       const chatMessagesEl = document.getElementById('chatMessages');
       const chatInputEl = document.getElementById('chatInput');
+      const composerStateEl = document.getElementById('composerState');
       const chatModelEl = document.getElementById('chatModel');
       const planBtn = document.getElementById('planBtn');
       const attachBtnEl = document.getElementById('attachBtn');
@@ -7644,12 +7723,17 @@
         const requiresGeneratedImages = imageMode === 'generate';
         const hasImages = !!(getThumbAsset('background') || getThumbAsset('foreground'));
         const hasRender = !!(lastVideoUrl || (videoEl && videoEl.src));
+        if (composerStateEl) {
+          composerStateEl.textContent = hasRender
+            ? 'Rendered'
+            : (hasPlan ? 'Plan ready' : (hasPrompt ? 'Ready to plan' : 'Start here'));
+        }
 
-        setFirst60Item(first60ItemPromptEl, hasPrompt ? 'done' : 'active', hasPrompt ? 'done' : 'type');
+        setFirst60Item(first60ItemPromptEl, hasPrompt ? 'done' : 'active', hasPrompt ? 'done' : 'Write prompt');
         setFirst60Item(
           first60ItemPlanEl,
           hasPlan ? 'done' : (hasPrompt ? 'active' : ''),
-          hasPlan ? 'done' : (hasPrompt ? 'click plan' : 'pending')
+          hasPlan ? 'done' : (hasPrompt ? 'Create plan' : 'pending')
         );
         if (requiresGeneratedImages) {
           setFirst60Item(
