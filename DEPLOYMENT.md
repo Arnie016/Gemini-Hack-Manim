@@ -24,7 +24,9 @@ Use Render with the committed `render.yaml` Blueprint:
 
 ```bash
 OPENAI_API_KEY=...
-APP_URL=https://northstar-manim.onrender.com
+APP_URL=https://northstarstudio.io
+CANONICAL_HOST=northstarstudio.io
+NORTHSTAR_FREE_VIDEO_CREDITS=3
 ```
 
 Optional but expected for production:
@@ -54,18 +56,19 @@ Launch product:
 - $8: 12 video credits
 - $10: 16 video credits
 
-Implementation contract:
+Implemented launch contract:
 
 1. Create one Stripe product: `NorthStar Credits`.
 2. Create four one-time prices matching the packs above.
 3. Store the price ids in `STRIPE_PRICE_2`, `STRIPE_PRICE_4`, `STRIPE_PRICE_8`, and `STRIPE_PRICE_10`.
-4. Add a checkout endpoint: `POST /api/billing/checkout`.
-5. Add a webhook endpoint: `POST /api/billing/webhook`.
-6. On `checkout.session.completed`, add credits to the signed-in user.
-7. Consume one credit only after a successful MP4 render.
-8. Failed renders should not consume credits.
+4. `GET /api/billing/status` creates an anonymous creator cookie and reports balance.
+5. `POST /api/billing/checkout` creates a Stripe Checkout Session for a selected pack.
+6. `POST /api/billing/webhook` verifies `Stripe-Signature` and handles `checkout.session.completed`.
+7. Successful webhooks add credits to the anonymous creator balance.
+8. Render endpoints require credits before render and consume one credit only after a successful MP4 render.
+9. Failed renders do not consume credits.
 
-The current local build exposes the pricing surface and billing config, but real credit enforcement still needs auth, database-backed users, checkout sessions, and webhooks.
+This is good enough for an early hosted beta, but it is still anonymous-cookie billing. Before a larger launch, replace the local JSON credit store with real auth and a database-backed user/account table.
 
 ## Domain
 
@@ -76,15 +79,18 @@ Good domain targets:
 - `manimstudio.ai`
 - `concept.video`
 
-Recommended first choice: `northstar.video`.
+Recommended first choice: `northstarstudio.io`.
 
 Setup:
 
 1. Buy the domain through Cloudflare Registrar or Namecheap.
-2. Add the custom domain in Render.
-3. Add the DNS records Render provides.
-4. Set `APP_URL=https://yourdomain.com`.
-5. Update Stripe success/cancel URLs to use `APP_URL`.
+2. Add `northstarstudio.io` as a custom domain in Render.
+3. Add `www.northstarstudio.io` as a second custom domain or CNAME it to the Render target.
+4. In Namecheap, do not use URL redirect to `http://www...`.
+5. Point DNS to Render using the records Render gives you.
+6. Set `APP_URL=https://northstarstudio.io`.
+7. Set `CANONICAL_HOST=northstarstudio.io`.
+8. In Stripe, set the webhook URL to `https://northstarstudio.io/api/billing/webhook`.
 
 ## Agent Mail
 

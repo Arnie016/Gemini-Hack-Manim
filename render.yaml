@@ -25,7 +25,11 @@ services:
       - key: STRIPE_PRICE_10
         sync: false
       - key: APP_URL
-        value: https://northstar-manim.onrender.com
+        value: https://northstarstudio.io
+      - key: CANONICAL_HOST
+        value: northstarstudio.io
+      - key: NORTHSTAR_FREE_VIDEO_CREDITS
+        value: "3"
     disk:
       name: northstar-work
       mountPath: /app/work

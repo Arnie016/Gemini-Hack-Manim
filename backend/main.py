@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import base64
 import concurrent.futures
+import hashlib
 import html
+import hmac
 import json
 import logging
 import os
@@ -11,6 +13,7 @@ import secrets
 import time
 import shutil
 import subprocess
+import threading
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Dict, Optional, List
@@ -19,7 +22,7 @@ from urllib.parse import parse_qs, urlparse
 import requests
 from fastapi import FastAPI, Response, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
@@ -69,14 +72,20 @@ DEFAULT_OPENAI_TEXT_MODEL = "gpt-5"
 DEFAULT_GEMINI_TEXT_MODEL = "gemini-3-flash-preview"
 STARTER_FREE_VIDEO_CREDITS = 3
 CREDIT_PACKS = [
-    {"price_usd": 2, "video_credits": 2, "label": "Quick test pack"},
-    {"price_usd": 4, "video_credits": 5, "label": "Starter creator pack"},
-    {"price_usd": 8, "video_credits": 12, "label": "Maker pack"},
-    {"price_usd": 10, "video_credits": 16, "label": "Best value pack"},
+    {"price_usd": 2, "video_credits": 2, "label": "Quick test pack", "stripe_price_env": "STRIPE_PRICE_2"},
+    {"price_usd": 4, "video_credits": 5, "label": "Starter creator pack", "stripe_price_env": "STRIPE_PRICE_4"},
+    {"price_usd": 8, "video_credits": 12, "label": "Maker pack", "stripe_price_env": "STRIPE_PRICE_8"},
+    {"price_usd": 10, "video_credits": 16, "label": "Best value pack", "stripe_price_env": "STRIPE_PRICE_10"},
 ]
+ANON_USER_COOKIE = "northstar_user_id"
+BILLING_DIR = WORK / "billing"
+BILLING_STORE = BILLING_DIR / "credits.json"
+BILLING_LOCK = threading.Lock()
+STRIPE_CHECKOUT_SESSIONS_URL = "https://api.stripe.com/v1/checkout/sessions"
 
 WORK.mkdir(parents=True, exist_ok=True)
 JOBS.mkdir(parents=True, exist_ok=True)
+BILLING_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI()
 app.mount("/work", StaticFiles(directory=WORK), name="work")
@@ -137,6 +146,341 @@ def _text_generation_settings(
 def _has_text_api_key(settings: Dict[str, Any]) -> bool:
     _provider, api_key, _model = _text_generation_settings(settings)
     return bool((api_key or "").strip())
+
+
+def _configured_free_credits() -> int:
+    raw = str(os.getenv("NORTHSTAR_FREE_VIDEO_CREDITS") or STARTER_FREE_VIDEO_CREDITS).strip()
+    try:
+        return max(0, min(50, int(raw)))
+    except ValueError:
+        return STARTER_FREE_VIDEO_CREDITS
+
+
+def _safe_user_id(value: Optional[str]) -> Optional[str]:
+    raw = (value or "").strip()
+    if re.fullmatch(r"[A-Za-z0-9_-]{16,96}", raw):
+        return raw
+    return None
+
+
+def _is_secure_request(request: Request) -> bool:
+    proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "").split(",")[0].strip().lower()
+    if proto == "https":
+        return True
+    app_url = (os.getenv("APP_URL") or "").strip().lower()
+    return app_url.startswith("https://")
+
+
+def _set_user_cookie(response: Response, request: Request, user_id: str) -> None:
+    response.set_cookie(
+        ANON_USER_COOKIE,
+        user_id,
+        max_age=60 * 60 * 24 * 365,
+        httponly=True,
+        secure=_is_secure_request(request),
+        samesite="lax",
+        path="/",
+    )
+
+
+def _get_or_create_user_id(request: Request, response: Response) -> str:
+    user_id = _safe_user_id(request.cookies.get(ANON_USER_COOKIE))
+    if not user_id:
+        user_id = secrets.token_urlsafe(24)
+        _set_user_cookie(response, request, user_id)
+    return user_id
+
+
+def _empty_billing_store() -> Dict[str, Any]:
+    return {"users": {}, "events": {}, "render_charges": {}}
+
+
+def _read_billing_store() -> Dict[str, Any]:
+    if not BILLING_STORE.exists():
+        return _empty_billing_store()
+    try:
+        data = json.loads(BILLING_STORE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return _empty_billing_store()
+    if not isinstance(data, dict):
+        return _empty_billing_store()
+    data.setdefault("users", {})
+    data.setdefault("events", {})
+    data.setdefault("render_charges", {})
+    return data
+
+
+def _write_billing_store(data: Dict[str, Any]) -> None:
+    BILLING_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = BILLING_STORE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
+    tmp.replace(BILLING_STORE)
+
+
+def _ensure_billing_user(store: Dict[str, Any], user_id: str) -> Dict[str, Any]:
+    users = store.setdefault("users", {})
+    now = time.time()
+    user = users.get(user_id)
+    if not isinstance(user, dict):
+        user = {
+            "credits": _configured_free_credits(),
+            "trial_granted": True,
+            "created_at": now,
+            "updated_at": now,
+            "payments": [],
+        }
+        users[user_id] = user
+        return user
+    user.setdefault("credits", 0)
+    user.setdefault("trial_granted", True)
+    user.setdefault("created_at", now)
+    user.setdefault("updated_at", now)
+    user.setdefault("payments", [])
+    return user
+
+
+def _stripe_secret_key() -> str:
+    return (os.getenv("STRIPE_SECRET_KEY") or "").strip()
+
+
+def _stripe_webhook_secret() -> str:
+    return (os.getenv("STRIPE_WEBHOOK_SECRET") or "").strip()
+
+
+def _credit_pack(price_usd: int) -> Optional[Dict[str, Any]]:
+    for pack in CREDIT_PACKS:
+        if int(pack.get("price_usd") or 0) == int(price_usd):
+            return pack
+    return None
+
+
+def _billing_packs_payload() -> list[Dict[str, Any]]:
+    packs: list[Dict[str, Any]] = []
+    for pack in CREDIT_PACKS:
+        env_key = str(pack["stripe_price_env"])
+        packs.append(
+            {
+                "price_usd": int(pack["price_usd"]),
+                "video_credits": int(pack["video_credits"]),
+                "label": str(pack["label"]),
+                "stripe_price_env": env_key,
+                "stripe_price_configured": bool(os.getenv(env_key)),
+            }
+        )
+    return packs
+
+
+def _stripe_checkout_configured() -> bool:
+    return bool(_stripe_secret_key()) and all(bool(os.getenv(str(pack["stripe_price_env"]))) for pack in CREDIT_PACKS)
+
+
+def _billing_status_for_user(user_id: str) -> Dict[str, Any]:
+    with BILLING_LOCK:
+        store = _read_billing_store()
+        user = _ensure_billing_user(store, user_id)
+        _write_billing_store(store)
+        return {
+            "user_id": user_id,
+            "credits": int(user.get("credits") or 0),
+            "starter_free_video_credits": _configured_free_credits(),
+            "credit_packs": _billing_packs_payload(),
+            "stripe_checkout_configured": _stripe_checkout_configured(),
+            "hosted_uses_platform_openai_key": True,
+        }
+
+
+def _require_render_credits(request: Request, response: Response, *, amount: int = 1) -> tuple[Optional[str], Optional[JSONResponse]]:
+    user_id = _get_or_create_user_id(request, response)
+    with BILLING_LOCK:
+        store = _read_billing_store()
+        user = _ensure_billing_user(store, user_id)
+        credits = int(user.get("credits") or 0)
+        _write_billing_store(store)
+    if credits < amount:
+        return user_id, JSONResponse(
+            {
+                "ok": False,
+                "error": "No render credits available. Recharge credits to render more videos.",
+                "billing": _billing_status_for_user(user_id),
+            },
+            status_code=402,
+        )
+    return user_id, None
+
+
+def _job_billing_path(job_dir: Path) -> Path:
+    return job_dir / "billing.json"
+
+
+def _record_job_owner(job_dir: Path, user_id: str) -> None:
+    payload = {"user_id": user_id, "created_at": time.time()}
+    _job_billing_path(job_dir).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def _job_owner(job_dir: Path) -> Optional[str]:
+    path = _job_billing_path(job_dir)
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return _safe_user_id(str(data.get("user_id") or ""))
+
+
+def _consume_render_credit(user_id: str, job_id: str) -> Dict[str, Any]:
+    with BILLING_LOCK:
+        store = _read_billing_store()
+        user = _ensure_billing_user(store, user_id)
+        render_charges = store.setdefault("render_charges", {})
+        if job_id in render_charges:
+            return {
+                "charged": False,
+                "already_charged": True,
+                "credits": int(user.get("credits") or 0),
+            }
+        credits = int(user.get("credits") or 0)
+        if credits <= 0:
+            return {
+                "charged": False,
+                "already_charged": False,
+                "credits": credits,
+                "error": "Render completed but no credits were available to settle.",
+            }
+        user["credits"] = credits - 1
+        user["updated_at"] = time.time()
+        render_charges[job_id] = {"user_id": user_id, "credits": 1, "charged_at": time.time()}
+        _write_billing_store(store)
+        return {"charged": True, "credits": int(user.get("credits") or 0)}
+
+
+def _settle_render_credit(job_id: str, job_dir: Path) -> Optional[Dict[str, Any]]:
+    user_id = _job_owner(job_dir)
+    if not user_id:
+        return None
+    return _consume_render_credit(user_id, job_id)
+
+
+def _public_base_url(request: Request) -> str:
+    configured = (os.getenv("APP_URL") or "").strip().rstrip("/")
+    if configured:
+        return configured
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
+    proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "http").split(",")[0].strip()
+    if proto == "http" and host and not host.startswith(("localhost", "127.0.0.1")):
+        proto = "https"
+    return f"{proto}://{host}".rstrip("/")
+
+
+def _create_stripe_checkout_session(*, request: Request, user_id: str, pack: Dict[str, Any]) -> Dict[str, Any]:
+    secret = _stripe_secret_key()
+    price_id = (os.getenv(str(pack["stripe_price_env"])) or "").strip()
+    if not secret:
+        raise ValueError("STRIPE_SECRET_KEY is not configured.")
+    if not price_id:
+        raise ValueError(f"{pack['stripe_price_env']} is not configured.")
+
+    price_usd = int(pack["price_usd"])
+    video_credits = int(pack["video_credits"])
+    base_url = _public_base_url(request)
+    success_url = f"{base_url}/app?checkout=success&pack={price_usd}"
+    cancel_url = f"{base_url}/app?checkout=cancel&pack={price_usd}"
+    data = {
+        "mode": "payment",
+        "line_items[0][price]": price_id,
+        "line_items[0][quantity]": "1",
+        "success_url": success_url,
+        "cancel_url": cancel_url,
+        "client_reference_id": user_id,
+        "allow_promotion_codes": "true",
+        "metadata[northstar_user_id]": user_id,
+        "metadata[pack_price_usd]": str(price_usd),
+        "metadata[video_credits]": str(video_credits),
+        "metadata[product]": "northstar_credits",
+    }
+    resp = requests.post(
+        STRIPE_CHECKOUT_SESSIONS_URL,
+        data=data,
+        auth=(secret, ""),
+        timeout=20,
+    )
+    try:
+        payload = resp.json()
+    except ValueError:
+        payload = {"error": {"message": resp.text[:500]}}
+    if resp.status_code >= 400:
+        message = str((payload.get("error") or {}).get("message") or "Stripe checkout failed.")
+        raise ValueError(message)
+    return payload
+
+
+def _verify_stripe_signature(payload: bytes, sig_header: str, endpoint_secret: str, *, tolerance_s: int = 300) -> bool:
+    parts: Dict[str, list[str]] = {}
+    for item in (sig_header or "").split(","):
+        if "=" not in item:
+            continue
+        key, value = item.split("=", 1)
+        parts.setdefault(key.strip(), []).append(value.strip())
+    timestamps = parts.get("t") or []
+    signatures = parts.get("v1") or []
+    if not timestamps or not signatures:
+        return False
+    try:
+        timestamp = int(timestamps[0])
+    except ValueError:
+        return False
+    if abs(time.time() - timestamp) > tolerance_s:
+        return False
+    signed_payload = str(timestamp).encode("utf-8") + b"." + payload
+    expected = hmac.new(endpoint_secret.encode("utf-8"), signed_payload, hashlib.sha256).hexdigest()
+    return any(hmac.compare_digest(expected, signature) for signature in signatures)
+
+
+def _apply_checkout_completed(event: Dict[str, Any]) -> Dict[str, Any]:
+    event_id = str(event.get("id") or "")
+    session = ((event.get("data") or {}).get("object") or {})
+    metadata = session.get("metadata") or {}
+    user_id = _safe_user_id(str(metadata.get("northstar_user_id") or session.get("client_reference_id") or ""))
+    if not event_id:
+        raise ValueError("Stripe event is missing id.")
+    if not user_id:
+        raise ValueError("Stripe checkout session is missing northstar_user_id metadata.")
+
+    try:
+        credits = int(metadata.get("video_credits") or 0)
+        price_usd = int(metadata.get("pack_price_usd") or 0)
+    except ValueError as exc:
+        raise ValueError("Stripe checkout metadata is invalid.") from exc
+    if credits <= 0 or not _credit_pack(price_usd):
+        raise ValueError("Stripe checkout pack is not recognized.")
+
+    payment_status = str(session.get("payment_status") or "").lower()
+    if payment_status and payment_status not in {"paid", "no_payment_required"}:
+        return {"credited": False, "reason": f"payment_status={payment_status}"}
+
+    with BILLING_LOCK:
+        store = _read_billing_store()
+        events = store.setdefault("events", {})
+        if event_id in events:
+            user = _ensure_billing_user(store, user_id)
+            return {"credited": False, "duplicate": True, "credits": int(user.get("credits") or 0)}
+
+        user = _ensure_billing_user(store, user_id)
+        user["credits"] = int(user.get("credits") or 0) + credits
+        user["updated_at"] = time.time()
+        payments = user.setdefault("payments", [])
+        payments.append(
+            {
+                "event_id": event_id,
+                "stripe_session_id": session.get("id"),
+                "pack_price_usd": price_usd,
+                "video_credits": credits,
+                "credited_at": time.time(),
+            }
+        )
+        events[event_id] = {"type": event.get("type"), "processed_at": time.time(), "user_id": user_id}
+        _write_billing_store(store)
+        return {"credited": True, "credits": int(user.get("credits") or 0)}
 
 
 def _command_exists(cmd: str) -> bool:
@@ -243,9 +587,9 @@ def _settings_payload(settings: Dict[str, Any]) -> Dict[str, Any]:
         "project_root": str(ROOT),
         "work_root": str(WORK),
         "billing": {
-            "starter_free_video_credits": STARTER_FREE_VIDEO_CREDITS,
-            "credit_packs": CREDIT_PACKS,
-            "stripe_checkout_configured": bool(os.getenv("STRIPE_SECRET_KEY")),
+            "starter_free_video_credits": _configured_free_credits(),
+            "credit_packs": _billing_packs_payload(),
+            "stripe_checkout_configured": _stripe_checkout_configured(),
             "hosted_uses_platform_openai_key": True,
         },
     }
@@ -253,6 +597,12 @@ def _settings_payload(settings: Dict[str, Any]) -> Dict[str, Any]:
 
 @app.middleware("http")
 async def security_headers_middleware(request, call_next):
+    canonical_host = (os.getenv("CANONICAL_HOST") or "").strip().lower()
+    request_host = (request.headers.get("host") or "").split(":", 1)[0].lower()
+    if canonical_host and request_host == f"www.{canonical_host}":
+        url = request.url.replace(scheme="https", netloc=canonical_host)
+        return RedirectResponse(str(url), status_code=308)
+
     request_id = request.headers.get("X-Request-ID") or secrets.token_hex(8)
     request.state.request_id = request_id
     response = await call_next(request)
@@ -260,6 +610,8 @@ async def security_headers_middleware(request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["Referrer-Policy"] = "no-referrer"
+    if _is_secure_request(request):
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     if request.url.path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-store"
     return response
@@ -310,6 +662,10 @@ class SettingsReq(BaseModel):
     elevenlabs_api_key: Optional[str] = None
     elevenlabs_voice_id: Optional[str] = None
     elevenlabs_model_id: Optional[str] = None
+
+
+class BillingCheckoutReq(BaseModel):
+    pack_price_usd: int
 
 
 class PlanReq(BaseModel):
@@ -1919,6 +2275,68 @@ def set_settings(req: SettingsReq):
     return {"ok": True, **_settings_payload(settings)}
 
 
+@app.get("/api/billing/status")
+def billing_status(request: Request, response: Response):
+    user_id = _get_or_create_user_id(request, response)
+    return {"ok": True, **_billing_status_for_user(user_id)}
+
+
+@app.post("/api/billing/checkout")
+def billing_checkout(req: BillingCheckoutReq, request: Request, response: Response):
+    user_id = _get_or_create_user_id(request, response)
+    pack = _credit_pack(req.pack_price_usd)
+    if not pack:
+        return JSONResponse({"ok": False, "error": "Unknown credit pack."}, status_code=400)
+    try:
+        session = _create_stripe_checkout_session(request=request, user_id=user_id, pack=pack)
+    except ValueError as exc:
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": str(exc),
+                "billing": _billing_status_for_user(user_id),
+            },
+            status_code=400,
+        )
+    return {
+        "ok": True,
+        "checkout_session_id": session.get("id"),
+        "url": session.get("url"),
+        "pack": {
+            "price_usd": int(pack["price_usd"]),
+            "video_credits": int(pack["video_credits"]),
+            "label": pack["label"],
+        },
+    }
+
+
+@app.post("/api/billing/webhook")
+async def billing_webhook(request: Request):
+    endpoint_secret = _stripe_webhook_secret()
+    if not endpoint_secret:
+        return JSONResponse({"ok": False, "error": "STRIPE_WEBHOOK_SECRET is not configured."}, status_code=400)
+
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature") or request.headers.get("Stripe-Signature") or ""
+    if not _verify_stripe_signature(payload, sig_header, endpoint_secret):
+        return JSONResponse({"ok": False, "error": "Invalid Stripe signature."}, status_code=400)
+
+    try:
+        event = json.loads(payload.decode("utf-8"))
+    except json.JSONDecodeError:
+        return JSONResponse({"ok": False, "error": "Invalid Stripe payload."}, status_code=400)
+
+    result: Dict[str, Any] = {"ignored": True}
+    event_type = str(event.get("type") or "")
+    if event_type == "checkout.session.completed":
+        try:
+            result = _apply_checkout_completed(event)
+        except ValueError as exc:
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+    return {"ok": True, "event_type": event_type, "result": result}
+
+
 @app.post("/api/terminal/run")
 def terminal_run(req: TerminalReq):
     settings = load_settings()
@@ -2607,7 +3025,7 @@ def plan(req: PlanReq):
 
 
 @app.post("/api/approve")
-def approve(req: ApproveReq):
+def approve(req: ApproveReq, request: Request, response: Response):
     try:
         _ = _bounded_text("plan_text", req.plan_text, max_len=180000, required=True)
         _ = _bounded_text("image_prompt", req.image_prompt, max_len=1200, required=False)
@@ -2618,6 +3036,9 @@ def approve(req: ApproveReq):
     paths.job_dir.mkdir(parents=True, exist_ok=True)
     if job_manager.is_running(req.job_id):
         return {"ok": True, "job_id": req.job_id, "status": "already_running"}
+    billing_user_id, billing_error = _require_render_credits(request, response)
+    if billing_error:
+        return billing_error
 
     settings = load_settings()
     preflight = _preflight_payload(settings)
@@ -2685,6 +3106,8 @@ def approve(req: ApproveReq):
     )
     write_state(paths.job_dir, st)
     append_event(paths.job_dir, type_="state", payload={"status": st.status, "step": st.step, "message": st.message})
+    if billing_user_id:
+        _record_job_owner(paths.job_dir, billing_user_id)
 
     job_manager.start_approve(
         job_id=req.job_id,
@@ -2727,6 +3150,10 @@ def job_status(job_id: str):
     }
     if paths.out_mp4.exists():
         resp["video_path"] = str(paths.out_mp4.relative_to(ROOT))
+    if st.status == "done" and paths.out_mp4.exists():
+        billing = _settle_render_credit(job_id, paths.job_dir)
+        if billing:
+            resp["billing"] = billing
     if paths.scene_path.exists():
         resp["code"] = paths.scene_path.read_text(encoding="utf-8")
     if paths.plan_path.exists():
@@ -2965,7 +3392,7 @@ def build_script_packs(job_id: str, req: Optional[ScriptPackReq] = None):
 
 
 @app.post("/api/crazy-run")
-def crazy_run(req: CrazyRunReq):
+def crazy_run(req: CrazyRunReq, request: Request, response: Response):
     try:
         idea = _bounded_text("idea", req.idea, max_len=6000, required=True)
         _ = _bounded_text(
@@ -3000,6 +3427,10 @@ def crazy_run(req: CrazyRunReq):
     manim_py = _resolve_manim_runtime(settings, probe=False).get("manim_py")
 
     count = max(1, min(5, int(req.variants or 3)))
+    billing_user_id, billing_error = _require_render_credits(request, response, amount=count)
+    if billing_error:
+        return billing_error
+
     variant_briefs = [
         "Variant focus: hook-first, energetic pacing, minimal equations.",
         "Variant focus: visual analogy-first, smooth pacing, strong intuition.",
@@ -3016,6 +3447,8 @@ def crazy_run(req: CrazyRunReq):
         job_id = new_job_id()
         paths = job_paths(JOBS, job_id)
         paths.job_dir.mkdir(parents=True, exist_ok=True)
+        if billing_user_id:
+            _record_job_owner(paths.job_dir, billing_user_id)
         try:
             brief = _build_director_brief(req) + "\n" + variant_briefs[i % len(variant_briefs)]
             plan_text = generate_content(
@@ -3231,7 +3664,7 @@ def cut_job_video_range(job_id: str, req: CutRangeReq):
 
 
 @app.post("/api/animate")
-def animate(req: AnimateReq):
+def animate(req: AnimateReq, request: Request, response: Response):
     try:
         idea = _bounded_text("idea", req.idea, max_len=6000, required=True)
         _ = _bounded_text(
@@ -3251,6 +3684,11 @@ def animate(req: AnimateReq):
     job_id = new_job_id()
     paths = job_paths(JOBS, job_id)
     paths.job_dir.mkdir(parents=True, exist_ok=True)
+    billing_user_id, billing_error = _require_render_credits(request, response)
+    if billing_error:
+        return billing_error
+    if billing_user_id:
+        _record_job_owner(paths.job_dir, billing_user_id)
     image_warning: Optional[str] = None
     settings = load_settings()
     text_provider, api_key, text_model = _text_generation_settings(settings)
@@ -3396,6 +3834,9 @@ def animate(req: AnimateReq):
         "code": paths.scene_path.read_text(encoding="utf-8"),
         "job_files": _job_files(paths),
     }
+    billing = _settle_render_credit(job_id, paths.job_dir)
+    if billing:
+        response["billing"] = billing
     if image_warning:
         response["image_warning"] = image_warning
     if bg_rel or fg_rel:
@@ -3409,10 +3850,15 @@ def animate(req: AnimateReq):
 
 
 @app.post("/api/render-code")
-def render_code(req: RenderCodeReq):
+def render_code(req: RenderCodeReq, request: Request, response: Response):
     job_id = new_job_id()
     paths = job_paths(JOBS, job_id)
     paths.job_dir.mkdir(parents=True, exist_ok=True)
+    billing_user_id, billing_error = _require_render_credits(request, response)
+    if billing_error:
+        return billing_error
+    if billing_user_id:
+        _record_job_owner(paths.job_dir, billing_user_id)
 
     # If the user edits code, keep it mostly as-is, but normalize tabs/trailing whitespace.
     try:
@@ -3444,10 +3890,14 @@ def render_code(req: RenderCodeReq):
             status_code=500,
         )
 
-    return {
+    result = {
         "ok": True,
         "job_id": job_id,
         "video_path": str(paths.out_mp4.relative_to(ROOT)),
         "logs": logs,
         "job_files": _job_files(paths),
     }
+    billing = _settle_render_credit(job_id, paths.job_dir)
+    if billing:
+        result["billing"] = billing
+    return result

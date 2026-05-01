@@ -3636,28 +3636,28 @@
                     </div>
                     <div class="credit-status-grid">
                       <div class="credit-status-card">
-                        <div class="credit-status-kicker">New user trial</div>
-                        <div class="credit-status-value">3 videos</div>
+                        <div class="credit-status-kicker">Current balance</div>
+                        <div class="credit-status-value" id="creditBalanceValue">checking...</div>
                       </div>
                       <div class="credit-status-card">
-                        <div class="credit-status-kicker">Planning model</div>
-                        <div class="credit-status-value">gpt-5</div>
+                        <div class="credit-status-kicker">Free trial</div>
+                        <div class="credit-status-value" id="creditTrialValue">3 videos</div>
                       </div>
                       <div class="credit-status-card">
                         <div class="credit-status-kicker">Checkout</div>
-                        <div class="credit-status-value">Stripe</div>
+                        <div class="credit-status-value" id="creditCheckoutValue">checking...</div>
                       </div>
                     </div>
                     <div class="credit-note">
                       Launch rule: let a new creator make a few Manim videos first, then ask them to recharge. Do not require their own API key in the hosted app until they choose bring-your-own-key.
                     </div>
                     <div class="credit-pack-grid" aria-label="Credit recharge packs">
-                      <button class="credit-pack" data-credit-pack="$2 / 2 video credits"><strong>$2</strong><span>2 video credits<br />Quick test pack</span></button>
-                      <button class="credit-pack" data-credit-pack="$4 / 5 video credits"><strong>$4</strong><span>5 video credits<br />Starter creator pack</span></button>
-                      <button class="credit-pack" data-credit-pack="$8 / 12 video credits"><strong>$8</strong><span>12 video credits<br />Maker pack</span></button>
-                      <button class="credit-pack" data-credit-pack="$10 / 16 video credits"><strong>$10</strong><span>16 video credits<br />Best value pack</span></button>
+                      <button class="credit-pack" data-credit-pack="2"><strong>$2</strong><span>2 video credits<br />Quick test pack</span></button>
+                      <button class="credit-pack" data-credit-pack="4"><strong>$4</strong><span>5 video credits<br />Starter creator pack</span></button>
+                      <button class="credit-pack" data-credit-pack="8"><strong>$8</strong><span>12 video credits<br />Maker pack</span></button>
+                      <button class="credit-pack" data-credit-pack="10"><strong>$10</strong><span>16 video credits<br />Best value pack</span></button>
                     </div>
-                    <div id="creditCheckoutStatus" class="muted">Stripe checkout is not connected in this local build. These packs define the launch pricing surface.</div>
+                    <div id="creditCheckoutStatus" class="muted">Checking billing setup...</div>
                   </div>
                 </div>
 
@@ -4519,6 +4519,9 @@
       const settingsTextProviderEl = document.getElementById('settingsTextProvider');
       const settingsTextModelEl = document.getElementById('settingsTextModel');
       const settingsImageModelEl = document.getElementById('settingsImageModel');
+      const creditBalanceValueEl = document.getElementById('creditBalanceValue');
+      const creditTrialValueEl = document.getElementById('creditTrialValue');
+      const creditCheckoutValueEl = document.getElementById('creditCheckoutValue');
       const creditCheckoutStatusEl = document.getElementById('creditCheckoutStatus');
       const settingsManimPyEl = document.getElementById('settingsManimPy');
       const settingsManimAutoHintEl = document.getElementById('settingsManimAutoHint');
@@ -6786,11 +6789,7 @@
       });
       document.querySelectorAll('[data-credit-pack]').forEach((btn) => {
         btn.addEventListener('click', () => {
-          const pack = btn.getAttribute('data-credit-pack') || 'credit pack';
-          if (creditCheckoutStatusEl) {
-            creditCheckoutStatusEl.textContent = `${pack} selected. Connect Stripe checkout before enabling live purchases.`;
-          }
-          showToast('Credit pack staged for Stripe launch.', 'ok');
+          startCreditCheckout(btn.getAttribute('data-credit-pack'));
         });
       });
       safeOn(sessionPrevBtn, 'click', () => cycleSession(-1));
@@ -9657,6 +9656,59 @@
         showToast(clearElevenKeyPending ? 'ElevenLabs key will be cleared on save.' : 'ElevenLabs key clear undone.', clearElevenKeyPending ? 'ok' : '');
       }
 
+      function renderBillingStatus(data) {
+        if (!data) return;
+        const trial = Number(data.starter_free_video_credits || data.billing?.starter_free_video_credits || 3);
+        const credits = Number(data.credits ?? trial);
+        const configured = !!data.stripe_checkout_configured;
+        if (creditBalanceValueEl) creditBalanceValueEl.textContent = `${credits} video${credits === 1 ? '' : 's'}`;
+        if (creditTrialValueEl) creditTrialValueEl.textContent = `${trial} video${trial === 1 ? '' : 's'}`;
+        if (creditCheckoutValueEl) creditCheckoutValueEl.textContent = configured ? 'Live' : 'Setup needed';
+        if (creditCheckoutStatusEl) {
+          creditCheckoutStatusEl.textContent = configured
+            ? `Stripe checkout is connected. You have ${credits} render credit${credits === 1 ? '' : 's'}.`
+            : `Stripe checkout needs env vars. You still have ${credits} render credit${credits === 1 ? '' : 's'} in this browser.`;
+        }
+        document.querySelectorAll('[data-credit-pack]').forEach((btn) => {
+          btn.disabled = !configured;
+          btn.title = configured ? 'Open Stripe checkout' : 'Set STRIPE_SECRET_KEY and STRIPE_PRICE_* on Render first';
+        });
+      }
+
+      async function loadBillingStatus() {
+        try {
+          const resp = await fetch('/api/billing/status');
+          const data = await resp.json();
+          if (data.ok) renderBillingStatus(data);
+          return data;
+        } catch (err) {
+          if (creditCheckoutStatusEl) creditCheckoutStatusEl.textContent = `Billing status unavailable: ${err.message || err}`;
+          return null;
+        }
+      }
+
+      async function startCreditCheckout(priceUsd) {
+        const price = Number(priceUsd || 0);
+        if (!price) return;
+        if (creditCheckoutStatusEl) creditCheckoutStatusEl.textContent = `Opening $${price} Stripe checkout...`;
+        try {
+          const resp = await fetch('/api/billing/checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pack_price_usd: price })
+          });
+          const data = await resp.json();
+          if (!resp.ok || !data.ok) {
+            throw new Error(data.error || 'Stripe checkout is not ready.');
+          }
+          if (!data.url) throw new Error('Stripe did not return a checkout URL.');
+          window.location.href = data.url;
+        } catch (err) {
+          if (creditCheckoutStatusEl) creditCheckoutStatusEl.textContent = err.message || String(err);
+          showToast(err.message || 'Stripe checkout is not ready.', 'err');
+        }
+      }
+
       async function loadSettings() {
         const resp = await fetch('/api/settings');
         const data = await resp.json();
@@ -9675,11 +9727,9 @@
         if (settingsElevenVoiceIdEl) settingsElevenVoiceIdEl.value = data.elevenlabs_voice_id || '';
         if (settingsElevenModelIdEl) settingsElevenModelIdEl.value = data.elevenlabs_model_id || '';
         if (creditCheckoutStatusEl && data.billing) {
-          const trial = Number(data.billing.starter_free_video_credits || 3);
-          creditCheckoutStatusEl.textContent = data.billing.stripe_checkout_configured
-            ? `Stripe checkout configured. New users start with ${trial} free video credits.`
-            : `Stripe checkout is not connected in this local build. Hosted launch should start users with ${trial} free video credits.`;
+          renderBillingStatus(data.billing);
         }
+        loadBillingStatus();
         if (voiceoverVoiceSelectEl && data.elevenlabs_voice_id) {
           const hasVoice = Array.from(voiceoverVoiceSelectEl.options || []).some((o) => o.value === data.elevenlabs_voice_id);
           voiceoverVoiceSelectEl.value = hasVoice ? data.elevenlabs_voice_id : '';
