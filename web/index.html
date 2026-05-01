@@ -1905,6 +1905,19 @@
         grid-template-columns: 1fr 1fr;
         gap: 6px;
       }
+      .source-upload-strip {
+        margin-top: 8px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .source-upload-strip .muted {
+        flex: 1 1 180px;
+        min-width: 0;
+        font-size: 11px;
+        line-height: 1.35;
+      }
       .source-status {
         margin-top: 8px;
         min-height: 20px;
@@ -2344,6 +2357,9 @@
       }
       .saved-card[data-kind="web"] {
         border-color: rgba(106, 169, 255, 0.4);
+      }
+      .saved-card[data-kind="file"] {
+        border-color: rgba(34, 197, 94, 0.45);
       }
       .saved-card-title {
         font-weight: 700;
@@ -3645,6 +3661,11 @@
                     <button id="saveSource" class="ghost">Save source</button>
                   </div>
                 </div>
+                <div class="source-upload-strip">
+                  <input id="sourceFilePicker" type="file" class="hidden" accept=".md,.txt,.csv,.json,.yaml,.yml,.srt,.vtt,.tex,.py,.rst,text/*" multiple />
+                  <button id="uploadSourceFile" class="ghost">Upload cheat sheet</button>
+                  <span class="muted">Turns text notes into reusable source cards for prompt and scene grounding.</span>
+                </div>
                 <div id="sourceCards" class="saved-grid" style="margin-top:10px;"></div>
                 <div id="sourceStatus" class="source-status muted">No sources yet.</div>
               </div>
@@ -4048,6 +4069,16 @@
         }
       }
 
+      const nativeFetch = window.fetch ? window.fetch.bind(window) : null;
+      if (nativeFetch) {
+        window.fetch = (resource, init) => {
+          if (typeof resource === 'string' && /^\/api(?:\/|\?|$)/.test(resource)) {
+            return nativeFetch(apiHref(resource), init);
+          }
+          return nativeFetch(resource, init);
+        };
+      }
+
       function showToast(message, kind = '') {
         if (!toastEl) return;
         toastEl.textContent = String(message || '');
@@ -4325,8 +4356,11 @@
       const sourceTypeEl = document.getElementById('sourceType');
       const indexSourceBtn = document.getElementById('indexSource');
       const saveSourceBtn = document.getElementById('saveSource');
+      const sourceFilePickerEl = document.getElementById('sourceFilePicker');
+      const uploadSourceFileBtn = document.getElementById('uploadSourceFile');
       const sourceCardsEl = document.getElementById('sourceCards');
       const sourceStatusEl = document.getElementById('sourceStatus');
+      const SOURCE_UPLOAD_MAX_BYTES = 500_000;
       const historyListEl = document.getElementById('historyList');
       const sidebarBadgeApiEl = document.getElementById('sidebarBadgeApi');
       const sidebarBadgeManimEl = document.getElementById('sidebarBadgeManim');
@@ -5641,6 +5675,7 @@
       function normalizeSourceRecord(src) {
         const s = src || {};
         const kind = String(s.kind || s.source_type || (s.video_id ? 'youtube' : 'web')).toLowerCase();
+        const normalizedKind = kind === 'youtube' ? 'youtube' : (kind === 'file' ? 'file' : 'web');
         const id = String(s.id || `src-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`);
         const title = cleanInline(s.title || '') || compactLabel(s.url || 'Source', 56);
         const summary = cleanInline(s.summary || s.notes || '');
@@ -5653,7 +5688,7 @@
         return {
           ...s,
           id,
-          kind: kind === 'youtube' ? 'youtube' : 'web',
+          kind: normalizedKind,
           title,
           summary,
           prompt_hint: promptHint,
@@ -5707,6 +5742,7 @@
         getSources().forEach((item) => {
           if (item.id === normalized.id) return;
           if (normalized.url && item.url && normalized.url === item.url) return;
+          if (normalized.file_path && item.file_path && normalized.file_path === item.file_path) return;
           next.push(item);
         });
         setSources(next.slice(0, 30));
@@ -5784,6 +5820,149 @@
         return saved || '';
       }
 
+      function isSupportedSourceTextFile(file) {
+        const name = String(file?.name || '');
+        const type = String(file?.type || '');
+        return /^text\//i.test(type) || /\.(md|txt|csv|json|yaml|yml|srt|vtt|tex|py|rst)$/i.test(name);
+      }
+
+      function safeUploadFileName(name) {
+        const cleaned = String(name || 'source.txt')
+          .trim()
+          .replace(/[^\w.\-]+/g, '_')
+          .replace(/^_+|_+$/g, '')
+          .slice(0, 96);
+        return cleaned || `source-${Date.now()}.txt`;
+      }
+
+      function meaningfulSourceLines(text, limit = 80) {
+        return String(text || '')
+          .split(/\r?\n/)
+          .map((line) => cleanInline(line))
+          .filter((line) => line && line.length > 3)
+          .slice(0, limit);
+      }
+
+      function deriveUploadedSourceKeyPoints(text) {
+        const lines = meaningfulSourceLines(text, 160);
+        const points = [];
+        const seen = new Set();
+        lines.forEach((line) => {
+          let point = line
+            .replace(/^#{1,6}\s+/, '')
+            .replace(/^[-*]\s+/, '')
+            .replace(/^\d+[.)]\s+/, '')
+            .replace(/^\[[ xX]\]\s+/, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+          if (!point || point.length < 8) return;
+          const isStructured = point !== line || /^[A-Z0-9][^.!?]{6,80}:$/.test(line);
+          if (!isStructured && points.length >= 4) return;
+          point = point.replace(/:$/, '');
+          const key = point.toLowerCase();
+          if (seen.has(key)) return;
+          seen.add(key);
+          points.push(point.slice(0, 180));
+        });
+        if (points.length) return points.slice(0, 8);
+        return String(text || '')
+          .split(/[.!?]\s+/)
+          .map((part) => cleanInline(part))
+          .filter((part) => part.length > 18)
+          .slice(0, 6);
+      }
+
+      function summarizeUploadedSourceText(text, fileName) {
+        const lines = meaningfulSourceLines(text, 18);
+        const summary = lines.slice(0, 4).join(' ');
+        if (summary) return compactLabel(summary, 420);
+        return `Uploaded source file: ${fileName || 'source'}`;
+      }
+
+      async function saveUploadedSourceText(file, text) {
+        const fileName = safeUploadFileName(file?.name || 'source.txt');
+        const base = `notes/uploads/${fileName}`;
+        let saved = await tryWriteWorkspaceFile(base, text);
+        if (!saved) {
+          for (let i = 2; i < 20 && !saved; i++) {
+            const cand = `notes/uploads/${fileName.replace(/(\.[^.]*)?$/, `-${i}$1`)}`;
+            saved = await tryWriteWorkspaceFile(cand, text);
+          }
+        }
+        if (saved) await loadWorkspaceFiles();
+        return saved || '';
+      }
+
+      async function indexUploadedSourceFile(file) {
+        if (!file) return null;
+        if (!isSupportedSourceTextFile(file)) {
+          showToast(`Skipped ${file.name}: upload text, markdown, CSV, JSON, or notes files.`, 'err');
+          return null;
+        }
+        if (file.size > SOURCE_UPLOAD_MAX_BYTES) {
+          showToast(`Skipped ${file.name}: source files must be under 500 KB.`, 'err');
+          return null;
+        }
+        const text = await file.text();
+        if (!String(text || '').trim()) {
+          showToast(`Skipped ${file.name}: file is empty.`, 'err');
+          return null;
+        }
+        const savedPath = await saveUploadedSourceText(file, text);
+        const summary = summarizeUploadedSourceText(text, file.name);
+        const keyPoints = deriveUploadedSourceKeyPoints(text);
+        const source = normalizeSourceRecord({
+          id: `src-file-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+          kind: 'file',
+          source_type: 'file',
+          title: `Cheat sheet: ${file.name || 'uploaded source'}`,
+          summary,
+          notes: String(text || '').slice(0, 6000),
+          key_points: keyPoints,
+          prompt_hint: savedPath
+            ? `Use ${savedPath} as source-of-truth. Convert its facts into a grounded storyboard before writing Manim code.`
+            : 'Use this uploaded source as source-of-truth. Convert its facts into a grounded storyboard before writing Manim code.',
+          file_path: savedPath,
+          saved_at: new Date().toISOString(),
+        });
+        upsertSource(source);
+        return source;
+      }
+
+      async function indexUploadedSourceFiles(files) {
+        const list = Array.from(files || []);
+        if (!list.length) return;
+        const label = uploadSourceFileBtn?.textContent || 'Upload cheat sheet';
+        if (uploadSourceFileBtn) {
+          uploadSourceFileBtn.disabled = true;
+          uploadSourceFileBtn.textContent = 'Uploading...';
+        }
+        setSourceStatus(`Importing ${list.length} source file(s)...`, 'loading');
+        const imported = [];
+        try {
+          for (const file of list) {
+            const source = await indexUploadedSourceFile(file);
+            if (source) imported.push(source);
+          }
+          renderSources({ preserveStatus: true });
+          if (imported.length) {
+            setSourceStatus(`${imported.length} uploaded source file(s) ready. Use in prompt or attach to a scene.`, 'ok');
+            showToast(`Uploaded ${imported.length} source file(s).`, 'ok');
+            scheduleAutosave();
+          } else {
+            setSourceStatus('No source files were imported.', 'warn');
+          }
+        } catch {
+          setSourceStatus('Failed to import source file.', 'err');
+          showToast('Source upload failed.', 'err');
+        } finally {
+          if (uploadSourceFileBtn) {
+            uploadSourceFileBtn.disabled = false;
+            uploadSourceFileBtn.textContent = label;
+          }
+        }
+      }
+
       function renderSources(opts = {}) {
         const preserveStatus = !!opts.preserveStatus;
         const sources = getSources();
@@ -5806,10 +5985,17 @@
           const card = document.createElement('div');
           card.className = 'saved-card';
           card.dataset.kind = s.kind || 'web';
-          const kind = s.kind === 'youtube' ? 'YouTube' : 'Web';
+          const kind = s.kind === 'youtube' ? 'YouTube' : (s.kind === 'file' ? 'File' : 'Web');
           const title = compactLabel(s.title || s.url || `Source ${idx + 1}`, 64);
           const body = compactLabel(s.summary || s.notes || '', 220);
-          card.innerHTML = `<div class="saved-card-title">${kind} • ${title}</div><div class="saved-card-body">${body || 'No summary yet.'}</div>`;
+          const titleEl = document.createElement('div');
+          titleEl.className = 'saved-card-title';
+          titleEl.textContent = `${kind} • ${title}`;
+          const bodyEl = document.createElement('div');
+          bodyEl.className = 'saved-card-body';
+          bodyEl.textContent = body || 'No summary yet.';
+          card.appendChild(titleEl);
+          card.appendChild(bodyEl);
           card.title = 'Drag into prompt/timeline/context';
           card.draggable = true;
           card.addEventListener('dragstart', (e) => {
@@ -7899,6 +8085,7 @@
       }
 
       function contextPanelHeightForTab(id) {
+        if (id === 'docs') return 220;
         return 168;
       }
 
@@ -12095,6 +12282,14 @@
         setSourceStatus('Saved source without indexing.', 'ok');
         showToast('Saved source.', 'ok');
         scheduleAutosave();
+      });
+
+      safeOn(uploadSourceFileBtn, 'click', () => {
+        if (sourceFilePickerEl) sourceFilePickerEl.click();
+      });
+      safeOn(sourceFilePickerEl, 'change', async (e) => {
+        await indexUploadedSourceFiles(e.target.files);
+        e.target.value = '';
       });
 
       safeOn(openInstallGuideBtn, 'click', () => {
