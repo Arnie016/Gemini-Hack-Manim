@@ -848,6 +848,9 @@ def _job_files(paths) -> list[str]:
         paths.job_dir / "state.json",
         paths.job_dir / "events.log",
         paths.job_dir / "captions.srt",
+        paths.job_dir / "share.html",
+        paths.job_dir / "manifest.json",
+        paths.job_dir / "README.md",
         paths.job_dir / "export.zip",
     ]
     assets_dir = paths.job_dir / "assets"
@@ -872,6 +875,243 @@ def _job_files(paths) -> list[str]:
         seen.add(x)
         uniq.append(x)
     return uniq
+
+
+def _read_json_file(path: Path) -> Dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        obj = json.loads(path.read_text(encoding="utf-8"))
+        return obj if isinstance(obj, dict) else {}
+    except Exception:
+        return {}
+
+
+def _clip_text(value: Any, limit: int = 320) -> str:
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    if len(text) <= limit:
+        return text
+    return text[: max(0, limit - 1)].rstrip() + "..."
+
+
+def _relative_job_file(paths, path: Path) -> str:
+    try:
+        return str(path.relative_to(paths.job_dir))
+    except Exception:
+        return path.name
+
+
+def _float_or_zero(value: Any) -> float:
+    try:
+        return float(value)
+    except Exception:
+        return 0.0
+
+
+def _share_manifest(paths) -> Dict[str, Any]:
+    plan = _read_json_file(paths.plan_path)
+    state = _read_json_file(paths.job_dir / "state.json")
+    scenes_raw = plan.get("scenes") if isinstance(plan.get("scenes"), list) else []
+    scenes: list[Dict[str, Any]] = []
+    total_seconds = plan.get("total_seconds")
+    for idx, raw in enumerate(scenes_raw[:24], start=1):
+        if not isinstance(raw, dict):
+            continue
+        scenes.append(
+            {
+                "index": idx,
+                "seconds": raw.get("seconds"),
+                "goal": _clip_text(raw.get("goal"), 180),
+                "narration": _clip_text(raw.get("narration"), 360),
+                "elements": [str(x) for x in (raw.get("elements") or [])[:8]],
+            }
+        )
+    if not total_seconds:
+        total_seconds = sum(_float_or_zero(s.get("seconds")) for s in scenes if str(s.get("seconds") or "").strip())
+
+    files: Dict[str, str] = {}
+    known = {
+        "video": paths.out_mp4,
+        "captions": paths.job_dir / "captions.srt",
+        "plan": paths.plan_path,
+        "code": paths.scene_path,
+        "logs": paths.logs_path,
+    }
+    for label, path in known.items():
+        if path.exists() and path.is_file():
+            files[label] = _relative_job_file(paths, path)
+
+    assets: list[str] = []
+    assets_dir = paths.job_dir / "assets"
+    if assets_dir.exists():
+        for path in sorted(assets_dir.glob("*")):
+            if path.is_file():
+                assets.append(_relative_job_file(paths, path))
+
+    title = _clip_text(plan.get("title") or state.get("title") or f"NorthStar render {paths.job_id}", 120)
+    manifest = {
+        "product": "NorthStar",
+        "job_id": paths.job_id,
+        "title": title,
+        "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "status": state.get("status") or "",
+        "total_seconds": total_seconds,
+        "scene_count": len(scenes),
+        "files": files,
+        "assets": assets,
+        "scenes": scenes,
+    }
+    return manifest
+
+
+def _share_html(manifest: Dict[str, Any]) -> str:
+    title = html.escape(str(manifest.get("title") or "NorthStar render"))
+    job_id = html.escape(str(manifest.get("job_id") or ""))
+    files = manifest.get("files") if isinstance(manifest.get("files"), dict) else {}
+    video = html.escape(str(files.get("video") or ""))
+    captions = html.escape(str(files.get("captions") or ""))
+    plan = html.escape(str(files.get("plan") or "plan.json"))
+    code = html.escape(str(files.get("code") or "scene.py"))
+    total = html.escape(str(manifest.get("total_seconds") or ""))
+    scenes = manifest.get("scenes") if isinstance(manifest.get("scenes"), list) else []
+    scene_items = []
+    for scene in scenes:
+        if not isinstance(scene, dict):
+            continue
+        idx = html.escape(str(scene.get("index") or ""))
+        goal = html.escape(str(scene.get("goal") or "Scene"))
+        narration = html.escape(str(scene.get("narration") or ""))
+        seconds = html.escape(str(scene.get("seconds") or ""))
+        scene_items.append(
+            f"<article class=\"scene\"><div class=\"scene-meta\">Scene {idx}{' - ' + seconds + 's' if seconds else ''}</div>"
+            f"<h2>{goal}</h2><p>{narration}</p></article>"
+        )
+    if not scene_items:
+        scene_items.append("<article class=\"scene\"><h2>Scene plan</h2><p>Open plan.json for the full storyboard.</p></article>")
+    track = f"<track src=\"{captions}\" kind=\"captions\" srclang=\"en\" label=\"Captions\">" if captions else ""
+    video_block = (
+        f"<video controls playsinline preload=\"metadata\" src=\"{video}\">{track}</video>"
+        if video
+        else "<div class=\"missing\">Video file is not present in this package.</div>"
+    )
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{title} - NorthStar Share</title>
+  <style>
+    :root {{ color-scheme: dark; --bg:#0b0f14; --panel:#121923; --line:#243244; --text:#eef4ff; --muted:#9fb0c8; --accent:#6aa9ff; }}
+    * {{ box-sizing:border-box; }}
+    body {{ margin:0; font:15px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background:var(--bg); color:var(--text); }}
+    main {{ width:min(1100px, calc(100vw - 32px)); margin:0 auto; padding:32px 0 48px; }}
+    header {{ display:flex; gap:18px; align-items:flex-end; justify-content:space-between; padding-bottom:18px; border-bottom:1px solid var(--line); }}
+    h1 {{ margin:0; font-size:28px; line-height:1.12; }}
+    h2 {{ margin:4px 0 6px; font-size:16px; }}
+    .meta, .scene-meta, .links, p {{ color:var(--muted); }}
+    .stage {{ margin:22px 0; display:grid; gap:18px; grid-template-columns:minmax(0, 1.35fr) minmax(260px, .65fr); align-items:start; }}
+    video {{ width:100%; border:1px solid var(--line); border-radius:8px; background:#000; }}
+    .panel, .scene {{ border:1px solid var(--line); background:var(--panel); border-radius:8px; padding:14px; }}
+    .scene {{ margin:10px 0; }}
+    .links a {{ color:var(--accent); margin-right:14px; }}
+    .missing {{ border:1px dashed var(--line); border-radius:8px; padding:32px; color:var(--muted); }}
+    @media (max-width: 760px) {{ .stage {{ grid-template-columns:1fr; }} header {{ display:block; }} }}
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <div class="meta">NorthStar share package - {job_id}</div>
+        <h1>{title}</h1>
+      </div>
+      <div class="meta">{len(scenes)} scenes{(' - ' + total + 's') if total else ''}</div>
+    </header>
+    <section class="stage">
+      <div>{video_block}</div>
+      <aside class="panel">
+        <h2>Package files</h2>
+        <div class="links">
+          <a href="{video}" download>Video</a>
+          <a href="{plan}">Plan</a>
+          <a href="{code}">Code</a>
+          <a href="manifest.json">Manifest</a>
+        </div>
+        <p>This folder is portable. Keep the files together so the preview, captions, storyboard, and generated code stay linked.</p>
+      </aside>
+    </section>
+    <section>
+      <div class="meta">Storyboard</div>
+      {''.join(scene_items)}
+    </section>
+  </main>
+</body>
+</html>
+"""
+
+
+def _share_readme(manifest: Dict[str, Any]) -> str:
+    title = str(manifest.get("title") or "NorthStar render").strip()
+    lines = [
+        f"# {title}",
+        "",
+        "This is a NorthStar share package.",
+        "",
+        "- Open `share.html` for a portable preview page.",
+        "- Use `out.mp4` for upload or publishing.",
+        "- Use `captions.srt` for captions when present.",
+        "- Use `plan.json` and `scene.py` to inspect or continue editing the render.",
+        "- Use `manifest.json` for metadata, storyboard summaries, and automation.",
+        "",
+        f"Job ID: {manifest.get('job_id') or ''}",
+        f"Scenes: {manifest.get('scene_count') or 0}",
+        f"Duration: {manifest.get('total_seconds') or ''}",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def _write_share_package(paths) -> Dict[str, Any]:
+    manifest = _share_manifest(paths)
+    (paths.job_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    (paths.job_dir / "share.html").write_text(_share_html(manifest), encoding="utf-8")
+    (paths.job_dir / "README.md").write_text(_share_readme(manifest), encoding="utf-8")
+    return manifest
+
+
+def _share_export_files(paths) -> list[Path]:
+    files: list[Path] = [
+        paths.job_dir / "README.md",
+        paths.job_dir / "share.html",
+        paths.job_dir / "manifest.json",
+        paths.out_mp4,
+        paths.job_dir / "captions.srt",
+        paths.plan_path,
+        paths.scene_path,
+        paths.logs_path,
+        paths.job_dir / "state.json",
+        paths.job_dir / "events.log",
+    ]
+    for dirname in ("assets", "scripts"):
+        folder = paths.job_dir / dirname
+        if not folder.exists():
+            continue
+        for path in sorted(folder.rglob("*")):
+            if path.is_file():
+                files.append(path)
+
+    out: list[Path] = []
+    seen: set[Path] = set()
+    for path in files:
+        try:
+            resolved = path.resolve()
+        except Exception:
+            resolved = path
+        if resolved in seen or not path.exists() or not path.is_file():
+            continue
+        seen.add(resolved)
+        out.append(path)
+    return out
 
 
 def _parse_json(text: str) -> Dict[str, Any]:
@@ -2554,17 +2794,22 @@ def job_download(job_id: str):
     if not paths.job_dir.exists():
         return JSONResponse({"ok": False, "job_id": job_id, "error": "Unknown job_id"}, status_code=404)
 
+    _write_share_package(paths)
     zip_path = paths.job_dir / "export.zip"
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        for p in paths.job_dir.rglob("*"):
-            if p.is_dir():
-                continue
-            # Avoid zipping the zip itself while writing.
-            if p.name == zip_path.name:
-                continue
+        for p in _share_export_files(paths):
             zf.write(p, arcname=str(p.relative_to(paths.job_dir)))
 
     return FileResponse(zip_path, filename=f"{job_id}.zip")
+
+
+@app.get("/api/jobs/{job_id}/share-page")
+def job_share_page(job_id: str):
+    paths = job_paths(JOBS, job_id)
+    if not paths.job_dir.exists():
+        return JSONResponse({"ok": False, "job_id": job_id, "error": "Unknown job_id"}, status_code=404)
+    _write_share_package(paths)
+    return FileResponse(paths.job_dir / "share.html", media_type="text/html")
 
 
 @app.post("/api/jobs/{job_id}/copy-output")

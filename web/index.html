@@ -3225,7 +3225,7 @@
                     <button id="downloadBtn" class="overlay-btn" title="Download video" aria-label="Download video" disabled>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
                     </button>
-                    <button id="shareBtn" class="overlay-btn" title="Share link" aria-label="Share link" disabled>
+                    <button id="shareBtn" class="overlay-btn" title="Share preview page" aria-label="Share preview page" disabled>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v14"/></svg>
                     </button>
                     <button id="appendBtn" class="overlay-btn" title="Add next scene (+)" aria-label="Add next scene" disabled>
@@ -3237,7 +3237,7 @@
                     <button id="voiceoverBtn" class="overlay-btn" title="Add ElevenLabs voiceover" aria-label="Add ElevenLabs voiceover" disabled>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v4"/><path d="M8 23h8"/></svg>
                     </button>
-                    <button id="exportBtn" class="overlay-btn" title="Download project ZIP" aria-label="Download project ZIP" disabled>
+                    <button id="exportBtn" class="overlay-btn" title="Download share package" aria-label="Download share package" disabled>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
                     </button>
                     <button id="ccBtn" class="overlay-btn" title="Download captions (.srt)" aria-label="Download captions" disabled>
@@ -4036,6 +4036,18 @@
       let toastTimer = null;
       document.querySelectorAll('button:not([type])').forEach((btn) => btn.setAttribute('type', 'button'));
 
+      function apiHref(path) {
+        const raw = String(path || '');
+        if (!raw) return raw;
+        if (/^https?:\/\//i.test(raw)) return raw;
+        if (window.location.protocol === 'file:') return `http://127.0.0.1:8000${raw.startsWith('/') ? raw : `/${raw}`}`;
+        try {
+          return new URL(raw, window.location.href).href;
+        } catch {
+          return raw;
+        }
+      }
+
       function showToast(message, kind = '') {
         if (!toastEl) return;
         toastEl.textContent = String(message || '');
@@ -4618,7 +4630,9 @@
             showToast('Nothing to export yet.', 'err');
             return;
           }
-          window.open(`/api/jobs/${encodeURIComponent(currentJobId)}/download`, '_blank');
+          showToast('Preparing share package...', 'ok');
+          pushHistory(`Exported share package for ${currentJobId}`);
+          window.open(apiHref(`/api/jobs/${encodeURIComponent(currentJobId)}/download`), '_blank');
         });
       }
       if (ccBtnEl) {
@@ -4632,13 +4646,15 @@
       }
       shareBtnEl.addEventListener('click', async () => {
         if (!lastVideoUrl) return;
+        const sharePath = currentJobId ? `/api/jobs/${encodeURIComponent(currentJobId)}/share-page` : lastVideoUrl;
+        const shareUrl = apiHref(sharePath);
         try {
           if (navigator.share) {
-            await navigator.share({ title: 'NorthStar', url: lastVideoUrl });
+            await navigator.share({ title: 'NorthStar share page', url: shareUrl });
           } else if (navigator.clipboard) {
-            await navigator.clipboard.writeText(lastVideoUrl);
-            statusEl.textContent = 'Copied video link to clipboard.';
-            showToast('Copied video link.', 'ok');
+            await navigator.clipboard.writeText(shareUrl);
+            statusEl.textContent = 'Copied share page link to clipboard.';
+            showToast('Copied share page link.', 'ok');
           } else {
             statusEl.textContent = 'Sharing not supported in this browser.';
             showToast('Sharing not supported in this browser.', 'err');
