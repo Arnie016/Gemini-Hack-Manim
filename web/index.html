@@ -2384,6 +2384,76 @@
       .settings-title { font-weight: 800; letter-spacing: 0.2px; }
       .settings-section { display: none; }
       .settings-section.active { display: block; }
+      .credit-launch-panel {
+        display: grid;
+        gap: 10px;
+      }
+      .credit-status-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .credit-status-card {
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 8px;
+        background: rgba(8, 12, 20, 0.62);
+        padding: 10px;
+      }
+      .credit-status-kicker {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 800;
+      }
+      .credit-status-value {
+        margin-top: 4px;
+        color: var(--text);
+        font-size: 18px;
+        font-weight: 900;
+      }
+      .credit-pack-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .credit-pack {
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 8px;
+        background: rgba(11, 13, 18, 0.68);
+        color: var(--text);
+        padding: 10px;
+        text-align: left;
+      }
+      .credit-pack strong {
+        display: block;
+        font-size: 17px;
+        line-height: 1.1;
+      }
+      .credit-pack span {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.35;
+      }
+      .credit-pack:hover {
+        border-color: rgba(106, 169, 255, 0.58);
+        background: rgba(18, 27, 42, 0.78);
+      }
+      .credit-note {
+        border: 1px solid rgba(34, 197, 94, 0.22);
+        border-radius: 8px;
+        background: rgba(22, 101, 52, 0.12);
+        color: #d1fae5;
+        padding: 9px 10px;
+        font-size: 12px;
+        line-height: 1.45;
+      }
+      .model-tier-note {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+      }
 
       /* Code tab: fixed toolbar + scrollable editor body. */
       .tab-panel[data-tab="code"] { padding: 12px; }
@@ -2732,6 +2802,8 @@
         .canvas-grid { grid-template-columns: 1fr; }
         .context-grid { grid-template-columns: 1fr; }
         .settings-shell { grid-template-columns: 1fr; }
+        .credit-status-grid,
+        .credit-pack-grid { grid-template-columns: 1fr 1fr; }
         .welcome-grid { grid-template-columns: 1fr; }
         .preview-overlay-left {
           top: 8px;
@@ -2740,6 +2812,10 @@
         .split-controls {
           gap: 6px;
         }
+      }
+      @media (max-width: 560px) {
+        .credit-status-grid,
+        .credit-pack-grid { grid-template-columns: 1fr; }
       }
     </style>
   </head>
@@ -3472,6 +3548,7 @@
             <div class="settings-shell">
               <div class="settings-nav" id="settingsNav">
                 <button class="ghost active" data-stab="api">API & Models</button>
+                <button class="ghost" data-stab="credits">Credits</button>
                 <button class="ghost" data-stab="render">Rendering</button>
                 <button class="ghost" data-stab="output">Output</button>
                 <button class="ghost" data-stab="agent">Agent</button>
@@ -3494,20 +3571,22 @@
                       <div>
                         <label for="settingsTextModel">Default text model</label>
                         <select id="settingsTextModel">
-                          <option value="gpt-5-mini">gpt-5-mini</option>
-                          <option value="gpt-5">gpt-5</option>
-                          <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+                          <option value="gpt-5">gpt-5 (Pro planning)</option>
+                          <option value="gpt-5-mini">gpt-5-mini (fast draft)</option>
                           <option value="gpt-4.1">gpt-4.1</option>
+                          <option value="gpt-4.1-mini">gpt-4.1-mini</option>
                           <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
                           <option value="gemini-3-pro-preview">gemini-3-pro-preview</option>
                           <option value="gemini-2.5-flash">gemini-2.5-flash</option>
                           <option value="gemini-2.5-pro">gemini-2.5-pro</option>
                         </select>
+                        <div class="model-tier-note">Default is OpenAI Pro planning. Use mini only for low-cost drafts.</div>
                       </div>
                     </div>
 
                     <label for="settingsOpenAIApiKey" style="margin-top:10px;">OpenAI API key</label>
                     <input id="settingsOpenAIApiKey" type="password" placeholder="Paste key" />
+                    <div class="model-tier-note">Local build uses this key or <code>OPENAI_API_KEY</code>. Hosted launch should use NorthStar credits first, then optional bring-your-own-key.</div>
                     <button id="clearOpenAIKey" class="ghost" style="margin-top:6px;">Clear saved OpenAI key</button>
                     <label for="settingsApiKey" style="margin-top:10px;">Gemini API key (images or Gemini text)</label>
                     <input id="settingsApiKey" type="password" placeholder="Paste key" />
@@ -3546,6 +3625,39 @@
                       <input id="settingsElevenModelId" placeholder="eleven_multilingual_v2" />
                     </div>
                     <button id="saveSettings" style="margin-top:10px;">Save</button>
+                  </div>
+                </div>
+
+                <div class="settings-section" data-stab="credits">
+                  <div class="drawer-section credit-launch-panel">
+                    <div>
+                      <div class="drawer-title">Credits & Launch Billing</div>
+                      <div class="muted">Hosted NorthStar should use a platform OpenAI key with credits. Local development still uses your saved key or <code>OPENAI_API_KEY</code>.</div>
+                    </div>
+                    <div class="credit-status-grid">
+                      <div class="credit-status-card">
+                        <div class="credit-status-kicker">New user trial</div>
+                        <div class="credit-status-value">3 videos</div>
+                      </div>
+                      <div class="credit-status-card">
+                        <div class="credit-status-kicker">Planning model</div>
+                        <div class="credit-status-value">gpt-5</div>
+                      </div>
+                      <div class="credit-status-card">
+                        <div class="credit-status-kicker">Checkout</div>
+                        <div class="credit-status-value">Stripe</div>
+                      </div>
+                    </div>
+                    <div class="credit-note">
+                      Launch rule: let a new creator make a few Manim videos first, then ask them to recharge. Do not require their own API key in the hosted app until they choose bring-your-own-key.
+                    </div>
+                    <div class="credit-pack-grid" aria-label="Credit recharge packs">
+                      <button class="credit-pack" data-credit-pack="$2 / 2 video credits"><strong>$2</strong><span>2 video credits<br />Quick test pack</span></button>
+                      <button class="credit-pack" data-credit-pack="$4 / 5 video credits"><strong>$4</strong><span>5 video credits<br />Starter creator pack</span></button>
+                      <button class="credit-pack" data-credit-pack="$8 / 12 video credits"><strong>$8</strong><span>12 video credits<br />Maker pack</span></button>
+                      <button class="credit-pack" data-credit-pack="$10 / 16 video credits"><strong>$10</strong><span>16 video credits<br />Best value pack</span></button>
+                    </div>
+                    <div id="creditCheckoutStatus" class="muted">Stripe checkout is not connected in this local build. These packs define the launch pricing surface.</div>
                   </div>
                 </div>
 
@@ -3698,10 +3810,10 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
               </button>
               <select id="chatModel" class="compose-model" title="Model" aria-label="Model">
+                <option value="gpt-5">gpt-5 Pro</option>
                 <option value="gpt-5-mini">gpt-5-mini</option>
-                <option value="gpt-5">gpt-5</option>
-                <option value="gpt-4.1-mini">gpt-4.1-mini</option>
                 <option value="gpt-4.1">gpt-4.1</option>
+                <option value="gpt-4.1-mini">gpt-4.1-mini</option>
                 <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
                 <option value="gemini-3-pro-preview">gemini-3-pro-preview</option>
                 <option value="gemini-2.5-flash">gemini-2.5-flash</option>
@@ -4407,6 +4519,7 @@
       const settingsTextProviderEl = document.getElementById('settingsTextProvider');
       const settingsTextModelEl = document.getElementById('settingsTextModel');
       const settingsImageModelEl = document.getElementById('settingsImageModel');
+      const creditCheckoutStatusEl = document.getElementById('creditCheckoutStatus');
       const settingsManimPyEl = document.getElementById('settingsManimPy');
       const settingsManimAutoHintEl = document.getElementById('settingsManimAutoHint');
       const saveSettingsBtn = document.getElementById('saveSettings');
@@ -5457,7 +5570,7 @@
             name: String(s.name || makeSessionName(i + 1)),
             color: String(s.color || SESSION_COLORS[i % SESSION_COLORS.length]),
             prompt: String(s.prompt || ''),
-            model: String(s.model || (chatModelEl?.value || 'gpt-5-mini')),
+            model: String(s.model || (chatModelEl?.value || 'gpt-5')),
             messages_html: String(s.messages_html || ''),
             last_sig: String(s.last_sig || ''),
             context_lock: !!s.context_lock,
@@ -6662,7 +6775,7 @@
       safeOn(clearGeminiKeyBtn, 'click', () => stageKeyClear('gemini'));
       safeOn(clearElevenKeyBtn, 'click', () => stageKeyClear('eleven'));
       safeOn(settingsTextProviderEl, 'change', () => {
-        const nextModel = settingsTextProviderEl.value === 'gemini' ? 'gemini-3-flash-preview' : 'gpt-5-mini';
+        const nextModel = settingsTextProviderEl.value === 'gemini' ? 'gemini-3-flash-preview' : 'gpt-5';
         if (settingsTextModelEl) settingsTextModelEl.value = nextModel;
         if (chatModelEl) chatModelEl.value = nextModel;
       });
@@ -6670,6 +6783,15 @@
         const model = settingsTextModelEl.value || '';
         if (settingsTextProviderEl) settingsTextProviderEl.value = model.startsWith('gemini-') ? 'gemini' : 'openai';
         if (chatModelEl) chatModelEl.value = model;
+      });
+      document.querySelectorAll('[data-credit-pack]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const pack = btn.getAttribute('data-credit-pack') || 'credit pack';
+          if (creditCheckoutStatusEl) {
+            creditCheckoutStatusEl.textContent = `${pack} selected. Connect Stripe checkout before enabling live purchases.`;
+          }
+          showToast('Credit pack staged for Stripe launch.', 'ok');
+        });
       });
       safeOn(sessionPrevBtn, 'click', () => cycleSession(-1));
       safeOn(sessionNextBtn, 'click', () => cycleSession(1));
@@ -9403,10 +9525,24 @@
       enableContextDrop(subagentsTextEl, 'subagents');
 
       async function loadTemplates() {
-        const resp = await fetch('/api/templates');
-        const data = await resp.json();
-        templates = data.templates || [];
+        let data = null;
+        try {
+          const resp = await fetch('/api/templates');
+          data = await parseApiResponse(resp, 'Templates failed to load.');
+        } catch {
+          data = { ok: false, error: 'Templates failed to load.' };
+        }
+        templates = Array.isArray(data?.templates) ? data.templates : [];
         templateSelectEl.innerHTML = '';
+        if (!templates.length) {
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = 'Templates unavailable';
+          templateSelectEl.appendChild(opt);
+          if (templateDescriptionEl) templateDescriptionEl.value = data?.error || 'Template API unavailable.';
+          showToast(data?.error || 'Templates unavailable.', 'err');
+          return;
+        }
         templates.forEach((t, idx) => {
           const opt = document.createElement('option');
           opt.value = t.id;
@@ -9423,10 +9559,10 @@
           showToast('Restored last session.', 'ok');
           return;
         }
-        if (templates[0]) applyTemplate(templates[0]);
+        if (templates[0]) applyTemplate(templates[0], { silent: true });
       }
 
-      function applyTemplate(tpl) {
+      function applyTemplate(tpl, opts = {}) {
         if (!tpl) return;
         templateDescriptionEl.value = tpl.description;
         if (tpl.example_prompt) chatInputEl.value = tpl.example_prompt;
@@ -9443,6 +9579,9 @@
         if (typeof d.include_graphs === 'boolean') graphsEl.value = d.include_graphs ? 'true' : 'false';
         if (typeof d.include_narration === 'boolean') narrationEl.value = d.include_narration ? 'true' : 'false';
         if (d.target_seconds) targetSecondsEl.value = d.target_seconds;
+        updateFirst60Checklist();
+        scheduleAutosave();
+        if (!opts.silent) showToast(`Template loaded: ${tpl.name || 'preset'}.`, 'ok');
       }
 
       templateSelectEl.addEventListener('change', () => {
@@ -9524,7 +9663,7 @@
         lastSettingsData = data;
         resetKeyClearState();
         const textProvider = data.text_provider || 'openai';
-        const textModel = data.text_model || (textProvider === 'gemini' ? 'gemini-3-flash-preview' : 'gpt-5-mini');
+        const textModel = data.text_model || (textProvider === 'gemini' ? 'gemini-3-flash-preview' : 'gpt-5');
         if (settingsTextProviderEl) settingsTextProviderEl.value = textProvider;
         if (settingsTextModelEl) settingsTextModelEl.value = textModel;
         if (chatModelEl) chatModelEl.value = textModel;
@@ -9535,6 +9674,12 @@
         if (settingsOutputCopyDirEl) settingsOutputCopyDirEl.value = data.output_copy_dir || '';
         if (settingsElevenVoiceIdEl) settingsElevenVoiceIdEl.value = data.elevenlabs_voice_id || '';
         if (settingsElevenModelIdEl) settingsElevenModelIdEl.value = data.elevenlabs_model_id || '';
+        if (creditCheckoutStatusEl && data.billing) {
+          const trial = Number(data.billing.starter_free_video_credits || 3);
+          creditCheckoutStatusEl.textContent = data.billing.stripe_checkout_configured
+            ? `Stripe checkout configured. New users start with ${trial} free video credits.`
+            : `Stripe checkout is not connected in this local build. Hosted launch should start users with ${trial} free video credits.`;
+        }
         if (voiceoverVoiceSelectEl && data.elevenlabs_voice_id) {
           const hasVoice = Array.from(voiceoverVoiceSelectEl.options || []).some((o) => o.value === data.elevenlabs_voice_id);
           voiceoverVoiceSelectEl.value = hasVoice ? data.elevenlabs_voice_id : '';
@@ -11397,7 +11542,7 @@
           name: name || makeSessionName(nextIndex),
           color: SESSION_COLORS[(nextIndex - 1) % SESSION_COLORS.length],
           prompt: '',
-          model: chatModelEl?.value || 'gpt-5-mini',
+          model: chatModelEl?.value || 'gpt-5',
           messages_html: '',
           last_sig: '',
           context_lock: false,

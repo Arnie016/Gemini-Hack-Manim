@@ -9,7 +9,7 @@ DEFAULT_MODEL = "gemini-3-flash-preview"
 DEFAULT_IMAGE_MODEL = "gemini-2.5-flash-image"
 DEFAULT_IMAGE_ASPECT = "9:16"
 OPENAI_BASE_URL = "https://api.openai.com/v1"
-DEFAULT_OPENAI_MODEL = "gpt-5-mini"
+DEFAULT_OPENAI_MODEL = "gpt-5"
 
 
 class GeminiError(RuntimeError):

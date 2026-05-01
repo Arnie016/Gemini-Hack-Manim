@@ -65,8 +65,15 @@ WORK = ROOT / "work"
 JOBS = WORK / "jobs"
 WEB = ROOT / "web"
 DEFAULT_TEXT_PROVIDER = "openai"
-DEFAULT_OPENAI_TEXT_MODEL = "gpt-5-mini"
+DEFAULT_OPENAI_TEXT_MODEL = "gpt-5"
 DEFAULT_GEMINI_TEXT_MODEL = "gemini-3-flash-preview"
+STARTER_FREE_VIDEO_CREDITS = 3
+CREDIT_PACKS = [
+    {"price_usd": 2, "video_credits": 2, "label": "Quick test pack"},
+    {"price_usd": 4, "video_credits": 5, "label": "Starter creator pack"},
+    {"price_usd": 8, "video_credits": 12, "label": "Maker pack"},
+    {"price_usd": 10, "video_credits": 16, "label": "Best value pack"},
+]
 
 WORK.mkdir(parents=True, exist_ok=True)
 JOBS.mkdir(parents=True, exist_ok=True)
@@ -235,6 +242,12 @@ def _settings_payload(settings: Dict[str, Any]) -> Dict[str, Any]:
         "elevenlabs_model_id": settings.get("elevenlabs_model_id") or "",
         "project_root": str(ROOT),
         "work_root": str(WORK),
+        "billing": {
+            "starter_free_video_credits": STARTER_FREE_VIDEO_CREDITS,
+            "credit_packs": CREDIT_PACKS,
+            "stripe_checkout_configured": bool(os.getenv("STRIPE_SECRET_KEY")),
+            "hosted_uses_platform_openai_key": True,
+        },
     }
 
 
