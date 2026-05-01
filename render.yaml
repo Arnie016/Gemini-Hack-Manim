@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: northstar-manim
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeploy: true
+    healthCheckPath: /api/live
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRICE_2
+        sync: false
+      - key: STRIPE_PRICE_4
+        sync: false
+      - key: STRIPE_PRICE_8
+        sync: false
+      - key: STRIPE_PRICE_10
+        sync: false
+      - key: APP_URL
+        value: https://northstar-manim.onrender.com
+    disk:
+      name: northstar-work
+      mountPath: /app/work
+      sizeGB: 10

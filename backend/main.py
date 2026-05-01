@@ -1717,6 +1717,11 @@ def favicon():
     return Response(status_code=204)
 
 
+@app.get("/api/live")
+def live():
+    return {"ok": True, "service": "northstar"}
+
+
 def _generate_assets(
     *,
     job_dir: Path,
