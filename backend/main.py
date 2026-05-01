@@ -769,7 +769,11 @@ def _build_director_brief(req: AnimateReq) -> str:
     if req.max_objects:
         lines.append(f"Max objects per scene: {req.max_objects}")
     if req.director_brief:
-        lines.append(f"Additional brief: {str(req.director_brief)[:1200]}")
+        additional = str(req.director_brief).strip()
+        if additional:
+            limit = 12000
+            suffix = "\n[Additional brief clipped for request size.]" if len(additional) > limit else ""
+            lines.append(f"Additional brief:\n{additional[:limit]}{suffix}")
     if getattr(req, "include_images", False) and getattr(req, "image_prompt", None):
         lines.append(
             f"Include visual assets based on: {str(getattr(req, 'image_prompt'))[:600]}"

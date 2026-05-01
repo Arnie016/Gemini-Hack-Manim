@@ -5976,7 +5976,7 @@
           return;
         }
         if (canOverrideStatus) {
-          setSourceStatus(`${sources.length} source(s) ready. Drag into prompt, timeline, or context.`, 'ok');
+          setSourceStatus(`${sources.length} source(s) ready. Attached to next plan; drag into prompt, timeline, or context.`, 'ok');
         }
         if (!sourceCardsEl) return;
         sourceCardsEl.innerHTML = '';
@@ -10876,7 +10876,7 @@
         return true;
       }
 
-      const DIRECTOR_BRIEF_SOFT_LIMIT = 1800;
+      const DIRECTOR_BRIEF_SOFT_LIMIT = 9000;
       let lastBriefTrimNoticeAt = 0;
       function clipDirectorBrief(text) {
         const raw = String(text || '').trim();
@@ -10889,6 +10889,57 @@
           showToast('Director brief auto-trimmed for request size.', 'ok');
         }
         return `${raw.slice(0, DIRECTOR_BRIEF_SOFT_LIMIT)}\n\n[Auto-trimmed for request size.]`;
+      }
+
+      function sourceEvidenceExcerpt(src, maxLen = 1000) {
+        const s = normalizeSourceRecord(src);
+        const raw = String(s.notes || '').trim();
+        if (!raw) return '';
+        const summary = String(s.summary || '').trim();
+        const normalizedRaw = raw.replace(/\s+/g, ' ').trim();
+        if (summary && normalizedRaw === summary.replace(/\s+/g, ' ').trim()) return '';
+        const text = raw
+          .split(/\r?\n/)
+          .map((line) => cleanInline(line))
+          .filter(Boolean)
+          .join('\n')
+          .trim();
+        if (!text) return '';
+        return text.length > maxLen ? `${text.slice(0, maxLen)}...` : text;
+      }
+
+      function buildSourceReferenceBlock() {
+        const sources = getSources().slice(0, 8);
+        if (!sources.length) return '';
+        let excerptBudget = 5200;
+        const block = sources.map((raw, i) => {
+          const s = normalizeSourceRecord(raw);
+          const lines = [];
+          lines.push(`Source ${i + 1}: ${s.title || s.url || 'source'}`);
+          if (s.kind === 'youtube' && s.video_id) lines.push(`Type: youtube (${s.video_id})`);
+          else lines.push(`Type: ${s.kind || 'web'}`);
+          if (s.url) lines.push(`URL: ${s.url}`);
+          if (s.file_path) lines.push(`Workspace file: ${s.file_path}`);
+          if (s.summary) lines.push(`Summary: ${s.summary}`);
+          if (Array.isArray(s.key_points) && s.key_points.length) {
+            lines.push('Key points:');
+            s.key_points.slice(0, 8).forEach((p) => lines.push(`- ${p}`));
+          }
+          if (s.prompt_hint) lines.push(`Prompt hint: ${s.prompt_hint}`);
+          if (excerptBudget > 240) {
+            const excerpt = sourceEvidenceExcerpt(s, Math.min(1200, excerptBudget));
+            if (excerpt) {
+              lines.push(`Evidence excerpt:\n${excerpt}`);
+              excerptBudget -= excerpt.length;
+            }
+          }
+          return lines.join('\n');
+        }).join('\n\n');
+        return [
+          'References:',
+          'Treat these as source-of-truth for the next plan. Preserve concrete facts, explain uncertainty, and turn source material into scene goals before writing Manim code.',
+          block,
+        ].join('\n');
       }
 
       async function handleAgenticEditCommand(raw) {
@@ -10934,6 +10985,8 @@
       function buildDirectorBrief() {
         const pieces = [];
         if (directorBriefEl.value.trim()) pieces.push(directorBriefEl.value.trim());
+        const sourceBlock = buildSourceReferenceBlock();
+        if (sourceBlock) pieces.push(sourceBlock);
         const creativeLines = [];
         if (creativeMotionEl) creativeLines.push(`Camera motion intensity: ${creativeMotionEl.value}/100`);
         if (creativeDensityEl) creativeLines.push(`On-screen label density: ${creativeDensityEl.value}/100`);
@@ -10975,28 +11028,6 @@
         if (rules) pieces.push(`Rules:\n${rules}`);
         const sub = subagentsTextEl.value.trim();
         if (sub) pieces.push(`Subagents:\n${sub}`);
-
-        const sources = getSources();
-        if (sources.length) {
-          const block = sources.map((raw, i) => {
-            const s = normalizeSourceRecord(raw);
-            const lines = [];
-            lines.push(`Source ${i + 1}: ${s.title || s.url || 'source'}`);
-            if (s.kind === 'youtube' && s.video_id) lines.push(`Type: youtube (${s.video_id})`);
-            else lines.push(`Type: ${s.kind || 'web'}`);
-            if (s.url) lines.push(`URL: ${s.url}`);
-            if (s.summary) lines.push(`Summary: ${s.summary}`);
-            if (Array.isArray(s.key_points) && s.key_points.length) {
-              lines.push('Key points:');
-              s.key_points.slice(0, 8).forEach((p) => lines.push(`- ${p}`));
-            }
-            if (s.prompt_hint) lines.push(`Prompt hint: ${s.prompt_hint}`);
-            if (s.file_path) lines.push(`Workspace summary file: ${s.file_path}`);
-            if (!s.summary && s.notes) lines.push(`Notes: ${s.notes.slice(0, 800)}`);
-            return lines.join('\n');
-          }).join('\n\n');
-          pieces.push(`References:\n${block}`);
-        }
         return clipDirectorBrief(pieces.join('\n\n'));
       }
 
