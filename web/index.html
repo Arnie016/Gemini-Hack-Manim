@@ -150,7 +150,7 @@
 
       .layout {
         display: grid;
-        grid-template-columns: 280px 6px 1fr 6px 360px;
+        grid-template-columns: 280px 6px 1fr 6px 420px;
         grid-template-rows: 1fr;
         height: calc(100vh - 48px);
         gap: 0;
@@ -393,14 +393,13 @@
       .canvas-grid {
         display: grid;
         grid-template-columns: 1fr;
-        /* Top/bottom canvas sections are draggable via splitter. */
-        --canvas-top: 72%;
-        --canvas-timeline: 16%;
-        --canvas-controls: calc(100% - var(--canvas-top) - var(--canvas-timeline) - 8px);
-        grid-template-rows: minmax(180px, var(--canvas-top)) 8px minmax(110px, var(--canvas-timeline)) minmax(120px, var(--canvas-controls));
-        gap: 12px;
+        --canvas-top: 80%;
+        --canvas-timeline: 20%;
+        grid-template-rows: minmax(420px, var(--canvas-top)) 6px minmax(96px, var(--canvas-timeline));
+        gap: 10px;
         height: 100%;
         min-height: 0;
+        position: relative;
       }
       .card {
         border: 1px solid var(--border);
@@ -417,7 +416,19 @@
         flex-direction: column;
       }
       .preview-card { display: flex; flex-direction: column; min-height: 0; }
-      .controls-card { grid-column: 1 / -1; grid-row: 4; overflow: auto; }
+      .controls-card {
+        grid-column: 1 / -1;
+        grid-row: 1 / -1;
+        overflow: auto;
+        display: none;
+        position: relative;
+        z-index: 20;
+        min-height: 0;
+      }
+      .controls-card.terminal-open {
+        display: flex;
+        flex-direction: column;
+      }
       .preview-card { grid-column: 1 / -1; grid-row: 1; }
       .timeline-card { grid-column: 1 / -1; grid-row: 3; }
       .canvas-splitter {
@@ -435,7 +446,7 @@
 
       .preview-area {
         height: 100%;
-        min-height: 240px;
+        min-height: 420px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -1057,7 +1068,7 @@
         color: var(--muted);
       }
       .canvas-grid.timeline-hidden {
-        grid-template-rows: minmax(220px, var(--canvas-top)) 0 minmax(0, 0) minmax(180px, 1fr);
+        grid-template-rows: minmax(520px, 1fr) 0 minmax(0, 0);
       }
       .canvas-grid.timeline-hidden .canvas-splitter,
       .canvas-grid.timeline-hidden .timeline-card {
@@ -1176,14 +1187,28 @@
       @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
       .terminal {
-        border-top: 1px solid var(--border);
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 12px;
         background: #0b1119;
-        padding: 10px;
+        padding: 12px;
         font-family: 'IBM Plex Mono', monospace;
         font-size: 12px;
+        min-height: 0;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
       }
       .terminal.hidden { display: none; }
-      .terminal pre { white-space: pre-wrap; margin: 0; color: #86efac; }
+      .terminal .toolbar { flex: 0 0 auto; }
+      .terminal pre {
+        white-space: pre-wrap;
+        margin: 0;
+        color: #86efac;
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+      }
 
       .chat {
         display: flex;
@@ -2794,6 +2819,210 @@
         animation-delay: 330ms;
       }
 
+      .optional-control-group {
+        margin-top: 12px;
+        border-top: 1px solid rgba(148, 163, 184, 0.14);
+        padding-top: 10px;
+      }
+      .optional-control-group > summary,
+      #leftVisualsPanel summary,
+      #creativeControlsDetails summary,
+      #vibeMotionDetails summary {
+        cursor: pointer;
+        color: #cbd5e1;
+        font-weight: 800;
+      }
+      #leftVisualsPanel .row,
+      #creativeControlsDetails .row {
+        grid-template-columns: 1fr;
+      }
+      #leftVisualsPanel .asset-tray {
+        grid-template-columns: 1fr;
+      }
+      #leftVisualsPanel .asset-actions {
+        grid-template-columns: 1fr;
+      }
+
+      .preview-card {
+        padding: 10px;
+        background: linear-gradient(180deg, rgba(18, 24, 34, 0.96), rgba(12, 17, 25, 0.98));
+      }
+      .preview-card > .muted:first-child {
+        display: none;
+      }
+      .preview-wrap {
+        flex: 1 1 auto;
+        min-height: 0;
+      }
+      .preview-empty {
+        max-width: 420px;
+        text-align: center;
+        line-height: 1.35;
+        opacity: 0.72;
+      }
+      .preview-transport {
+        margin-top: 8px;
+        padding: 8px 10px;
+        border-radius: 10px;
+        background: rgba(4, 8, 14, 0.72);
+      }
+      .timeline-card {
+        padding: 10px 12px;
+        background: rgba(17, 23, 32, 0.82);
+      }
+      .timeline-wrap {
+        min-height: 0;
+        flex: 1 1 auto;
+      }
+      .timeline-card > .muted:last-child,
+      .timeline-hint {
+        display: none;
+      }
+      .timeline-ruler {
+        margin-top: 4px !important;
+      }
+      .timeline-track {
+        min-height: 44px;
+        max-height: 92px;
+        overflow-y: auto;
+      }
+
+      #rightPanel .panel-body.chat {
+        overflow: hidden;
+        padding: 10px;
+      }
+      .chat {
+        gap: 8px;
+      }
+      .chat-carousel {
+        order: 1;
+        grid-template-columns: 28px minmax(0, 1fr) 28px;
+      }
+      .chat-carousel-btn {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        padding: 0;
+      }
+      .chat-sessions {
+        gap: 6px;
+        padding: 2px 0;
+        scrollbar-width: none;
+      }
+      .chat-sessions::-webkit-scrollbar {
+        display: none;
+      }
+      .chat-session-card {
+        min-width: 94px;
+        max-width: 132px;
+        padding: 6px 8px;
+        border-radius: 999px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .chat-session-card-head {
+        width: 100%;
+        gap: 6px;
+      }
+      .chat-session-name-label {
+        max-width: 64px;
+      }
+      .chat-session-phase,
+      .chat-session-card > .muted {
+        display: none;
+      }
+      .chat-session-head-right {
+        gap: 4px;
+      }
+      .chat-session-edit,
+      .chat-session-lock,
+      .chat-session-close {
+        width: 20px;
+        height: 20px;
+        border-radius: 999px;
+        display: none;
+      }
+      .chat-session-card.active .chat-session-lock,
+      .chat-session-card.active:hover .chat-session-edit,
+      .chat-session-card.active:hover .chat-session-close,
+      .chat-session-card:hover .chat-session-close {
+        display: inline-flex;
+      }
+      .chat-session-add {
+        min-width: 32px;
+        width: 32px;
+        height: 32px;
+        padding: 0;
+      }
+      .agent-steps { order: 2; }
+      .agent-progress { order: 3; }
+      .step-detail {
+        order: 4;
+        min-height: 0;
+        padding: 8px 10px;
+      }
+      .chat-messages {
+        order: 5;
+        flex: 1 1 auto;
+        max-height: none;
+        min-height: 150px;
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        border-radius: 8px;
+        background: rgba(4, 8, 14, 0.55);
+        padding: 8px;
+      }
+      .chat-messages:empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .chat-messages:empty::before {
+        content: "Chat history appears here after you send a prompt.";
+        color: var(--muted);
+        font-size: 12px;
+        text-align: center;
+      }
+      .context-block {
+        order: 6;
+        max-height: 30vh;
+        overflow: auto;
+      }
+      .first60-panel {
+        order: 7;
+        max-height: 220px;
+        overflow: auto;
+      }
+      .mention-toolbar,
+      #mentionBar,
+      #status {
+        order: 8;
+      }
+      .composer-card {
+        order: 20;
+        position: sticky;
+        bottom: 0;
+        z-index: 10;
+        box-shadow: 0 -12px 24px rgba(2, 6, 23, 0.28);
+      }
+      #chatInput {
+        min-height: 100px;
+        max-height: 180px;
+      }
+      .chat-compose {
+        grid-template-columns: 36px minmax(92px, 1fr) 36px 48px;
+      }
+      .compose-send span {
+        display: none;
+      }
+      .mode-chip.is-quick {
+        border-color: rgba(34, 197, 94, 0.3);
+      }
+      body.is-processing .workflow-locked,
+      body.is-processing [data-lock-while-busy="true"] {
+        opacity: 0.58;
+      }
+
       @media (max-width: 1200px) {
         .layout { grid-template-columns: 1fr; grid-template-rows: auto; height: auto; }
         /* Undo column pinning on smaller viewports to avoid implicit off-screen columns. */
@@ -2876,6 +3105,12 @@
           <label for="templateDescription" style="margin-top:8px;">Template description</label>
           <textarea id="templateDescription" disabled></textarea>
 
+          <details id="leftVisualsPanel" class="optional-control-group">
+            <summary>Optional visuals & defaults</summary>
+            <div class="muted" style="margin-top:6px;">Images, aspect, and advanced generation defaults live here so the canvas stays focused on the video.</div>
+            <div id="leftVisualsMount" style="margin-top:8px;"></div>
+          </details>
+
           <div class="section-title">Workspace</div>
           <div class="row small" style="margin-top:8px;">
             <input id="newPath" placeholder="notes/outline.md" />
@@ -2890,6 +3125,9 @@
 
           <div class="section-title">Job</div>
           <div class="muted" id="outputPaths" style="margin-bottom:8px;">Current output: work/jobs/&lt;job_id&gt;/out.mp4</div>
+          <details id="creativeControlsDetails" class="optional-control-group">
+            <summary>Advanced creative controls</summary>
+            <div class="muted" style="margin-top:6px;">Fine-tune motion and complexity only when the default planning behavior needs steering.</div>
           <div class="row" style="margin-top:8px;">
             <div>
               <div class="slider-label-row">
@@ -2938,8 +3176,9 @@
               <input id="creativePrecision" type="range" min="0" max="100" step="1" value="66" />
             </div>
           </div>
+          </details>
           <div class="section-title" style="margin-top:10px;">Vibe Motion</div>
-          <details id="vibeMotionDetails" open>
+          <details id="vibeMotionDetails">
             <summary>Overlay text, captions, and orientation</summary>
             <div class="compact-scroll" style="margin-top:8px;">
               <div class="row">
@@ -3089,8 +3328,8 @@
           <section class="tab-panel active" data-tab="canvas">
             <div class="canvas-grid">
               <div class="card scroll controls-card">
-                <details id="imageGenDetails" open>
-                  <summary>Image generation</summary>
+                <details id="imageGenDetails">
+                  <summary>Optional image generation</summary>
                   <div class="row" style="margin-top:8px;">
                     <div>
                       <label for="imagePreset">Physics preset</label>
@@ -3139,11 +3378,11 @@
                     </div>
                   </div>
                   <div class="row" style="margin-top:8px;">
-                    <button id="genImages" type="button" class="secondary" title="Generate background/foreground previews using the image model (Nano Banana)">
+                    <button id="genImages" type="button" class="secondary" title="Generate optional background/foreground previews using the configured image model">
                       Generate images
                     </button>
                     <div class="muted" style="display:flex; align-items:center;">
-                      Nano Banana Pro flow: pick preset -> (optional) minor edits -> generate -> click best variant -> drag into scenes.
+                      Optional flow: pick preset -> minor edits -> generate -> click best variant -> drag into scenes.
                     </div>
                   </div>
                   <div class="health-badges" style="margin-top:8px;">
@@ -3190,8 +3429,8 @@
                   <div>
                     <label for="includeImages">Include images</label>
                     <select id="includeImages">
+                      <option value="false" selected>No</option>
                       <option value="true">Yes</option>
-                      <option value="false">No</option>
                     </select>
                   </div>
                   <div>
@@ -3333,7 +3572,7 @@
                       <label for="imageModelOverride">Image model override</label>
                       <select id="imageModelOverride">
                         <option value="">Default</option>
-                        <option value="gemini-2.5-flash-image">nano banana pro (gemini-2.5-flash-image)</option>
+                        <option value="gemini-2.5-flash-image">image fast (gemini-2.5-flash-image)</option>
                         <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
                       </select>
                     </div>
@@ -3565,7 +3804,7 @@
                         <label for="settingsTextProvider">Text provider</label>
                         <select id="settingsTextProvider">
                           <option value="openai">OpenAI</option>
-                          <option value="gemini">Gemini</option>
+                          <option value="gemini">Gemini (optional)</option>
                         </select>
                       </div>
                       <div>
@@ -3588,7 +3827,7 @@
                     <input id="settingsOpenAIApiKey" type="password" placeholder="Paste key" />
                     <div class="model-tier-note">Local build uses this key or <code>OPENAI_API_KEY</code>. Hosted launch should use NorthStar credits first, then optional bring-your-own-key.</div>
                     <button id="clearOpenAIKey" class="ghost" style="margin-top:6px;">Clear saved OpenAI key</button>
-                    <label for="settingsApiKey" style="margin-top:10px;">Gemini API key (images or Gemini text)</label>
+                    <label for="settingsApiKey" style="margin-top:10px;">Optional Gemini key (images or Gemini text)</label>
                     <input id="settingsApiKey" type="password" placeholder="Paste key" />
                     <button id="clearGeminiKey" class="ghost" style="margin-top:6px;">Clear saved Gemini key</button>
                     <button id="settingsShowKey" class="ghost" style="margin-top:6px;">Show/Hide text keys</button>
@@ -3598,7 +3837,7 @@
                       <div>
                         <label for="settingsImageModel">Default image model</label>
                         <select id="settingsImageModel">
-                          <option value="gemini-2.5-flash-image">gemini-2.5-flash-image (Nano Banana)</option>
+                          <option value="gemini-2.5-flash-image">gemini-2.5-flash-image (fast image)</option>
                           <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
                         </select>
                       </div>
@@ -3607,7 +3846,7 @@
                       <div id="settingsTextProviderBadge" class="badge-pill">Text provider: checking…</div>
                       <div id="settingsImageProviderBadge" class="badge-pill">Image provider: checking…</div>
                     </div>
-                    <div class="muted" style="margin-top:6px;">Nano Banana = <code>gemini-2.5-flash-image</code></div>
+                    <div class="muted" style="margin-top:6px;">Image generation is optional. Hosted text flow stays OpenAI-first.</div>
                     <div class="drawer-section" style="margin-top:10px;">
                       <div class="drawer-title">Voiceover (ElevenLabs)</div>
                       <div class="row">
@@ -3814,10 +4053,6 @@
                 <option value="gpt-5-mini">gpt-5-mini</option>
                 <option value="gpt-4.1">gpt-4.1</option>
                 <option value="gpt-4.1-mini">gpt-4.1-mini</option>
-                <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
-                <option value="gemini-3-pro-preview">gemini-3-pro-preview</option>
-                <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-                <option value="gemini-2.5-pro">gemini-2.5-pro</option>
               </select>
               <button id="voiceBtn" class="compose-btn" title="Voice input" aria-label="Voice input">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v4"/><path d="M8 23h8"/></svg>
@@ -3832,6 +4067,11 @@
                 <input id="crazyMode" type="checkbox" />
                 <span class="mode-icon" aria-hidden="true">⚡</span>
                 <span class="mode-label">Crazy</span>
+              </label>
+              <label class="mode-chip is-quick" title="Quick mode: auto-approve the plan and start render">
+                <input id="quickMode" type="checkbox" />
+                <span class="mode-icon" aria-hidden="true">Q</span>
+                <span class="mode-label">Quick</span>
               </label>
               <label class="mode-chip" title="Model assist (auto-polish prompt before planning)">
                 <input id="geminiAssist" type="checkbox" checked />
@@ -4107,6 +4347,7 @@
       const vibeCaptionDensityEl = document.getElementById('vibeCaptionDensity');
       const vibeOverlayStrengthEl = document.getElementById('vibeOverlayStrength');
       const vibeTitleWeightEl = document.getElementById('vibeTitleWeight');
+      const leftVisualsMountEl = document.getElementById('leftVisualsMount');
       const imageGenDetailsEl = document.getElementById('imageGenDetails');
       const imagePresetEl = document.getElementById('imagePreset');
       const imageAssetTypeEl = document.getElementById('imageAssetType');
@@ -4247,6 +4488,16 @@
       let toastTimer = null;
       document.querySelectorAll('button:not([type])').forEach((btn) => btn.setAttribute('type', 'button'));
 
+      function relocateGenerationControls() {
+        if (!leftVisualsMountEl || !controlsCardEl) return;
+        Array.from(controlsCardEl.children).forEach((child) => {
+          if (child === terminalPanel) return;
+          leftVisualsMountEl.appendChild(child);
+        });
+        if (imageGenDetailsEl) imageGenDetailsEl.open = false;
+      }
+      relocateGenerationControls();
+
       function apiHref(path) {
         const raw = String(path || '');
         if (!raw) return raw;
@@ -4328,6 +4579,53 @@
       let crazyCountdownAction = null;
       let busyThoughtTimer = null;
       let busyThoughtIndex = 0;
+      const workflowLockPrevious = new WeakMap();
+      const workflowLockSelectors = [
+        '#chatInput',
+        '#chatModel',
+        '#filePicker',
+        '#attachBtn',
+        '#voiceBtn',
+        '#crazyMode',
+        '#quickMode',
+        '#geminiAssist',
+        '#polishPromptBtn',
+        '#templateSelect',
+        '#resetToTemplate',
+        '#leftVisualsMount input',
+        '#leftVisualsMount select',
+        '#leftVisualsMount button',
+        '#creativeControlsDetails input',
+        '#creativeControlsDetails select',
+        '#creativeControlsDetails button',
+        '#vibeMotionDetails input',
+        '#vibeMotionDetails select',
+        '#vibeMotionDetails button',
+        '.plan-json-editor',
+        '.approve-render-btn'
+      ];
+      function setWorkflowLocked(locked) {
+        document.body.classList.toggle('is-processing', !!locked);
+        const controls = document.querySelectorAll(workflowLockSelectors.join(','));
+        controls.forEach((el) => {
+          if (!el || typeof el.disabled === 'undefined') return;
+          if (locked) {
+            if (!workflowLockPrevious.has(el)) workflowLockPrevious.set(el, !!el.disabled);
+            el.disabled = true;
+            el.dataset.lockWhileBusy = 'true';
+            el.classList.add('workflow-locked');
+            return;
+          }
+          if (workflowLockPrevious.has(el)) {
+            el.disabled = workflowLockPrevious.get(el);
+            workflowLockPrevious.delete(el);
+          } else {
+            el.disabled = false;
+          }
+          el.dataset.lockWhileBusy = 'false';
+          el.classList.remove('workflow-locked');
+        });
+      }
       function busyThoughtPool(phase) {
         const key = String(phase || '').toLowerCase();
         if (key.includes('plan')) return [
@@ -4376,6 +4674,7 @@
       }
       function setBusy(on, message, phase) {
         isBusy = !!on;
+        setWorkflowLocked(isBusy);
         if (busyOverlayEl) busyOverlayEl.classList.toggle('hidden', !isBusy);
         if (previewEmptyEl && isBusy) previewEmptyEl.classList.add('hidden');
         if (previewEmptyEl && !isBusy && !videoEl?.src) previewEmptyEl.classList.remove('hidden');
@@ -4569,6 +4868,7 @@
       const settingsTextProviderBadgeEl = document.getElementById('settingsTextProviderBadge');
       const settingsImageProviderBadgeEl = document.getElementById('settingsImageProviderBadge');
       const crazyModeEl = document.getElementById('crazyMode');
+      const quickModeEl = document.getElementById('quickMode');
       const geminiAssistEl = document.getElementById('geminiAssist');
       const crazyCountdownEl = document.getElementById('crazyCountdown');
       const crazyCountdownTextEl = document.getElementById('crazyCountdownText');
@@ -5342,7 +5642,7 @@
           next.steps[2] = {
             title: 'Skip visuals for now',
             body: 'Start with a text-only render now. Turn Include images on later when you want background or foreground assets.',
-            hint: 'Middle panel -> Include images',
+            hint: 'Explorer -> Optional visuals & defaults',
             target: '#includeImages',
             icon_prompt: 'Toggle switch with image icon dark ui',
             icon_url: '',
@@ -5459,8 +5759,9 @@
           controls: {
             gemini_assist: !!(geminiAssistEl && geminiAssistEl.checked),
             crazy_mode: !!(crazyModeEl && crazyModeEl.checked),
+            quick_mode: !!(quickModeEl && quickModeEl.checked),
             timeline_hidden: !!timelineHidden,
-            include_images: includeImagesEl?.value || 'true',
+            include_images: includeImagesEl?.value || 'false',
             image_prompt: imagePromptEl?.value || '',
             image_preset: imagePresetEl?.value || '',
             image_asset_type: imageAssetTypeEl?.value || 'cinematic_background',
@@ -5532,13 +5833,17 @@
         pendingRestore = snap;
         // Apply what we can immediately (templates load async).
         if (snap.prompt && chatInputEl) chatInputEl.value = snap.prompt;
-        if (snap.chat_model && chatModelEl) chatModelEl.value = snap.chat_model;
+        if (snap.chat_model && chatModelEl) {
+          const hasModel = Array.from(chatModelEl.options || []).some((o) => o.value === snap.chat_model);
+          chatModelEl.value = hasModel ? snap.chat_model : 'gpt-5';
+        }
         if (snap.director_brief && directorBriefEl) directorBriefEl.value = snap.director_brief;
         if (snap.rules_text && rulesTextEl) rulesTextEl.value = snap.rules_text;
         if (snap.subagents_text && subagentsTextEl) subagentsTextEl.value = snap.subagents_text;
         const c = snap.controls || {};
         if (geminiAssistEl && c.gemini_assist !== undefined) geminiAssistEl.checked = !!c.gemini_assist;
         if (crazyModeEl && c.crazy_mode !== undefined) crazyModeEl.checked = !!c.crazy_mode;
+        if (quickModeEl && c.quick_mode !== undefined) quickModeEl.checked = !!c.quick_mode;
         if (c.timeline_hidden !== undefined) setTimelineHidden(!!c.timeline_hidden, false);
         if (includeImagesEl && c.include_images) includeImagesEl.value = c.include_images;
         if (imagePromptEl && c.image_prompt) imagePromptEl.value = c.image_prompt;
@@ -6368,10 +6673,7 @@
         if (terminalPanel.parentElement !== controlsCardEl) {
           controlsCardEl.appendChild(terminalPanel);
         }
-        Array.from(controlsCardEl.children).forEach((child) => {
-          if (child === terminalPanel) return;
-          child.classList.toggle('hidden', terminalMode);
-        });
+        controlsCardEl.classList.toggle('terminal-open', terminalMode);
         terminalPanel.classList.toggle('hidden', !terminalMode);
         updateTopbarToggles();
         if (terminalMode) {
@@ -6793,12 +7095,12 @@
       safeOn(settingsTextProviderEl, 'change', () => {
         const nextModel = settingsTextProviderEl.value === 'gemini' ? 'gemini-3-flash-preview' : 'gpt-5';
         if (settingsTextModelEl) settingsTextModelEl.value = nextModel;
-        if (chatModelEl) chatModelEl.value = nextModel;
+        if (chatModelEl) chatModelEl.value = nextModel.startsWith('gemini-') ? 'gpt-5' : nextModel;
       });
       safeOn(settingsTextModelEl, 'change', () => {
         const model = settingsTextModelEl.value || '';
         if (settingsTextProviderEl) settingsTextProviderEl.value = model.startsWith('gemini-') ? 'gemini' : 'openai';
-        if (chatModelEl) chatModelEl.value = model;
+        if (chatModelEl) chatModelEl.value = model.startsWith('gemini-') ? 'gpt-5' : model;
       });
       document.querySelectorAll('[data-credit-pack]').forEach((btn) => {
         btn.addEventListener('click', () => {
@@ -6954,7 +7256,10 @@
         updateSessionPhase(session);
         if (chatMessagesEl) chatMessagesEl.innerHTML = session.messages_html || '';
         if (chatInputEl) chatInputEl.value = session.prompt || '';
-        if (chatModelEl && session.model) chatModelEl.value = session.model;
+        if (chatModelEl && session.model) {
+          const hasModel = Array.from(chatModelEl.options || []).some((o) => o.value === session.model);
+          chatModelEl.value = hasModel ? session.model : 'gpt-5';
+        }
         lastChatSignature = session.last_sig || '';
         currentJobId = session.job_id || '';
         currentPlanText = session.plan_text || '';
@@ -8344,6 +8649,7 @@
       bindAutosave(chatInputEl, 'input');
       bindAutosave(chatModelEl, 'change');
       bindAutosave(geminiAssistEl, 'change');
+      bindAutosave(quickModeEl, 'change');
       safeOn(chatInputEl, 'input', () => {
         const session = getActiveChatSession();
         if (session) session.prompt = chatInputEl.value || '';
@@ -9731,7 +10037,10 @@
         const textModel = data.text_model || (textProvider === 'gemini' ? 'gemini-3-flash-preview' : 'gpt-5');
         if (settingsTextProviderEl) settingsTextProviderEl.value = textProvider;
         if (settingsTextModelEl) settingsTextModelEl.value = textModel;
-        if (chatModelEl) chatModelEl.value = textModel;
+        if (chatModelEl) {
+          const hasModel = Array.from(chatModelEl.options || []).some((o) => o.value === textModel);
+          chatModelEl.value = hasModel ? textModel : 'gpt-5';
+        }
         if (data.image_model) settingsImageModelEl.value = data.image_model;
         if (settingsManimPyEl) settingsManimPyEl.value = data.manim_py || '';
         if (settingsProjectRootEl) settingsProjectRootEl.textContent = data.project_root || '—';
@@ -9765,7 +10074,7 @@
         }
         renderKeyClearButtons(data);
         if (!data.has_text_api_key) {
-          statusEl.textContent = 'Open Settings and paste an OpenAI or Gemini text API key.';
+          statusEl.textContent = 'Open Settings and connect OpenAI credits or an OpenAI API key.';
           try {
             const seen = localStorage.getItem('seenApiKeyHint');
             if (!seen) {
@@ -9830,7 +10139,10 @@
             settingsApiKeyEl.placeholder = 'Paste key';
             settingsApiKeyEl.value = '';
           }
-          if (data.text_model) chatModelEl.value = data.text_model;
+          if (data.text_model && chatModelEl) {
+            const hasModel = Array.from(chatModelEl.options || []).some((o) => o.value === data.text_model);
+            chatModelEl.value = hasModel ? data.text_model : 'gpt-5';
+          }
           renderKeyClearButtons(data);
           renderManimPythonHint(data, lastHealthData);
           renderProviderReadiness(data, lastPreflightData);
@@ -9885,12 +10197,12 @@
         const textReady = !!(settingsData?.has_text_api_key || preflightData?.checks?.api_key);
         const imageReady = !!settingsData?.has_image_api_key;
         const textLabel = `Text: ${textProvider} ${textModel ? `· ${textModel}` : ''}`.trim();
-        const imageLabel = `Images: Gemini ${imageReady ? 'ready' : 'key missing'}`;
+        const imageLabel = `Optional images: ${imageReady ? 'ready' : 'off'}`;
         const settingsTextLabel = `Text provider: ${textProvider} ${textModel ? `· ${textModel}` : ''}`.trim();
-        const settingsImageLabel = `Image provider: Gemini ${imageReady ? `· ${imageModel}` : 'needs key'}`;
+        const settingsImageLabel = `Optional image provider: ${imageReady ? imageModel : 'not configured'}`;
         const hint = imageReady
-          ? `Image generation is ready through Gemini (${imageModel}).`
-          : 'Image generation uses Gemini image models. Add a Gemini API key in Settings, or turn Include images off for text-only runs.';
+          ? `Optional image generation is ready (${imageModel}).`
+          : 'Image generation is optional. Turn Include images off for text-only runs, or add an image provider key in Settings.';
 
         setSidebarHealthBadge(textProviderBadgeEl, textLabel, textReady);
         setSidebarHealthBadge(imageProviderBadgeEl, imageLabel, imageReady);
@@ -9900,8 +10212,8 @@
         if (genImagesBtn) {
           genImagesBtn.disabled = !imageReady;
           genImagesBtn.title = imageReady
-            ? 'Generate background/foreground previews using the configured Gemini image model.'
-            : 'Add a Gemini API key in Settings to enable image generation.';
+            ? 'Generate optional background/foreground previews using the configured image model.'
+            : 'Add an image provider key in Settings to enable image generation.';
         }
         refreshProviderAwareOnboardingSurface();
       }
@@ -9926,7 +10238,7 @@
         if (preflightData?.text_provider || preflightData?.text_model) {
           lines.push(`Text provider: ${preflightData?.text_provider || 'openai'}${preflightData?.text_model ? ` (${preflightData.text_model})` : ''}`);
         }
-        lines.push(`Image provider: Gemini ${lastSettingsData?.has_image_api_key ? 'ready' : 'needs API key'}`);
+        lines.push(`Optional image provider: ${lastSettingsData?.has_image_api_key ? 'ready' : 'not configured'}`);
         if (preflightData?.output_root) lines.push(`Output root: ${preflightData.output_root}`);
         if (Array.isArray(preflightData?.missing) && preflightData.missing.length) {
           lines.push(`Missing: ${preflightData.missing.join(', ')}`);
@@ -11515,6 +11827,7 @@
         scheduleAutosave();
 
         const planBox = document.createElement('textarea');
+        planBox.className = 'plan-json-editor';
         planBox.style.width = '100%';
         planBox.style.minHeight = '120px';
         planBox.style.maxHeight = '260px';
@@ -11522,6 +11835,7 @@
         lastPlanBox = planBox;
 
         const approveBtn = document.createElement('button');
+        approveBtn.className = 'approve-render-btn';
         approveBtn.textContent = 'Approve & Render';
         approveBtn.style.marginTop = '8px';
 
@@ -11595,6 +11909,15 @@
           };
           updateSessionPhase(session);
           renderChatSessions();
+        }
+
+        if (quickModeEl && quickModeEl.checked && !(crazyModeEl && crazyModeEl.checked)) {
+          setStepNote('approve', 'Quick mode auto-approved the plan and started rendering.');
+          showToast('Quick mode: auto-approving plan.', 'ok');
+          setTimeout(() => {
+            if (timelineState.length) syncPlanFromTimeline();
+            void approvePlan(lastPlanBox ? lastPlanBox.value : planBox.value);
+          }, 120);
         }
       }
 
@@ -12404,6 +12727,10 @@
         syncComposeModeChips();
         scheduleAutosave();
       });
+      safeOn(quickModeEl, 'change', () => {
+        syncComposeModeChips();
+        scheduleAutosave();
+      });
       safeOn(geminiAssistEl, 'change', () => {
         syncComposeModeChips();
         scheduleAutosave();
@@ -12648,7 +12975,7 @@
         if (imagePresetEl && !imagePresetEl.value) imagePresetEl.value = 'matte_black_stage';
         if (imageAssetTypeEl && !imageAssetTypeEl.value) imageAssetTypeEl.value = 'cinematic_background';
         if (imageMinorEditEl && !String(imageMinorEditEl.value || '').trim()) imageMinorEditEl.value = '';
-        if (!includeImagesEl.value) includeImagesEl.value = 'true';
+        if (!includeImagesEl.value) includeImagesEl.value = 'false';
         if (!imageModeEl.value) imageModeEl.value = 'background';
         if (imageVariantsEl && !imageVariantsEl.value) imageVariantsEl.value = '1';
 
@@ -12749,10 +13076,10 @@
       refreshSidebarHealth();
       setInterval(refreshSidebarHealth, 30000);
       try {
-        const hidden = localStorage.getItem(FIRST60_HIDE_KEY) === '1';
-        setFirst60Visible(!hidden, false);
+        const preference = localStorage.getItem(FIRST60_HIDE_KEY);
+        setFirst60Visible(preference === '0', false);
       } catch {
-        setFirst60Visible(true, false);
+        setFirst60Visible(false, false);
       }
       updateFirst60Checklist();
       templatesPromise.catch(() => {}).finally(() => {
