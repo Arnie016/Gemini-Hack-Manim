@@ -1224,6 +1224,7 @@ def _job_files(paths) -> list[str]:
         paths.job_dir / "share.html",
         paths.job_dir / "manifest.json",
         paths.job_dir / "README.md",
+        paths.job_dir / "share-copy.md",
         paths.job_dir / "export.zip",
     ]
     assets_dir = paths.job_dir / "assets"
@@ -1281,7 +1282,90 @@ def _float_or_zero(value: Any) -> float:
         return 0.0
 
 
-def _share_manifest(paths) -> Dict[str, Any]:
+def _duration_label(value: Any) -> str:
+    try:
+        seconds = int(round(float(value)))
+    except (TypeError, ValueError):
+        return ""
+    if seconds <= 0:
+        return ""
+    return f" in about {seconds} seconds"
+
+
+def _share_hashtags(title: str, scenes: list[Dict[str, Any]]) -> list[str]:
+    text = " ".join([title] + [str(scene.get("goal") or "") for scene in scenes]).lower()
+    tags = ["#NorthStarStudio", "#Manim", "#ExplainerAnimation"]
+    science_terms = {
+        "physics": "#Physics",
+        "quantum": "#QuantumPhysics",
+        "relativity": "#Relativity",
+        "calculus": "#Calculus",
+        "math": "#Math",
+        "geometry": "#Geometry",
+        "ai": "#AI",
+        "machine learning": "#MachineLearning",
+        "chemistry": "#Chemistry",
+        "biology": "#Biology",
+        "finance": "#Finance",
+        "spectrum": "#Optics",
+        "diffraction": "#Optics",
+    }
+    for needle, tag in science_terms.items():
+        if needle in text and tag not in tags:
+            tags.append(tag)
+        if len(tags) >= 6:
+            break
+    return tags[:6]
+
+
+def _share_social_copy(manifest: Dict[str, Any]) -> Dict[str, Any]:
+    title = _clip_text(manifest.get("title") or "NorthStar render", 90)
+    scenes = manifest.get("scenes") if isinstance(manifest.get("scenes"), list) else []
+    goals = [_clip_text(scene.get("goal"), 120) for scene in scenes if isinstance(scene, dict) and scene.get("goal")]
+    summary = " -> ".join(goals[:3]) if goals else "A short editable Manim explainer generated with NorthStar."
+    duration_text = _duration_label(manifest.get("total_seconds"))
+    hashtags = _share_hashtags(title, scenes)
+    short_caption = _clip_text(f"{title}{duration_text}. {summary}", 240)
+    long_caption = _clip_text(
+        (
+            f"{title}\n\n"
+            f"{summary}\n\n"
+            "Generated with NorthStar as an editable Manim scene: plan, code, captions, and render package included."
+        ),
+        900,
+    )
+    return {
+        "share_title": title,
+        "short_caption": short_caption,
+        "long_caption": long_caption,
+        "hashtags": hashtags,
+        "copy_block": f"{short_caption}\n\n{' '.join(hashtags)}",
+    }
+
+
+def _share_copy_markdown(manifest: Dict[str, Any]) -> str:
+    social = manifest.get("social") if isinstance(manifest.get("social"), dict) else _share_social_copy(manifest)
+    share_url = str(manifest.get("share_url") or "").strip()
+    lines = [
+        "# Share Copy",
+        "",
+        "## Short Post",
+        "",
+        str(social.get("short_caption") or "").strip(),
+        "",
+        " ".join([str(x) for x in social.get("hashtags") or []]),
+        "",
+        "## Longer Caption",
+        "",
+        str(social.get("long_caption") or "").strip(),
+        "",
+    ]
+    if share_url:
+        lines += ["## Share Link", "", share_url, ""]
+    return "\n".join(lines)
+
+
+def _share_manifest(paths, public_base_url: Optional[str] = None) -> Dict[str, Any]:
     plan = _read_json_file(paths.plan_path)
     state = _read_json_file(paths.job_dir / "state.json")
     scenes_raw = plan.get("scenes") if isinstance(plan.get("scenes"), list) else []
@@ -1334,6 +1418,12 @@ def _share_manifest(paths) -> Dict[str, Any]:
         "assets": assets,
         "scenes": scenes,
     }
+    if public_base_url:
+        base = public_base_url.rstrip("/")
+        manifest["share_url"] = f"{base}/api/jobs/{paths.job_id}/share-page"
+        if files.get("video"):
+            manifest["video_url"] = f"{base}/work/jobs/{paths.job_id}/{files['video']}"
+    manifest["social"] = _share_social_copy(manifest)
     return manifest
 
 
@@ -1346,6 +1436,10 @@ def _share_html(manifest: Dict[str, Any]) -> str:
     plan = html.escape(str(files.get("plan") or "plan.json"))
     code = html.escape(str(files.get("code") or "scene.py"))
     total = html.escape(str(manifest.get("total_seconds") or ""))
+    share_url = html.escape(str(manifest.get("share_url") or ""))
+    social = manifest.get("social") if isinstance(manifest.get("social"), dict) else {}
+    share_text = html.escape(str(social.get("short_caption") or title))
+    copy_block = html.escape(str(social.get("copy_block") or ""))
     scenes = manifest.get("scenes") if isinstance(manifest.get("scenes"), list) else []
     scene_items = []
     for scene in scenes:
@@ -1373,6 +1467,15 @@ def _share_html(manifest: Dict[str, Any]) -> str:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{title} - NorthStar Share</title>
+  <meta name="description" content="{share_text}">
+  <meta property="og:title" content="{title}">
+  <meta property="og:description" content="{share_text}">
+  <meta property="og:type" content="video.other">
+  {f'<meta property="og:url" content="{share_url}">' if share_url else ''}
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{title}">
+  <meta name="twitter:description" content="{share_text}">
+  {f'<link rel="canonical" href="{share_url}">' if share_url else ''}
   <style>
     :root {{ color-scheme: dark; --bg:#0b0f14; --panel:#121923; --line:#243244; --text:#eef4ff; --muted:#9fb0c8; --accent:#6aa9ff; }}
     * {{ box-sizing:border-box; }}
@@ -1387,6 +1490,7 @@ def _share_html(manifest: Dict[str, Any]) -> str:
     .panel, .scene {{ border:1px solid var(--line); background:var(--panel); border-radius:8px; padding:14px; }}
     .scene {{ margin:10px 0; }}
     .links a {{ color:var(--accent); margin-right:14px; }}
+    .copy {{ white-space:pre-wrap; color:var(--muted); border-top:1px solid var(--line); margin-top:12px; padding-top:12px; }}
     .missing {{ border:1px dashed var(--line); border-radius:8px; padding:32px; color:var(--muted); }}
     @media (max-width: 760px) {{ .stage {{ grid-template-columns:1fr; }} header {{ display:block; }} }}
   </style>
@@ -1409,8 +1513,10 @@ def _share_html(manifest: Dict[str, Any]) -> str:
           <a href="{plan}">Plan</a>
           <a href="{code}">Code</a>
           <a href="manifest.json">Manifest</a>
+          <a href="share-copy.md">Share copy</a>
         </div>
         <p>This folder is portable. Keep the files together so the preview, captions, storyboard, and generated code stay linked.</p>
+        {f'<div class="copy">{copy_block}</div>' if copy_block else ''}
       </aside>
     </section>
     <section>
@@ -1435,6 +1541,7 @@ def _share_readme(manifest: Dict[str, Any]) -> str:
         "- Use `captions.srt` for captions when present.",
         "- Use `plan.json` and `scene.py` to inspect or continue editing the render.",
         "- Use `manifest.json` for metadata, storyboard summaries, and automation.",
+        "- Use `share-copy.md` for social captions, hashtags, and a copy-ready post.",
         "",
         f"Job ID: {manifest.get('job_id') or ''}",
         f"Scenes: {manifest.get('scene_count') or 0}",
@@ -1444,17 +1551,19 @@ def _share_readme(manifest: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _write_share_package(paths) -> Dict[str, Any]:
-    manifest = _share_manifest(paths)
+def _write_share_package(paths, public_base_url: Optional[str] = None) -> Dict[str, Any]:
+    manifest = _share_manifest(paths, public_base_url=public_base_url)
     (paths.job_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     (paths.job_dir / "share.html").write_text(_share_html(manifest), encoding="utf-8")
     (paths.job_dir / "README.md").write_text(_share_readme(manifest), encoding="utf-8")
+    (paths.job_dir / "share-copy.md").write_text(_share_copy_markdown(manifest), encoding="utf-8")
     return manifest
 
 
 def _share_export_files(paths) -> list[Path]:
     files: list[Path] = [
         paths.job_dir / "README.md",
+        paths.job_dir / "share-copy.md",
         paths.job_dir / "share.html",
         paths.job_dir / "manifest.json",
         paths.out_mp4,
@@ -3236,14 +3345,14 @@ def job_events(job_id: str):
 
 
 @app.get("/api/jobs/{job_id}/download")
-def job_download(job_id: str):
+def job_download(job_id: str, request: Request):
     import zipfile
 
     paths = job_paths(JOBS, job_id)
     if not paths.job_dir.exists():
         return JSONResponse({"ok": False, "job_id": job_id, "error": "Unknown job_id"}, status_code=404)
 
-    _write_share_package(paths)
+    _write_share_package(paths, public_base_url=_public_base_url(request))
     zip_path = paths.job_dir / "export.zip"
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         for p in _share_export_files(paths):
@@ -3253,12 +3362,21 @@ def job_download(job_id: str):
 
 
 @app.get("/api/jobs/{job_id}/share-page")
-def job_share_page(job_id: str):
+def job_share_page(job_id: str, request: Request):
     paths = job_paths(JOBS, job_id)
     if not paths.job_dir.exists():
         return JSONResponse({"ok": False, "job_id": job_id, "error": "Unknown job_id"}, status_code=404)
-    _write_share_package(paths)
+    _write_share_package(paths, public_base_url=_public_base_url(request))
     return FileResponse(paths.job_dir / "share.html", media_type="text/html")
+
+
+@app.get("/api/jobs/{job_id}/share-metadata")
+def job_share_metadata(job_id: str, request: Request):
+    paths = job_paths(JOBS, job_id)
+    if not paths.job_dir.exists():
+        return JSONResponse({"ok": False, "job_id": job_id, "error": "Unknown job_id"}, status_code=404)
+    manifest = _write_share_package(paths, public_base_url=_public_base_url(request))
+    return {"ok": True, "manifest": manifest, "social": manifest.get("social") or {}}
 
 
 @app.post("/api/jobs/{job_id}/copy-output")

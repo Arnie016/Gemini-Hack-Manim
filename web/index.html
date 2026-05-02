@@ -4876,14 +4876,27 @@
       shareBtnEl.addEventListener('click', async () => {
         if (!lastVideoUrl) return;
         const sharePath = currentJobId ? `/api/jobs/${encodeURIComponent(currentJobId)}/share-page` : lastVideoUrl;
-        const shareUrl = apiHref(sharePath);
+        let shareUrl = apiHref(sharePath);
+        let shareTitle = 'NorthStar share page';
+        let shareText = 'Editable Manim animation made with NorthStar.';
+        if (currentJobId) {
+          try {
+            const metaResp = await fetch(`/api/jobs/${encodeURIComponent(currentJobId)}/share-metadata`);
+            const meta = await metaResp.json();
+            const manifest = meta.manifest || {};
+            const social = meta.social || manifest.social || {};
+            shareUrl = manifest.share_url || shareUrl;
+            shareTitle = social.share_title || manifest.title || shareTitle;
+            shareText = social.copy_block || social.short_caption || shareText;
+          } catch {}
+        }
         try {
           if (navigator.share) {
-            await navigator.share({ title: 'NorthStar share page', url: shareUrl });
+            await navigator.share({ title: shareTitle, text: shareText, url: shareUrl });
           } else if (navigator.clipboard) {
-            await navigator.clipboard.writeText(shareUrl);
-            statusEl.textContent = 'Copied share page link to clipboard.';
-            showToast('Copied share page link.', 'ok');
+            await navigator.clipboard.writeText(`${shareText}\n\n${shareUrl}`.trim());
+            statusEl.textContent = 'Copied share copy and link to clipboard.';
+            showToast('Copied share copy.', 'ok');
           } else {
             statusEl.textContent = 'Sharing not supported in this browser.';
             showToast('Sharing not supported in this browser.', 'err');
