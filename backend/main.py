@@ -2188,6 +2188,16 @@ def live():
     return {"ok": True, "service": "northstar"}
 
 
+@app.get("/api/healthz")
+def healthz():
+    return live()
+
+
+@app.get("/healthz")
+def root_healthz():
+    return live()
+
+
 def _generate_assets(
     *,
     job_dir: Path,
