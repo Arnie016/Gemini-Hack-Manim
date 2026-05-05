@@ -15,6 +15,9 @@ from .prompts import MANIM_CODE_SYSTEM, REPAIR_SYSTEM, manim_code_user_prompt
 from .renderer_stream import render_with_manim_stream
 
 
+MANIM_PREFLIGHT_TIMEOUT_S = 45
+
+
 def _build_srt(plan: Dict[str, Any]) -> str:
     def fmt(ts: float) -> str:
         ts = max(0.0, float(ts))
@@ -211,7 +214,7 @@ class JobManager:
                     [py, "-m", "manim", "--version"],
                     capture_output=True,
                     text=True,
-                    timeout=10,
+                    timeout=MANIM_PREFLIGHT_TIMEOUT_S,
                 )
                 if proc.returncode != 0:
                     with logs_path.open("a", encoding="utf-8") as f:

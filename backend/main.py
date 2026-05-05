@@ -524,7 +524,7 @@ def _manim_python_candidates(settings: Optional[Dict[str, Any]] = None) -> list[
     return out
 
 
-def _probe_manim_python(cmd: str, *, timeout_s: float = 10) -> tuple[bool, str]:
+def _probe_manim_python(cmd: str, *, timeout_s: float = 45) -> tuple[bool, str]:
     return _probe_cmd([cmd, "-m", "manim", "--version"], timeout_s=timeout_s)
 
 
