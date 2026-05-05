@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import difflib
 import json
+import os
 import subprocess
 import threading
 import time
@@ -16,6 +17,13 @@ from .renderer_stream import render_with_manim_stream
 
 
 MANIM_PREFLIGHT_TIMEOUT_S = 45
+DEFAULT_OPENAI_CODE_MODEL = "gpt-5-mini"
+
+
+def _task_model(selected_model: Optional[str], provider: Optional[str], env_key: str) -> Optional[str]:
+    if (provider or "").strip().lower() != "openai":
+        return selected_model
+    return (os.getenv(env_key) or os.getenv("OPENAI_CODE_MODEL") or DEFAULT_OPENAI_CODE_MODEL).strip() or selected_model
 
 
 def _build_srt(plan: Dict[str, Any]) -> str:
@@ -187,7 +195,7 @@ class JobManager:
                 ),
                 system_text=MANIM_CODE_SYSTEM,
                 api_key=api_key,
-                model=text_model,
+                model=_task_model(text_model, text_provider, "OPENAI_CODE_MODEL"),
                 provider=text_provider,
             )
             code = sanitize_manim_code(code)
@@ -281,7 +289,7 @@ class JobManager:
                     repair_user,
                     system_text=REPAIR_SYSTEM,
                     api_key=api_key,
-                    model=text_model,
+                    model=_task_model(text_model, text_provider, "OPENAI_REPAIR_MODEL"),
                     provider=text_provider,
                 )
                 code2 = sanitize_manim_code(code2)

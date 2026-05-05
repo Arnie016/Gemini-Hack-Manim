@@ -10,6 +10,22 @@ DEFAULT_IMAGE_MODEL = "gemini-2.5-flash-image"
 DEFAULT_IMAGE_ASPECT = "9:16"
 OPENAI_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_OPENAI_MODEL = "gpt-5"
+DEFAULT_OPENAI_FALLBACK_MODEL = "gpt-5-mini"
+
+
+def _openai_timeout_seconds() -> float:
+    raw = (os.getenv("OPENAI_TIMEOUT_SECONDS") or "180").strip()
+    try:
+        return max(30.0, float(raw))
+    except ValueError:
+        return 180.0
+
+
+def _openai_fallback_model(primary_model: str) -> Optional[str]:
+    fallback = (os.getenv("OPENAI_FALLBACK_MODEL") or DEFAULT_OPENAI_FALLBACK_MODEL).strip()
+    if not fallback or fallback == primary_model:
+        return None
+    return fallback
 
 
 class GeminiError(RuntimeError):
@@ -164,13 +180,38 @@ def _generate_openai_content(
     if response_format:
         payload["response_format"] = response_format
 
+    timeout = _openai_timeout_seconds()
     try:
-        resp = requests.post(url, headers=headers, json=payload, timeout=120)
+        resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
+    except requests.Timeout as exc:
+        fallback = _openai_fallback_model(model)
+        if not fallback:
+            raise GeminiError(f"OpenAI request failed: {exc}") from exc
+        payload["model"] = fallback
+        try:
+            resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
+        except requests.RequestException as fallback_exc:
+            raise GeminiError(
+                f"OpenAI request timed out for {model}; fallback {fallback} also failed: {fallback_exc}"
+            ) from fallback_exc
     except requests.RequestException as exc:
         raise GeminiError(f"OpenAI request failed: {exc}") from exc
 
     if resp.status_code >= 400:
-        raise GeminiError(f"OpenAI error {resp.status_code}: {resp.text}")
+        fallback = _openai_fallback_model(model)
+        if fallback and resp.status_code in {408, 409, 429, 500, 502, 503, 504}:
+            payload["model"] = fallback
+            try:
+                resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
+            except requests.RequestException as fallback_exc:
+                raise GeminiError(
+                    f"OpenAI error {resp.status_code} for {model}; fallback {fallback} also failed: {fallback_exc}"
+                ) from fallback_exc
+            if resp.status_code >= 400:
+                raise GeminiError(f"OpenAI error {resp.status_code}: {resp.text}")
+            model = fallback
+        else:
+            raise GeminiError(f"OpenAI error {resp.status_code}: {resp.text}")
 
     data = resp.json()
     try:
