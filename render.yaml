@@ -16,13 +16,17 @@ services:
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
-      - key: STRIPE_PRICE_2
+      - key: STRIPE_PRICE_9
         sync: false
-      - key: STRIPE_PRICE_4
+      - key: STRIPE_PRICE_19
         sync: false
-      - key: STRIPE_PRICE_8
+      - key: STRIPE_PRICE_49
         sync: false
-      - key: STRIPE_PRICE_10
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: APP_URL
         value: https://northstarstudio.io
