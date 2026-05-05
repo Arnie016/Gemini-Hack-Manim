@@ -525,7 +525,21 @@ def _manim_python_candidates(settings: Optional[Dict[str, Any]] = None) -> list[
 
 
 def _probe_manim_python(cmd: str, *, timeout_s: float = 45) -> tuple[bool, str]:
-    return _probe_cmd([cmd, "-m", "manim", "--version"], timeout_s=timeout_s)
+    available, availability_out = _probe_cmd(
+        [
+            cmd,
+            "-c",
+            "import importlib.util; raise SystemExit(0 if importlib.util.find_spec('manim') else 1)",
+        ],
+        timeout_s=15,
+    )
+    if not available:
+        return False, availability_out or "Manim package is not installed for this Python."
+
+    ok, out = _probe_cmd([cmd, "-m", "manim", "--version"], timeout_s=timeout_s)
+    if ok:
+        return True, out
+    return True, f"Manim package is installed; version probe was slow or unavailable: {out}"
 
 
 def _probe_cmd(cmd: list[str], *, timeout_s: float = 10) -> tuple[bool, str]:
