@@ -80,13 +80,12 @@ The UI can safely store provider name, label, preferred model, and status in `us
 
 ## 7. Stripe plan mapping
 
-Recommended launch plans:
+Recommended launch pricing:
 
-- `Creator` at `$9/mo`: starter credits, private projects, share pages.
-- `Studio` at `$19/mo`: higher credits, source-guided generation, asset gallery.
-- `Pro` at `$49/mo`: long renders, advanced providers, team-ready exports, priority render queue.
+- Free trial: 3 rendered videos.
+- `Creator credits` at `SGD 9`: 12 additional render credits.
 
-Create recurring Stripe Prices and store the active plan in `profiles.plan_key`. Keep one-time credit packs as an add-on if render cost varies.
+Create one one-time Stripe Price and store its id in `STRIPE_PRICE_9`. Later, if subscription tiers are added, store the active plan in `profiles.plan_key`.
 
 ## 8. Publishing integrations
 

@@ -72,9 +72,13 @@ DEFAULT_OPENAI_TEXT_MODEL = "gpt-5"
 DEFAULT_GEMINI_TEXT_MODEL = "gemini-3-flash-preview"
 STARTER_FREE_VIDEO_CREDITS = 3
 CREDIT_PACKS = [
-    {"price_usd": 9, "video_credits": 12, "label": "Creator plan", "stripe_price_env": "STRIPE_PRICE_9"},
-    {"price_usd": 19, "video_credits": 32, "label": "Studio plan", "stripe_price_env": "STRIPE_PRICE_19"},
-    {"price_usd": 49, "video_credits": 100, "label": "Pro plan", "stripe_price_env": "STRIPE_PRICE_49"},
+    {
+        "price_usd": 9,
+        "price_label": "SGD 9",
+        "video_credits": 12,
+        "label": "Creator credit pack",
+        "stripe_price_env": "STRIPE_PRICE_9",
+    },
 ]
 ANON_USER_COOKIE = "northstar_user_id"
 BILLING_DIR = WORK / "billing"
@@ -260,6 +264,7 @@ def _billing_packs_payload() -> list[Dict[str, Any]]:
         packs.append(
             {
                 "price_usd": int(pack["price_usd"]),
+                "price_label": str(pack.get("price_label") or f"${pack['price_usd']}"),
                 "video_credits": int(pack["video_credits"]),
                 "label": str(pack["label"]),
                 "stripe_price_env": env_key,

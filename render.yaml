@@ -18,10 +18,6 @@ services:
         sync: false
       - key: STRIPE_PRICE_9
         sync: false
-      - key: STRIPE_PRICE_19
-        sync: false
-      - key: STRIPE_PRICE_49
-        sync: false
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_ANON_KEY

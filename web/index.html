@@ -2472,6 +2472,9 @@
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 8px;
       }
+      .credit-pack-grid.single {
+        grid-template-columns: minmax(0, 360px);
+      }
       .credit-pack {
         border: 1px solid rgba(148, 163, 184, 0.2);
         border-radius: 8px;
@@ -4323,12 +4326,10 @@
                       </div>
                     </div>
                     <div class="credit-note">
-                      Launch rule: let a new creator make a few Manim videos first, then ask them to recharge. Do not require their own API key in the hosted app until they choose bring-your-own-key.
+                      Freemium rule: every new creator gets 3 free render credits. After that, one simple credit pack unlocks more renders without asking for their own API key.
                     </div>
-                    <div class="credit-pack-grid" aria-label="NorthStar launch plans">
-                      <button class="credit-pack" data-credit-pack="9"><strong>$9</strong><span>12 video credits<br />Creator plan</span></button>
-                      <button class="credit-pack" data-credit-pack="19"><strong>$19</strong><span>32 video credits<br />Studio plan</span></button>
-                      <button class="credit-pack" data-credit-pack="49"><strong>$49</strong><span>100 video credits<br />Pro plan</span></button>
+                    <div class="credit-pack-grid single" aria-label="NorthStar credit pack">
+                      <button class="credit-pack" data-credit-pack="9" data-credit-label="SGD 9"><strong>SGD 9</strong><span>12 video credits<br />Creator credit pack</span></button>
                     </div>
                     <div id="creditCheckoutStatus" class="muted">Checking billing setup...</div>
                   </div>
@@ -10703,7 +10704,9 @@
       async function startCreditCheckout(priceUsd) {
         const price = Number(priceUsd || 0);
         if (!price) return;
-        if (creditCheckoutStatusEl) creditCheckoutStatusEl.textContent = `Opening $${price} Stripe checkout...`;
+        const packButton = document.querySelector(`[data-credit-pack="${price}"]`);
+        const label = packButton?.getAttribute('data-credit-label') || `$${price}`;
+        if (creditCheckoutStatusEl) creditCheckoutStatusEl.textContent = `Opening ${label} Stripe checkout...`;
         try {
           const resp = await fetch('/api/billing/checkout', {
             method: 'POST',
