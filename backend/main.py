@@ -72,10 +72,9 @@ DEFAULT_OPENAI_TEXT_MODEL = "gpt-5"
 DEFAULT_GEMINI_TEXT_MODEL = "gemini-3-flash-preview"
 STARTER_FREE_VIDEO_CREDITS = 3
 CREDIT_PACKS = [
-    {"price_usd": 2, "video_credits": 2, "label": "Quick test pack", "stripe_price_env": "STRIPE_PRICE_2"},
-    {"price_usd": 4, "video_credits": 5, "label": "Starter creator pack", "stripe_price_env": "STRIPE_PRICE_4"},
-    {"price_usd": 8, "video_credits": 12, "label": "Maker pack", "stripe_price_env": "STRIPE_PRICE_8"},
-    {"price_usd": 10, "video_credits": 16, "label": "Best value pack", "stripe_price_env": "STRIPE_PRICE_10"},
+    {"price_usd": 9, "video_credits": 12, "label": "Creator plan", "stripe_price_env": "STRIPE_PRICE_9"},
+    {"price_usd": 19, "video_credits": 32, "label": "Studio plan", "stripe_price_env": "STRIPE_PRICE_19"},
+    {"price_usd": 49, "video_credits": 100, "label": "Pro plan", "stripe_price_env": "STRIPE_PRICE_49"},
 ]
 ANON_USER_COOKIE = "northstar_user_id"
 BILLING_DIR = WORK / "billing"
@@ -1325,12 +1324,14 @@ def _share_social_copy(manifest: Dict[str, Any]) -> Dict[str, Any]:
     summary = " -> ".join(goals[:3]) if goals else "A short editable Manim explainer generated with NorthStar."
     duration_text = _duration_label(manifest.get("total_seconds"))
     hashtags = _share_hashtags(title, scenes)
-    short_caption = _clip_text(f"{title}{duration_text}. {summary}", 240)
+    product_cta = "Make yours at https://northstarstudio.io"
+    short_caption = _clip_text(f"{title}{duration_text}. {summary}\n\n{product_cta}", 280)
     long_caption = _clip_text(
         (
             f"{title}\n\n"
             f"{summary}\n\n"
-            "Generated with NorthStar as an editable Manim scene: plan, code, captions, and render package included."
+            "Generated with NorthStar as an editable Manim scene: plan, code, captions, and render package included.\n\n"
+            f"{product_cta}"
         ),
         900,
     )
@@ -1649,10 +1650,10 @@ def _default_onboarding_steps(image_mode: str = "generate") -> list[Dict[str, st
     if image_mode == "manual":
         image_step = {
             "id": "images",
-            "target": "#imageGenDetails",
+            "target": "#leftVisualsPanel",
             "title": "Use existing visuals",
             "body": "Drop your own background and foreground assets into scene cards, or continue text-only until image generation is configured.",
-            "hint": "Middle panel -> Images",
+            "hint": "Explorer -> Optional visuals",
             "icon_prompt": (
                 "Minimal icon showing asset upload into timeline card, dark matte background, "
                 "subtle blue green accent"
@@ -1664,7 +1665,7 @@ def _default_onboarding_steps(image_mode: str = "generate") -> list[Dict[str, st
             "target": "#includeImages",
             "title": "Skip visuals for now",
             "body": "Start text-only now. Turn Include images on later when you want background or foreground assets.",
-            "hint": "Middle panel -> Include images",
+            "hint": "Explorer -> Optional visuals",
             "icon_prompt": (
                 "Minimal icon showing an image toggle switched off, dark matte background, "
                 "subtle slate accent"
@@ -1673,10 +1674,10 @@ def _default_onboarding_steps(image_mode: str = "generate") -> list[Dict[str, st
     else:
         image_step = {
             "id": "images",
-            "target": "#imageGenDetails",
+            "target": "#leftVisualsPanel",
             "title": "Generate image assets",
             "body": "Create background and foreground variants, then drag the chosen assets into scene cards.",
-            "hint": "Middle panel -> Image generation",
+            "hint": "Explorer -> Optional visuals",
             "icon_prompt": (
                 "Minimal icon showing image variants and drag and drop to timeline card, "
                 "dark matte background, subtle green accent"
@@ -1710,7 +1711,7 @@ def _default_onboarding_steps(image_mode: str = "generate") -> list[Dict[str, st
             "id": "timeline",
             "target": "#timelineTrack",
             "title": "Refine scenes on the timeline",
-            "body": "Edit each scene focus and duration. Keep one clear concept per scene for readability.",
+            "body": "Edit each scene focus and duration below the large video preview. Keep one clear concept per scene for readability.",
             "hint": "Middle panel -> Timeline",
             "icon_prompt": (
                 "Minimal timeline icon with labeled scene blocks and edit handles, "
@@ -1721,7 +1722,7 @@ def _default_onboarding_steps(image_mode: str = "generate") -> list[Dict[str, st
             "id": "preview",
             "target": "#previewSlot",
             "title": "Approve and render",
-            "body": "Run plan -> code -> render. If a render fails, NorthStar diagnoses and retries automatically.",
+            "body": "The preview is the centerpiece. Run plan -> code -> render, then inspect the MP4 and share package.",
             "hint": "Middle panel -> Preview area",
             "icon_prompt": (
                 "Minimal icon for render pipeline plan code render with play symbol, "
@@ -1732,7 +1733,7 @@ def _default_onboarding_steps(image_mode: str = "generate") -> list[Dict[str, st
             "id": "steps",
             "target": "#agentSteps",
             "title": "Track every phase",
-            "body": "Watch Plan, Approve, Code, and Render status. Open details to inspect each phase output.",
+            "body": "Watch Plan, Approve, Code, and Render status while the chat stays visible at the bottom.",
             "hint": "Right panel -> Phase tracker",
             "icon_prompt": (
                 "Minimal icon showing four progress stages with diagnostics panel, "

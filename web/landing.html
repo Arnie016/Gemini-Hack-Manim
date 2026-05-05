@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>NorthStar - Agentic Manim IDE</title>
+    <title>NorthStar Studio - Source-guided Manim animations</title>
     <meta
       name="description"
-      content="NorthStar is an agentic IDE for Manim storytelling animations: turn physics concepts into storyboarded, inspectable Manim videos."
+      content="NorthStar Studio turns cheat sheets, notes, and physics concepts into editable Manim storytelling animations with a timeline, code editor, render pipeline, and share packages."
     />
     <style>
       @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap");
@@ -411,6 +411,61 @@
         line-height: 1.12;
       }
 
+      .feature-grid,
+      .pricing-grid {
+        margin-top: 42px;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .feature-tile,
+      .price-tile {
+        min-height: 184px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(20, 23, 29, 0.58);
+        padding: 18px;
+        display: grid;
+        align-content: space-between;
+        gap: 18px;
+      }
+
+      .feature-tile b,
+      .price-tile b {
+        color: var(--blue);
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 12px;
+        text-transform: uppercase;
+      }
+
+      .feature-tile strong,
+      .price-tile strong {
+        display: block;
+        margin-top: 8px;
+        font-size: 1.28rem;
+        line-height: 1.15;
+      }
+
+      .feature-tile p,
+      .price-tile p {
+        color: var(--muted);
+        line-height: 1.5;
+        margin: 0;
+      }
+
+      .price {
+        font-size: 2.6rem;
+        font-weight: 800;
+        line-height: 1;
+      }
+
+      .price span {
+        color: var(--muted);
+        font-size: 1rem;
+        font-weight: 600;
+      }
+
       .proof-grid {
         margin-top: 48px;
         display: grid;
@@ -601,6 +656,8 @@
         }
 
         .workflow-grid,
+        .feature-grid,
+        .pricing-grid,
         .proof-grid,
         .readiness {
           grid-template-columns: 1fr;
@@ -650,8 +707,9 @@
       </a>
       <div class="nav-actions">
         <a class="button ghost" href="#atlas">Concept atlas</a>
+        <a class="button ghost" href="#features">Features</a>
         <a class="button ghost" href="#readiness">Checks</a>
-        <a class="button primary" href="/app">Launch IDE</a>
+        <a class="button primary" href="/app">Launch Studio</a>
       </div>
     </nav>
 
@@ -666,11 +724,11 @@
             <a class="button ghost" href="#atlas">See the concept grid</a>
           </div>
           <div class="hero-mini">
+            <span>Cheat sheet</span>
             <span>Plan</span>
-            <span>Audit</span>
-            <span>Code</span>
+            <span>Timeline</span>
             <span>Render</span>
-            <span>Repair</span>
+            <span>Share</span>
           </div>
         </div>
 
@@ -702,14 +760,30 @@
         <div class="section-head">
           <div class="eyebrow">Studio loop</div>
           <h2>One surface from concept to render.</h2>
-          <p>The product promise is not generic AI video. It is an inspectable Manim pipeline with a visible plan, code, timeline, render logs, captions, and repair status.</p>
+          <p>The product promise is not generic AI video. It is an inspectable Manim pipeline with source files, a visible plan, editable code, timeline attachments, render logs, captions, and repair status.</p>
         </div>
         <div class="workflow-grid" aria-label="NorthStar workflow">
-          <div class="workflow-step"><span>01</span><strong>Prompt a concept</strong></div>
+          <div class="workflow-step"><span>01</span><strong>Drop notes or a cheat sheet</strong></div>
           <div class="workflow-step"><span>02</span><strong>Approve the scene plan</strong></div>
-          <div class="workflow-step"><span>03</span><strong>Generate Manim code</strong></div>
-          <div class="workflow-step"><span>04</span><strong>Render the MP4</strong></div>
-          <div class="workflow-step"><span>05</span><strong>Diagnose and repair</strong></div>
+          <div class="workflow-step"><span>03</span><strong>Attach assets on the timeline</strong></div>
+          <div class="workflow-step"><span>04</span><strong>Render editable Manim code</strong></div>
+          <div class="workflow-step"><span>05</span><strong>Package and share</strong></div>
+        </div>
+      </section>
+
+      <section class="section" id="features">
+        <div class="section-head">
+          <div class="eyebrow">Creator workflow</div>
+          <h2>Built for source-guided animations.</h2>
+          <p>NorthStar is moving toward a full creator product: upload source material, generate assets, place them on a timeline, render code, and publish with branded share copy.</p>
+        </div>
+        <div class="feature-grid" aria-label="NorthStar creator features">
+          <div class="feature-tile"><div><b>Sources</b><strong>Cheat sheets to scenes</strong></div><p>Drag PDFs, markdown, notes, prompt packs, and source files into the asset dock so the animation plan stays grounded.</p></div>
+          <div class="feature-tile"><div><b>Timeline</b><strong>Assets at exact beats</strong></div><p>Attach images, SVGs, video clips, sounds, and notes to specific scenes and seconds before rendering.</p></div>
+          <div class="feature-tile"><div><b>Models</b><strong>OpenAI-first, multi-provider ready</strong></div><p>Use default OpenAI text flow, optional image generation, and bring your own provider keys as workflows expand.</p></div>
+          <div class="feature-tile"><div><b>Gallery</b><strong>Past renders stay usable</strong></div><p>Starter animations and previous jobs live in a gallery with metadata, reuse actions, and social-ready share copy.</p></div>
+          <div class="feature-tile"><div><b>Editor</b><strong>Code remains editable</strong></div><p>Manim code is visible, editable, reusable, and renderable instead of being hidden behind a black-box generation step.</p></div>
+          <div class="feature-tile"><div><b>Sharing</b><strong>Built-in growth loop</strong></div><p>Export packages include captions, metadata, and calls to try northstarstudio.io when creators share their work.</p></div>
         </div>
       </section>
 
@@ -720,7 +794,7 @@
             <div class="section-head">
               <div class="eyebrow">IDE proof</div>
               <h2>The landing page now matches the app.</h2>
-              <p>Same dark workspace, same blue action color, same green success language, and less of the yellow-green beta-product palette.</p>
+              <p>Same dark workspace, same preview-first layout, same asset dock and timeline language, and less beta-product clutter.</p>
             </div>
             <div class="proof-list">
               <div class="proof-item">
@@ -729,11 +803,11 @@
               </div>
               <div class="proof-item">
                 <b>B</b>
-                <div><strong>Concept breadth</strong><p>Physics, math, and engineering ideas are surfaced as short promptable animation seeds.</p></div>
+                <div><strong>Source guided</strong><p>Cheat sheets, notes, and reference assets can guide scene planning instead of living outside the workflow.</p></div>
               </div>
               <div class="proof-item">
                 <b>C</b>
-                <div><strong>Repair with evidence</strong><p>Failed renders show logs, diagnosis, retry state, and code diff instead of hiding the failure.</p></div>
+                <div><strong>Share ready</strong><p>Rendered jobs produce social copy, captions, export packages, and a path toward platform publishing.</p></div>
               </div>
             </div>
           </div>
@@ -745,16 +819,29 @@
           <div class="section-head">
             <div class="eyebrow">Local readiness</div>
             <h2>Keep the demo path honest.</h2>
-            <p>The page checks the same backend preflight used by the IDE: Gemini key, Manim, ffmpeg, and writable output.</p>
+            <p>The page checks the same backend preflight used by the IDE: text provider, Manim, ffmpeg, and writable output.</p>
             <div><button id="runChecks">Run checks</button></div>
           </div>
           <div class="check-panel" aria-live="polite">
-            <div class="check-row"><span>Gemini API key</span><span id="checkApi" class="status-pill">waiting</span></div>
+            <div class="check-row"><span>Text provider key</span><span id="checkApi" class="status-pill">waiting</span></div>
             <div class="check-row"><span>Manim renderer</span><span id="checkManim" class="status-pill">waiting</span></div>
             <div class="check-row"><span>ffmpeg</span><span id="checkFfmpeg" class="status-pill">waiting</span></div>
             <div class="check-row"><span>Output folder</span><span id="checkOutput" class="status-pill">waiting</span></div>
             <p id="checkDetail" style="color: var(--muted); line-height: 1.5; margin: 18px 0 0;">Open the IDE settings if a check fails.</p>
           </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <div class="eyebrow">Launch pricing</div>
+          <h2>Simple plans for creators.</h2>
+          <p>Use free starter credits for first exploration, then upgrade when renders, source uploads, or share packaging become part of a real workflow.</p>
+        </div>
+        <div class="pricing-grid" aria-label="NorthStar pricing">
+          <div class="price-tile"><div><b>Creator</b><strong>For solo explainers</strong></div><div class="price">$9 <span>/mo</span></div><p>Starter credits, editable Manim code, source uploads, and basic exports.</p></div>
+          <div class="price-tile"><div><b>Studio</b><strong>For frequent publishing</strong></div><div class="price">$19 <span>/mo</span></div><p>More render credits, gallery workflows, captions, share packages, and optional image assets.</p></div>
+          <div class="price-tile"><div><b>Pro</b><strong>For heavy creators</strong></div><div class="price">$49 <span>/mo</span></div><p>Higher usage, longer videos, stronger model options, team-ready memory, and publishing integrations.</p></div>
         </div>
       </section>
 

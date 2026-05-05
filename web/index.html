@@ -854,6 +854,9 @@
         border-color: rgba(250, 204, 21, 0.65);
         box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.16) inset;
       }
+      .timeline-block.has-attachments {
+        border-color: rgba(45, 212, 191, 0.58);
+      }
       .timeline-edit-row {
         display: grid;
         grid-template-columns: 1fr auto;
@@ -977,6 +980,7 @@
       }
       .timeline-asset-dot.bg { background: #22c55e; }
       .timeline-asset-dot.fg { background: #60a5fa; }
+      .timeline-asset-dot.attachment { background: #2dd4bf; }
       .timeline-block-title {
         font-size: 12px;
         font-weight: 700;
@@ -1018,6 +1022,34 @@
         font-size: 10px;
         color: var(--text);
         letter-spacing: 0.2px;
+      }
+      .timeline-attachment-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        color: #ccfbf1;
+        border-color: rgba(45, 212, 191, 0.28);
+        background: rgba(20, 184, 166, 0.12);
+      }
+      .timeline-attachment-badge strong {
+        font-size: 10px;
+        color: #5eead4;
+      }
+      .timeline-insert-pill {
+        position: absolute;
+        left: 8px;
+        bottom: 6px;
+        max-width: calc(100% - 22px);
+        padding: 2px 6px;
+        border-radius: 999px;
+        border: 1px solid rgba(45, 212, 191, 0.25);
+        background: rgba(15, 23, 42, 0.88);
+        color: #ccfbf1;
+        font-size: 10px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        pointer-events: none;
       }
 
       .timeline-controls {
@@ -2437,7 +2469,7 @@
       }
       .credit-pack-grid {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 8px;
       }
       .credit-pack {
@@ -2490,6 +2522,187 @@
         border-radius: 12px;
         background: rgba(11, 13, 18, 0.45);
         padding: 8px;
+      }
+      .code-workbench {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 260px;
+        gap: 10px;
+        min-height: 0;
+      }
+      .code-main {
+        position: relative;
+        min-width: 0;
+        min-height: 0;
+      }
+      .code-empty-state {
+        position: absolute;
+        inset: 54px 22px auto 74px;
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        border-radius: 8px;
+        background: rgba(8, 12, 20, 0.82);
+        padding: 14px;
+        max-width: 460px;
+        display: grid;
+        gap: 10px;
+        z-index: 4;
+      }
+      .code-empty-state.hidden { display: none; }
+      .code-empty-title {
+        font-size: 14px;
+        font-weight: 900;
+      }
+      .code-empty-copy {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+      .code-empty-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .code-empty-actions button {
+        width: auto;
+      }
+      .code-side {
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        border-radius: 12px;
+        background: rgba(8, 12, 20, 0.64);
+        padding: 10px;
+        display: grid;
+        align-content: start;
+        gap: 10px;
+      }
+      .code-metrics {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
+      }
+      .code-metric {
+        border: 1px solid rgba(148, 163, 184, 0.14);
+        border-radius: 8px;
+        padding: 8px;
+        background: rgba(15, 20, 29, 0.62);
+      }
+      .code-metric b {
+        display: block;
+        color: var(--text);
+        font-size: 15px;
+      }
+      .code-metric span {
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 800;
+      }
+      .code-action-grid {
+        display: grid;
+        gap: 7px;
+      }
+      .code-action-grid button {
+        text-align: left;
+        justify-content: flex-start;
+      }
+      .snippet-row {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .snippet-row button {
+        width: auto;
+        padding: 6px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+      }
+
+      .tab-panel[data-tab="gallery"] { padding: 12px; }
+      .gallery-shell {
+        display: grid;
+        grid-template-rows: auto 1fr;
+        gap: 12px;
+        height: 100%;
+        min-height: 0;
+      }
+      .gallery-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+        gap: 12px;
+        align-items: end;
+      }
+      .gallery-title {
+        font-size: 20px;
+        font-weight: 900;
+      }
+      .gallery-sub {
+        color: var(--muted);
+        margin-top: 4px;
+        line-height: 1.45;
+      }
+      .gallery-grid {
+        min-height: 0;
+        overflow: auto;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 12px;
+        align-content: start;
+      }
+      .gallery-card {
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 8px;
+        background: rgba(10, 15, 23, 0.82);
+        overflow: hidden;
+        transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+      }
+      .gallery-card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(106, 169, 255, 0.55);
+        background: rgba(15, 23, 36, 0.94);
+      }
+      .gallery-thumb {
+        aspect-ratio: 16 / 9;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+        background:
+          linear-gradient(135deg, rgba(106, 169, 255, 0.26), transparent 42%),
+          linear-gradient(45deg, rgba(34, 197, 94, 0.16), transparent 58%),
+          #05070d;
+        display: grid;
+        place-items: center;
+        color: #dbeafe;
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 12px;
+      }
+      .gallery-body {
+        padding: 10px;
+        display: grid;
+        gap: 8px;
+      }
+      .gallery-body h3 {
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.2;
+      }
+      .gallery-meta {
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.35;
+        min-height: 30px;
+      }
+      .gallery-actions {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
+      }
+      .gallery-actions button {
+        min-height: 32px;
+        padding: 5px 7px;
+        border-radius: 8px;
+        font-size: 11px;
+      }
+      .gallery-empty {
+        border: 1px dashed rgba(148, 163, 184, 0.24);
+        border-radius: 8px;
+        padding: 18px;
+        color: var(--muted);
+        text-align: center;
       }
 
       .drawer-section {
@@ -2841,6 +3054,150 @@
       }
       #leftVisualsPanel .asset-actions {
         grid-template-columns: 1fr;
+      }
+      .asset-dock {
+        position: sticky;
+        bottom: 0;
+        z-index: 12;
+        margin-top: 12px;
+        padding: 10px;
+        border: 1px solid rgba(96, 165, 250, 0.22);
+        border-radius: 12px;
+        background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(6, 10, 18, 0.98));
+        box-shadow: 0 -16px 30px rgba(2, 6, 23, 0.34);
+      }
+      .asset-dock.is-drop {
+        border-color: rgba(96, 165, 250, 0.85);
+        box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.16), 0 -16px 30px rgba(2, 6, 23, 0.34);
+      }
+      .asset-dock-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .asset-dock-title {
+        font-size: 13px;
+        font-weight: 900;
+        color: var(--text);
+      }
+      .asset-dock-sub {
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.25;
+      }
+      .asset-dock-drop {
+        margin-top: 8px;
+        padding: 10px;
+        border: 1px dashed rgba(148, 163, 184, 0.35);
+        border-radius: 10px;
+        background: rgba(2, 6, 23, 0.5);
+        color: #cbd5e1;
+        font-size: 12px;
+        line-height: 1.35;
+      }
+      .asset-dock-list {
+        display: grid;
+        gap: 6px;
+        margin-top: 8px;
+        max-height: 190px;
+        overflow: auto;
+      }
+      .asset-dock-empty {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.35;
+        padding: 6px 2px 2px;
+      }
+      .asset-dock-item {
+        display: grid;
+        grid-template-columns: 32px minmax(0, 1fr) auto;
+        gap: 8px;
+        align-items: center;
+        padding: 7px;
+        border: 1px solid rgba(148, 163, 184, 0.14);
+        border-radius: 10px;
+        background: rgba(15, 23, 42, 0.72);
+        cursor: grab;
+      }
+      .asset-dock-item:active {
+        cursor: grabbing;
+      }
+      .asset-dock-item.selected {
+        border-color: rgba(96, 165, 250, 0.78);
+        background: rgba(30, 41, 59, 0.92);
+        box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.16) inset;
+      }
+      .asset-dock-thumb {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        background: #020617;
+        color: #bfdbfe;
+        font-size: 10px;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+      .asset-dock-thumb img,
+      .asset-dock-thumb video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .asset-dock-name {
+        color: var(--text);
+        font-size: 12px;
+        font-weight: 800;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .asset-dock-meta {
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 10px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .asset-dock-action {
+        width: 26px;
+        height: 26px;
+        border-radius: 8px;
+        padding: 0;
+      }
+      .asset-dock-place {
+        margin-top: 8px;
+        padding: 8px;
+        border: 1px solid rgba(148, 163, 184, 0.13);
+        border-radius: 10px;
+        background: rgba(2, 6, 23, 0.38);
+      }
+      .asset-dock-selected {
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.3;
+        margin-bottom: 7px;
+      }
+      .asset-place-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 7px;
+      }
+      .asset-place-row input {
+        min-height: 34px;
+        padding: 7px 9px;
+        font-size: 12px;
+      }
+      .asset-place-row button {
+        min-height: 34px;
+        padding: 0 10px;
+        font-size: 12px;
       }
 
       .preview-card {
@@ -3313,6 +3670,27 @@
             <pre id="sidebarHealthText" class="muted" style="margin-top:8px; white-space:pre-wrap;">No checks yet.</pre>
             <button id="refreshSidebarHealth" class="ghost" style="margin-top:8px;">Refresh health</button>
           </details>
+          <section id="assetDock" class="asset-dock" aria-label="Asset dock">
+            <div class="asset-dock-head">
+              <div>
+                <div class="asset-dock-title">Asset dock</div>
+                <div class="asset-dock-sub">Drop PNG, SVG, MP4, PDF, MD, audio, or notes. Drag assets onto timeline scenes.</div>
+              </div>
+              <button id="assetDockPick" class="ghost asset-dock-action" title="Add assets" aria-label="Add assets">+</button>
+              <input id="assetDockPicker" class="hidden" type="file" multiple accept=".svg,.png,.jpg,.jpeg,.webp,.gif,.mp4,.mov,.webm,.pdf,.md,.txt,.json,.csv,.wav,.mp3,.m4a" />
+            </div>
+            <div id="assetDockDrop" class="asset-dock-drop">
+              Drop cheat sheets, source files, images, video clips, or sound here. Click an asset, enter a second, then place it on the timeline.
+            </div>
+            <div class="asset-dock-place" aria-label="Place selected asset">
+              <div id="assetDockSelected" class="asset-dock-selected">No asset selected.</div>
+              <div class="asset-place-row">
+                <input id="assetDockSecond" placeholder="Place at 6s or 0:06" />
+                <button id="assetDockPlace" class="secondary">Place</button>
+              </div>
+            </div>
+            <div id="assetDockList" class="asset-dock-list"></div>
+          </section>
         </div>
       </aside>
 
@@ -3322,6 +3700,7 @@
         <div class="tabs">
           <button class="tab active" data-tab="canvas">Canvas</button>
           <button class="tab" data-tab="code">Code</button>
+          <button class="tab" data-tab="gallery">Gallery</button>
         </div>
 
         <div class="tab-panels">
@@ -3768,11 +4147,67 @@
               <button id="toggleHighlight" class="ghost btn-inline" title="Toggle syntax highlighting">Highlight</button>
             </div>
             <div class="code-body">
-              <div class="code-editor" id="codeEditor">
-                <div class="code-gutter" id="codeGutter">1</div>
-                <textarea id="code" spellcheck="false" wrap="off"></textarea>
+              <div class="code-workbench">
+                <div class="code-main">
+                  <div class="code-editor" id="codeEditor">
+                    <div class="code-gutter" id="codeGutter">1</div>
+                    <textarea id="code" spellcheck="false" wrap="off" placeholder="Generated or custom Manim code appears here."></textarea>
+                  </div>
+                  <div id="codeEmptyState" class="code-empty-state">
+                    <div class="code-empty-title">No code yet</div>
+                    <div class="code-empty-copy">Create a plan, render from chat, or insert a safe starter Manim scene. The editor stays editable before every render.</div>
+                    <div class="code-empty-actions">
+                      <button id="insertStarterCode" class="secondary">Insert starter scene</button>
+                      <button id="openCodePrompt" class="ghost">Prompt in chat</button>
+                    </div>
+                  </div>
+                  <pre id="codePrettyWrap" class="hljs hidden"><code id="codePretty" class="language-python code-lines"></code></pre>
+                </div>
+                <aside class="code-side" aria-label="Code workbench">
+                  <div>
+                    <div class="drawer-title">Code workbench</div>
+                    <div class="muted">Edit, repair, render, and reuse generated Manim scenes.</div>
+                  </div>
+                  <div class="code-metrics">
+                    <div class="code-metric"><b id="codeLinesMetric">1</b><span>Lines</span></div>
+                    <div class="code-metric"><b id="codeScenesMetric">0</b><span>Scenes</span></div>
+                    <div class="code-metric"><b id="codeCharsMetric">0</b><span>Chars</span></div>
+                  </div>
+                  <div class="code-action-grid">
+                    <button id="copyCodeBtn" class="ghost">Copy code</button>
+                    <button id="formatCodeBtn" class="ghost">Clean spacing</button>
+                    <button id="sendCodeToChatBtn" class="ghost">Ask agent about code</button>
+                    <button id="openGalleryBtn" class="ghost">Open gallery</button>
+                  </div>
+                  <div>
+                    <div class="drawer-title">Snippets</div>
+                    <div class="snippet-row">
+                      <button class="ghost" data-snippet="title">Title</button>
+                      <button class="ghost" data-snippet="axes">Axes</button>
+                      <button class="ghost" data-snippet="formula">Formula</button>
+                      <button class="ghost" data-snippet="camera">Camera</button>
+                    </div>
+                  </div>
+                </aside>
               </div>
-              <pre id="codePrettyWrap" class="hljs hidden"><code id="codePretty" class="language-python code-lines"></code></pre>
+            </div>
+          </section>
+
+          <section class="tab-panel" data-tab="gallery">
+            <div class="gallery-shell">
+              <div class="gallery-head">
+                <div>
+                  <div class="gallery-title">Render gallery</div>
+                  <div class="gallery-sub">Past renders, share packages, and starter manual animations. Hover a card for metadata, open a render, or prepare publishing copy.</div>
+                </div>
+                <div>
+                  <label for="gallerySearch">Search gallery</label>
+                  <input id="gallerySearch" placeholder="photoelectric, diffraction, 9:16..." />
+                  <div class="muted" id="galleryCount" style="margin-top:6px;">0 items</div>
+                </div>
+              </div>
+              <div id="galleryGrid" class="gallery-grid"></div>
+              <div id="galleryEmpty" class="gallery-empty hidden">Render a video or pick a starter animation to populate the gallery.</div>
             </div>
           </section>
 
@@ -3890,11 +4325,10 @@
                     <div class="credit-note">
                       Launch rule: let a new creator make a few Manim videos first, then ask them to recharge. Do not require their own API key in the hosted app until they choose bring-your-own-key.
                     </div>
-                    <div class="credit-pack-grid" aria-label="Credit recharge packs">
-                      <button class="credit-pack" data-credit-pack="2"><strong>$2</strong><span>2 video credits<br />Quick test pack</span></button>
-                      <button class="credit-pack" data-credit-pack="4"><strong>$4</strong><span>5 video credits<br />Starter creator pack</span></button>
-                      <button class="credit-pack" data-credit-pack="8"><strong>$8</strong><span>12 video credits<br />Maker pack</span></button>
-                      <button class="credit-pack" data-credit-pack="10"><strong>$10</strong><span>16 video credits<br />Best value pack</span></button>
+                    <div class="credit-pack-grid" aria-label="NorthStar launch plans">
+                      <button class="credit-pack" data-credit-pack="9"><strong>$9</strong><span>12 video credits<br />Creator plan</span></button>
+                      <button class="credit-pack" data-credit-pack="19"><strong>$19</strong><span>32 video credits<br />Studio plan</span></button>
+                      <button class="credit-pack" data-credit-pack="49"><strong>$49</strong><span>100 video credits<br />Pro plan</span></button>
                     </div>
                     <div id="creditCheckoutStatus" class="muted">Checking billing setup...</div>
                   </div>
@@ -4445,6 +4879,14 @@
       const timelineHideBtnEl = document.getElementById('timelineHideBtn');
       const toggleTimelineBtnEl = document.getElementById('toggleTimelineBtn');
       const timelineScrubEl = document.getElementById('timelineScrub');
+      const assetDockEl = document.getElementById('assetDock');
+      const assetDockDropEl = document.getElementById('assetDockDrop');
+      const assetDockListEl = document.getElementById('assetDockList');
+      const assetDockPickBtn = document.getElementById('assetDockPick');
+      const assetDockPickerEl = document.getElementById('assetDockPicker');
+      const assetDockSelectedEl = document.getElementById('assetDockSelected');
+      const assetDockSecondEl = document.getElementById('assetDockSecond');
+      const assetDockPlaceBtn = document.getElementById('assetDockPlace');
       const canvasGridEl = document.querySelector('.canvas-grid');
       const canvasSplitterEl = document.getElementById('canvasSplitter');
       const controlsCardEl = document.querySelector('.controls-card');
@@ -4476,6 +4918,20 @@
       const toggleHighlightBtn = document.getElementById('toggleHighlight');
       const codePrettyWrapEl = document.getElementById('codePrettyWrap');
       const codePrettyEl = document.getElementById('codePretty');
+      const codeEmptyStateEl = document.getElementById('codeEmptyState');
+      const insertStarterCodeBtn = document.getElementById('insertStarterCode');
+      const openCodePromptBtn = document.getElementById('openCodePrompt');
+      const codeLinesMetricEl = document.getElementById('codeLinesMetric');
+      const codeScenesMetricEl = document.getElementById('codeScenesMetric');
+      const codeCharsMetricEl = document.getElementById('codeCharsMetric');
+      const copyCodeBtn = document.getElementById('copyCodeBtn');
+      const formatCodeBtn = document.getElementById('formatCodeBtn');
+      const sendCodeToChatBtn = document.getElementById('sendCodeToChatBtn');
+      const openGalleryBtn = document.getElementById('openGalleryBtn');
+      const galleryGridEl = document.getElementById('galleryGrid');
+      const galleryEmptyEl = document.getElementById('galleryEmpty');
+      const gallerySearchEl = document.getElementById('gallerySearch');
+      const galleryCountEl = document.getElementById('galleryCount');
       const logsEl = document.getElementById('logs');
       const terminalPanel = document.getElementById('terminalPanel');
       const termCmdEl = document.getElementById('termCmd');
@@ -4911,6 +5367,53 @@
       let lastCaptionsUrl = '';
       const renderDeck = [];
       let activeDeckIndex = -1;
+      const GALLERY_PRESETS = [
+        {
+          kind: 'preset',
+          job_id: 'preset-photoelectric',
+          title: 'Photoelectric threshold',
+          family: 'Quantum',
+          prompt: 'Explain the photoelectric effect with red vs blue light, threshold frequency, and K_max = hf - phi.',
+          duration: '60s',
+          aspect: '9:16',
+        },
+        {
+          kind: 'preset',
+          job_id: 'preset-diffraction',
+          title: 'Single-slit diffraction',
+          family: 'Optics',
+          prompt: 'Show a wavefront passing through a slit and forming diffraction bands with labels.',
+          duration: '45s',
+          aspect: '16:9',
+        },
+        {
+          kind: 'preset',
+          job_id: 'preset-pendulum',
+          title: 'Pendulum energy exchange',
+          family: 'Mechanics',
+          prompt: 'Animate a pendulum trading potential and kinetic energy with a clean energy bar.',
+          duration: '45s',
+          aspect: '9:16',
+        },
+        {
+          kind: 'preset',
+          job_id: 'preset-relativity',
+          title: 'Relativity light cone',
+          family: 'Spacetime',
+          prompt: 'Build a light cone story showing causality, time, space, and allowed paths.',
+          duration: '60s',
+          aspect: '16:9',
+        },
+        {
+          kind: 'preset',
+          job_id: 'preset-spectrum',
+          title: 'Prism spectrum',
+          family: 'Optics',
+          prompt: 'Show white light separating into a spectrum with wavelength and frequency labels.',
+          duration: '40s',
+          aspect: '9:16',
+        },
+      ];
       function setVideoAvailable(available) {
         const ok = !!available;
         if (downloadBtnEl) downloadBtnEl.disabled = !ok;
@@ -4979,6 +5482,7 @@
         deckTrackEl.innerHTML = '';
         if (renderDeck.length <= 1) {
           deckCarouselEl.classList.add('hidden');
+          renderGallery();
           return;
         }
         deckCarouselEl.classList.remove('hidden');
@@ -5004,6 +5508,115 @@
         if (activeCard && activeCard.scrollIntoView) {
           activeCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
         }
+        renderGallery();
+      }
+
+      function galleryItems() {
+        const rendered = renderDeck.map((item, idx) => ({
+          kind: 'render',
+          title: item.job_id || `Render ${idx + 1}`,
+          family: item.appended_from ? 'Stitched render' : 'Rendered video',
+          prompt: item.video_path || '',
+          duration: 'MP4',
+          aspect: aspectEl?.value || '9:16',
+          ...item,
+        }));
+        return [...rendered, ...GALLERY_PRESETS];
+      }
+
+      function openGalleryPreset(item) {
+        if (!item) return;
+        if (chatInputEl) chatInputEl.value = item.prompt || '';
+        if (targetSecondsEl && item.duration) targetSecondsEl.value = String(item.duration).replace(/[^0-9.]/g, '') || targetSecondsEl.value;
+        if (aspectEl && item.aspect) {
+          aspectEl.value = item.aspect;
+          setPreviewAspect(item.aspect);
+        }
+        setActiveTab('canvas');
+        if (chatInputEl) chatInputEl.focus();
+        showToast(`Loaded ${item.title}.`, 'ok');
+      }
+
+      async function copyGalleryShare(item) {
+        const title = item?.title || item?.job_id || 'NorthStar animation';
+        const shareUrl = item?.job_id && item.kind === 'render'
+          ? apiHref(`/api/jobs/${encodeURIComponent(item.job_id)}/share-page`)
+          : 'https://northstarstudio.io';
+        const copy = `${title}\nMade with NorthStar: prompt-to-Manim storytelling animations.\n${shareUrl}`;
+        try {
+          await navigator.clipboard.writeText(copy);
+          showToast('Share copy ready.', 'ok');
+        } catch {
+          showToast('Clipboard unavailable.', 'err');
+        }
+      }
+
+      function publishGalleryItem(platform, item) {
+        if (!item) return;
+        const title = item.title || item.job_id || 'NorthStar animation';
+        const shareUrl = item.kind === 'render' && item.job_id
+          ? apiHref(`/api/jobs/${encodeURIComponent(item.job_id)}/share-page`)
+          : 'https://northstarstudio.io';
+        if (platform === 'x') {
+          const text = `${title} — made with NorthStar. Create physics animations from prompts and cheat sheets.`;
+          window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`, '_blank');
+          return;
+        }
+        void copyGalleryShare(item);
+        showToast(`${platform === 'youtube' ? 'YouTube' : 'Twitch'} OAuth is not connected yet. Copied publish copy.`, 'err');
+      }
+
+      function renderGallery() {
+        if (!galleryGridEl) return;
+        const q = String(gallerySearchEl?.value || '').trim().toLowerCase();
+        const items = galleryItems().filter((item) => {
+          if (!q) return true;
+          return [item.title, item.family, item.prompt, item.job_id, item.video_path]
+            .some((v) => String(v || '').toLowerCase().includes(q));
+        });
+        galleryGridEl.innerHTML = '';
+        if (galleryCountEl) galleryCountEl.textContent = `${items.length} item${items.length === 1 ? '' : 's'}`;
+        if (galleryEmptyEl) galleryEmptyEl.classList.toggle('hidden', items.length > 0);
+        items.forEach((item) => {
+          const isRender = item.kind === 'render';
+          const card = document.createElement('article');
+          card.className = 'gallery-card';
+          card.title = [
+            item.title || item.job_id,
+            item.family,
+            item.duration,
+            item.aspect,
+            item.video_path || item.prompt,
+          ].filter(Boolean).join('\n');
+          card.innerHTML = `
+            <div class="gallery-thumb">${escapeHtml(isRender ? 'MP4 render' : item.family || 'Preset')}</div>
+            <div class="gallery-body">
+              <h3>${escapeHtml(item.title || item.job_id || 'Untitled')}</h3>
+              <div class="gallery-meta">${escapeHtml(item.family || '')} · ${escapeHtml(item.duration || '')} · ${escapeHtml(item.aspect || '')}<br>${escapeHtml(item.prompt || item.video_path || '')}</div>
+              <div class="gallery-actions">
+                <button class="ghost" data-action="open">${isRender ? 'Open' : 'Use'}</button>
+                <button class="ghost" data-action="x">X</button>
+                <button class="ghost" data-action="copy">Copy</button>
+                <button class="ghost" data-action="youtube">YouTube</button>
+                <button class="ghost" data-action="twitch">Twitch</button>
+                <button class="ghost" data-action="package">Package</button>
+              </div>
+            </div>
+          `;
+          card.querySelector('[data-action="open"]')?.addEventListener('click', () => {
+            if (isRender) openDeckItem(item, renderDeck.findIndex((x) => x.job_id === item.job_id && x.video_path === item.video_path));
+            else openGalleryPreset(item);
+          });
+          card.querySelector('[data-action="x"]')?.addEventListener('click', () => publishGalleryItem('x', item));
+          card.querySelector('[data-action="copy"]')?.addEventListener('click', () => void copyGalleryShare(item));
+          card.querySelector('[data-action="youtube"]')?.addEventListener('click', () => publishGalleryItem('youtube', item));
+          card.querySelector('[data-action="twitch"]')?.addEventListener('click', () => publishGalleryItem('twitch', item));
+          card.querySelector('[data-action="package"]')?.addEventListener('click', () => {
+            if (isRender && item.job_id) window.open(apiHref(`/api/jobs/${encodeURIComponent(item.job_id)}/download`), '_blank');
+            else openGalleryPreset(item);
+          });
+          galleryGridEl.appendChild(card);
+        });
       }
 
       function fmtTime(s) {
@@ -5082,6 +5695,8 @@
               actions: Array.isArray(sc.actions) ? sc.actions : [],
               narration: sc.narration || '',
               assets: sc.assets || {},
+              attachments: sc.attachments || [],
+              asset_cues: sc.asset_cues || [],
             }));
             renderTimeline();
             currentPlanText = JSON.stringify(data.plan, null, 2);
@@ -5536,6 +6151,8 @@
       ];
       let chatSessions = [];
       let activeChatSessionId = '';
+      let assetDockItems = [];
+      let selectedAssetDockId = '';
       const stepNotes = {
         plan: 'No plan yet.',
         approve: 'Waiting for approval.',
@@ -5590,9 +6207,9 @@
           },
           {
             title: 'Add visuals if needed',
-            body: 'Generate image variants when ready, or use your own assets before rendering.',
-            hint: 'Middle panel -> Images',
-            target: '#imageGenDetails',
+            body: 'Use the Asset dock for PDFs, MD files, video clips, sounds, and generated or uploaded images before rendering.',
+            hint: 'Explorer -> Asset dock',
+            target: '#assetDock',
             icon_prompt: 'Image variation icon dark ui',
             icon_url: '',
           },
@@ -5630,9 +6247,9 @@
           next.outro_body = 'Press Create plan, add your own visuals if needed, approve, and render your first video.';
           next.steps[2] = {
             title: 'Use existing visuals',
-            body: 'Drop your own background or foreground assets into scenes, or continue text-only until image generation is configured.',
-            hint: 'Middle panel -> Images',
-            target: '#imageGenDetails',
+            body: 'Drop your own sources or visual assets into the dock, then drag them onto a timeline scene.',
+            hint: 'Explorer -> Asset dock',
+            target: '#assetDock',
             icon_prompt: 'Asset upload and scene card icon dark ui',
             icon_url: '',
           };
@@ -7617,7 +8234,9 @@
             elements: sc.elements,
             actions: sc.actions,
             narration: sc.narration,
-            assets: sc.assets || {}
+            assets: sc.assets || {},
+            attachments: sc.attachments || [],
+            asset_cues: sc.asset_cues || [],
           }));
           session.plan_text = JSON.stringify(st.plan, null, 2);
         }
@@ -9023,6 +9642,73 @@
         codeGutterEl.textContent = out;
         // Keep gutter scroll aligned.
         codeGutterEl.scrollTop = codeEl.scrollTop;
+        updateCodeWorkbench();
+      }
+
+      function starterManimCode() {
+        return `from manim import *\n\n\nclass NorthStarStarter(Scene):\n    def construct(self):\n        title = Text(\"NorthStar\", font_size=54, weight=BOLD)\n        subtitle = Text(\"Explain one idea at a time\", font_size=28, color=BLUE_B)\n        subtitle.next_to(title, DOWN, buff=0.35)\n\n        self.play(Write(title), FadeIn(subtitle, shift=UP * 0.2))\n        self.wait(0.8)\n\n        axes = Axes(x_range=[0, 6, 1], y_range=[0, 4, 1], x_length=6, y_length=3)\n        curve = axes.plot(lambda x: 0.35 * (x - 1) ** 2 + 0.4, color=GREEN)\n        label = MathTex(r\"K_{max}=hf-\\\\phi\", color=YELLOW).to_edge(UP)\n\n        group = VGroup(axes, curve).scale(0.82).to_edge(DOWN)\n        self.play(FadeOut(title), subtitle.animate.to_edge(UP), Create(axes), Create(curve))\n        self.play(Write(label))\n        self.wait(1.2)\n`;
+      }
+
+      function updateCodeWorkbench() {
+        if (!codeEl) return;
+        const src = String(codeEl.value || '');
+        const trimmed = src.trim();
+        const lines = Math.max(1, src.split('\\n').length);
+        const scenes = (src.match(/class\\s+\\w+\\s*\\([^)]*Scene[^)]*\\)\\s*:/g) || []).length;
+        if (codeLinesMetricEl) codeLinesMetricEl.textContent = String(lines);
+        if (codeScenesMetricEl) codeScenesMetricEl.textContent = String(scenes);
+        if (codeCharsMetricEl) codeCharsMetricEl.textContent = String(src.length);
+        if (codeEmptyStateEl) codeEmptyStateEl.classList.toggle('hidden', !!trimmed);
+        if (copyCodeBtn) copyCodeBtn.disabled = !trimmed;
+        if (formatCodeBtn) formatCodeBtn.disabled = !trimmed;
+        if (sendCodeToChatBtn) sendCodeToChatBtn.disabled = !trimmed;
+      }
+
+      function setCodeValue(next) {
+        codeEl.value = String(next || '');
+        syncCurrentEditorIntoActiveTab();
+        refreshGutter();
+        if (highlightOn) refreshHighlight();
+        updateEditorMode();
+        scheduleAutosave();
+      }
+
+      function insertCodeAtCursor(snippet) {
+        if (!codeEl) return;
+        const text = String(snippet || '');
+        const start = codeEl.selectionStart ?? codeEl.value.length;
+        const end = codeEl.selectionEnd ?? start;
+        const next = `${codeEl.value.slice(0, start)}${text}${codeEl.value.slice(end)}`;
+        setCodeValue(next);
+        codeEl.focus();
+        try {
+          codeEl.setSelectionRange(start + text.length, start + text.length);
+        } catch {}
+      }
+
+      function cleanCodeSpacing(src) {
+        return String(src || '')
+          .replace(/\\r\\n/g, '\\n')
+          .split('\\n')
+          .map((line) => line.replace(/[\\t ]+$/g, '').replace(/^\\t+/g, (m) => '    '.repeat(m.length)))
+          .join('\\n')
+          .replace(/\\n{4,}/g, '\\n\\n\\n')
+          .trimEnd() + '\\n';
+      }
+
+      function snippetFor(kind) {
+        switch (kind) {
+          case 'title':
+            return `\\n        title = Text(\"Key idea\", font_size=48, weight=BOLD)\\n        self.play(Write(title))\\n        self.wait(0.6)\\n`;
+          case 'axes':
+            return `\\n        axes = Axes(x_range=[0, 6, 1], y_range=[0, 4, 1], x_length=6, y_length=3)\\n        curve = axes.plot(lambda x: 0.5 * x + 0.4, color=BLUE)\\n        self.play(Create(axes), Create(curve))\\n`;
+          case 'formula':
+            return `\\n        formula = MathTex(r\"E = hf\", color=YELLOW).to_edge(UP)\\n        self.play(Write(formula))\\n`;
+          case 'camera':
+            return `\\n        self.camera.background_color = \"#0b0d12\"\\n`;
+          default:
+            return '';
+        }
       }
 
       let highlightOn = true;
@@ -9263,6 +9949,14 @@
             e.dataTransfer.setData('text/asset-path', item.relPath || '');
             e.dataTransfer.effectAllowed = 'copy';
           };
+          if (item.relPath) {
+            addGeneratedAssetToDock({
+              name: `${type || 'image'} variant ${idx + 1}`,
+              role: type,
+              path: item.relPath,
+              url: item.url || '',
+            });
+          }
           grid.appendChild(cell);
         });
         el.appendChild(grid);
@@ -10919,10 +11613,326 @@
         return Array.from(out);
       }
 
+      function formatBytes(bytes) {
+        const n = Number(bytes || 0);
+        if (!n) return '0 KB';
+        if (n < 1024 * 1024) return `${Math.max(1, Math.round(n / 1024))} KB`;
+        return `${(n / (1024 * 1024)).toFixed(n >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
+      }
+
+      function assetKindForFile(file) {
+        const name = String(file?.name || '').toLowerCase();
+        const type = String(file?.type || '').toLowerCase();
+        if (name.endsWith('.svg') || type.includes('svg')) return 'svg';
+        if (type.startsWith('image/')) return 'image';
+        if (type.startsWith('video/') || /\.(mp4|mov|webm|m4v)$/i.test(name)) return 'video';
+        if (type.startsWith('audio/') || /\.(wav|mp3|m4a|aac|ogg)$/i.test(name)) return 'audio';
+        if (type.includes('pdf') || name.endsWith('.pdf')) return 'pdf';
+        if (/\.(md|markdown|txt|json|csv|ya?ml)$/i.test(name)) return name.endsWith('.md') || name.endsWith('.markdown') ? 'markdown' : 'source';
+        if (/\.(py|tex|svg)$/i.test(name)) return 'source';
+        return 'asset';
+      }
+
+      function assetRoleForKind(kind) {
+        const k = String(kind || '').toLowerCase();
+        if (k === 'image' || k === 'svg') return imageModeEl?.value === 'foreground' ? 'foreground' : 'background';
+        if (k === 'audio') return 'sound';
+        if (k === 'video') return 'video';
+        if (k === 'markdown' || k === 'pdf' || k === 'source') return 'source';
+        return 'asset';
+      }
+
+      function assetKindLabel(kind) {
+        switch (String(kind || '').toLowerCase()) {
+          case 'svg': return 'SVG';
+          case 'image': return 'IMG';
+          case 'video': return 'MP4';
+          case 'audio': return 'AUD';
+          case 'pdf': return 'PDF';
+          case 'markdown': return 'MD';
+          case 'source': return 'SRC';
+          default: return 'FILE';
+        }
+      }
+
+      function addFilesToAssetDock(files) {
+        const added = [];
+        Array.from(files || []).forEach((file) => {
+          if (!file) return;
+          const kind = assetKindForFile(file);
+          const url = URL.createObjectURL(file);
+          const item = {
+            id: `asset-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            name: file.name || 'untitled asset',
+            kind,
+            mime: file.type || '',
+            size: file.size || 0,
+            url,
+            file,
+            addedAt: new Date().toISOString(),
+          };
+          assetDockItems.unshift(item);
+          added.push(item);
+        });
+        if (added[0]) selectedAssetDockId = added[0].id;
+        renderAssetDock();
+        if (added.length) {
+          showToast(`${added.length} asset${added.length === 1 ? '' : 's'} added to dock.`, 'ok');
+          pushHistory(`Added ${added.length} asset${added.length === 1 ? '' : 's'} to dock`);
+        }
+        return added;
+      }
+
+      function addReferenceToAssetDock(label, kind = 'source', text = '') {
+        const item = {
+          id: `asset-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          name: label || 'Dropped reference',
+          kind,
+          mime: 'text/plain',
+          size: String(text || label || '').length,
+          url: '',
+          text: String(text || label || ''),
+          addedAt: new Date().toISOString(),
+        };
+        assetDockItems.unshift(item);
+        selectedAssetDockId = item.id;
+        renderAssetDock();
+        return item;
+      }
+
+      function addGeneratedAssetToDock({ name, role, path, url }) {
+        const rel = String(path || '').trim();
+        if (!rel) return null;
+        const existing = assetDockItems.find((item) => item.path === rel);
+        if (existing) return existing;
+        const item = {
+          id: `asset-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          name: name || rel.split('/').pop() || 'generated image',
+          kind: 'image',
+          role: role || 'background',
+          path: rel,
+          mime: 'image/png',
+          size: 0,
+          url: url || resolveAssetPreviewSrc(rel),
+          generated: true,
+          addedAt: new Date().toISOString(),
+        };
+        assetDockItems.unshift(item);
+        selectedAssetDockId = item.id;
+        renderAssetDock();
+        return item;
+      }
+
+      function selectedAssetDockItem() {
+        return assetDockItems.find((item) => item.id === selectedAssetDockId) || assetDockItems[0] || null;
+      }
+
+      function updateAssetDockSelection() {
+        const item = selectedAssetDockItem();
+        if (!assetDockSelectedEl) return;
+        if (!item) {
+          assetDockSelectedEl.textContent = 'No asset selected.';
+          if (assetDockPlaceBtn) assetDockPlaceBtn.disabled = true;
+          return;
+        }
+        selectedAssetDockId = item.id;
+        assetDockSelectedEl.textContent = `Selected: ${item.name} (${assetKindLabel(item.kind)}). Place by second or drag onto a scene.`;
+        if (assetDockPlaceBtn) assetDockPlaceBtn.disabled = !timelineState.length;
+      }
+
+      function renderAssetDock() {
+        if (!assetDockListEl) return;
+        assetDockListEl.innerHTML = '';
+        if (!assetDockItems.length) {
+          const empty = document.createElement('div');
+          empty.className = 'asset-dock-empty';
+          empty.textContent = 'No assets yet. Drop a cheat sheet, image, video clip, sound, or source file here.';
+          assetDockListEl.appendChild(empty);
+          updateAssetDockSelection();
+          return;
+        }
+        assetDockItems.slice(0, 24).forEach((item) => {
+          const row = document.createElement('div');
+          row.className = 'asset-dock-item';
+          row.classList.toggle('selected', item.id === selectedAssetDockId);
+          row.draggable = true;
+          row.title = `${item.name}\n${assetKindLabel(item.kind)} · ${formatBytes(item.size)}\nDrag onto a timeline scene.`;
+          row.addEventListener('dragstart', (e) => {
+            const path = item.path || item.url || item.name;
+            e.dataTransfer.setData('text/asset-dock-id', item.id);
+            e.dataTransfer.setData('text/asset-kind', item.kind);
+            e.dataTransfer.setData('text/asset-type', item.role || assetRoleForKind(item.kind));
+            e.dataTransfer.setData('text/asset-path', path);
+            e.dataTransfer.setData('text/plain', `[Asset: ${item.name}]\nType: ${item.kind}`);
+            e.dataTransfer.effectAllowed = 'copy';
+          });
+
+          const thumb = document.createElement('div');
+          thumb.className = 'asset-dock-thumb';
+          if ((item.kind === 'image' || item.kind === 'svg') && item.url) {
+            const img = document.createElement('img');
+            img.src = item.url;
+            img.alt = item.name;
+            thumb.appendChild(img);
+          } else if (item.kind === 'video' && item.url) {
+            const video = document.createElement('video');
+            video.src = item.url;
+            video.muted = true;
+            thumb.appendChild(video);
+          } else {
+            thumb.textContent = assetKindLabel(item.kind);
+          }
+
+          const body = document.createElement('div');
+          body.innerHTML = `<div class="asset-dock-name">${escapeHtml(item.name)}</div><div class="asset-dock-meta">${assetKindLabel(item.kind)} · ${formatBytes(item.size)} · drag to timeline</div>`;
+
+          const remove = document.createElement('button');
+          remove.className = 'ghost asset-dock-action';
+          remove.type = 'button';
+          remove.title = `Remove ${item.name}`;
+          remove.textContent = 'x';
+          remove.addEventListener('click', (e) => {
+            e.stopPropagation();
+            assetDockItems = assetDockItems.filter((x) => x.id !== item.id);
+            if (selectedAssetDockId === item.id) selectedAssetDockId = assetDockItems[0]?.id || '';
+            if (item.url) {
+              try { URL.revokeObjectURL(item.url); } catch {}
+            }
+            renderAssetDock();
+          });
+
+          row.addEventListener('click', () => {
+            selectedAssetDockId = item.id;
+            renderAssetDock();
+            statusEl.textContent = 'Asset selected. Enter a second or drag it onto the timeline.';
+          });
+
+          row.appendChild(thumb);
+          row.appendChild(body);
+          row.appendChild(remove);
+          assetDockListEl.appendChild(row);
+        });
+        updateAssetDockSelection();
+      }
+
+      function sceneStartSecond(idx) {
+        let cursor = 0;
+        for (let i = 0; i < Math.max(0, idx); i++) {
+          cursor += Math.max(1, Number(timelineState[i]?.seconds || 1));
+        }
+        return cursor;
+      }
+
+      function timelineSecondFromClientX(clientX) {
+        if (!timelineTrackEl || !timelineState.length || clientX === null || clientX === undefined) return null;
+        const rect = timelineTrackEl.getBoundingClientRect();
+        const contentWidth = Math.max(rect.width, timelineTrackEl.scrollWidth || 0, 1);
+        const x = (clientX - rect.left) + (timelineTrackEl.scrollLeft || 0);
+        const pct = Math.max(0, Math.min(1, x / contentWidth));
+        const total = timelineState.reduce((s, sc) => s + Math.max(1, Number(sc.seconds || 1)), 0) || 1;
+        return Math.round(pct * total);
+      }
+
+      function sceneIndexAtTimelineSecond(second) {
+        if (!timelineState.length) return -1;
+        const target = Math.max(0, Number(second || 0));
+        let cursor = 0;
+        for (let i = 0; i < timelineState.length; i++) {
+          const dur = Math.max(1, Number(timelineState[i]?.seconds || 1));
+          if (target < cursor + dur || i === timelineState.length - 1) return i;
+          cursor += dur;
+        }
+        return timelineState.length - 1;
+      }
+
+      async function applyDockAssetToScene(idx, item, clientX = null, explicitSecond = null) {
+        const sc = timelineState[idx];
+        if (!sc || !item) return false;
+        const directSecond = explicitSecond === null || explicitSecond === undefined ? null : Math.max(0, Number(explicitSecond));
+        const cueSecond = Number.isFinite(directSecond) ? directSecond : timelineSecondFromClientX(clientX);
+        const sceneStart = sceneStartSecond(idx);
+        const role = item.role || assetRoleForKind(item.kind);
+        const cue = {
+          id: item.id,
+          name: item.name,
+          kind: item.kind,
+          role,
+          path: item.url || item.name,
+          scene_index: idx,
+          timeline_second: Number.isFinite(cueSecond) ? cueSecond : sceneStart,
+          scene_second: Number.isFinite(cueSecond) ? Math.max(0, cueSecond - sceneStart) : 0,
+        };
+
+        if ((item.kind === 'image' || item.kind === 'svg') && item.path) {
+          sc.assets = sc.assets || {};
+          sc.assets[role === 'foreground' ? 'foreground' : 'background'] = item.path;
+          cue.path = item.path;
+        } else if (item.file && item.kind === 'image' && currentJobId) {
+          try {
+            const rel = await uploadImageToCurrentJob(item.file, role === 'foreground' ? 'foreground' : 'background');
+            if (rel) {
+              sc.assets = sc.assets || {};
+              sc.assets[role === 'foreground' ? 'foreground' : 'background'] = rel;
+              cue.path = rel;
+            }
+          } catch {}
+        }
+
+        if ((item.kind === 'markdown' || item.kind === 'source') && item.file) {
+          try {
+            const text = await item.file.text();
+            if (text) {
+              const note = `[Asset ${item.name} @ ${cue.timeline_second}s]\n${text.slice(0, 700)}`;
+              sc.narration = [sc.narration || '', note].filter(Boolean).join('\n');
+            }
+          } catch {}
+        }
+
+        sc.attachments = Array.isArray(sc.attachments) ? sc.attachments.filter((a) => a.id !== item.id) : [];
+        sc.attachments.push(cue);
+        sc.asset_cues = Array.isArray(sc.asset_cues) ? sc.asset_cues.filter((a) => a.id !== item.id) : [];
+        sc.asset_cues.push(cue);
+        renderTimeline();
+        syncPlanFromTimeline();
+        const label = Number.isFinite(cueSecond) ? `${cueSecond}s` : `scene ${idx + 1}`;
+        showToast(`Added ${item.name} at ${label}.`, 'ok');
+        notifyImageChangeNeedsRerender();
+        return true;
+      }
+
+      async function placeSelectedAssetAtSecond() {
+        const item = selectedAssetDockItem();
+        if (!item) {
+          showToast('Add an asset first.', 'err');
+          return;
+        }
+        if (!ensureTimelineLoadedFromPlan()) {
+          showToast('Create or load a timeline first.', 'err');
+          return;
+        }
+        const raw = String(assetDockSecondEl?.value || '').trim();
+        const fallback = Number.isFinite(Number(videoEl?.currentTime)) ? Math.round(Number(videoEl.currentTime || 0)) : 0;
+        const second = raw ? parseDurationText(raw) : fallback;
+        const idx = sceneIndexAtTimelineSecond(second);
+        if (idx < 0) {
+          showToast('No scene found at that second.', 'err');
+          return;
+        }
+        await applyDockAssetToScene(idx, item, null, second);
+        highlightTimelineAt(second);
+        if (videoEl && videoEl.duration && second <= videoEl.duration) {
+          videoEl.currentTime = second;
+          updateTransportUI();
+        }
+        statusEl.textContent = `Placed ${item.name} at ${second}s.`;
+      }
+
       function sceneIndexFromClientX(clientX) {
         if (!timelineTrackEl || !timelineState.length) return -1;
         const rect = timelineTrackEl.getBoundingClientRect();
-        const pct = Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)));
+        const contentWidth = Math.max(rect.width, timelineTrackEl.scrollWidth || 0, 1);
+        const x = (clientX - rect.left) + (timelineTrackEl.scrollLeft || 0);
+        const pct = Math.max(0, Math.min(1, x / contentWidth));
         const total = timelineState.reduce((s, sc) => s + Math.max(1, Number(sc.seconds || 1)), 0) || 1;
         let cursor = 0;
         const target = pct * total;
@@ -10934,15 +11944,34 @@
         return timelineState.length - 1;
       }
 
-      async function applyDropToSceneIndex(idx, dataTransfer) {
+      async function applyDropToSceneIndex(idx, dataTransfer, clientX = null) {
         const sc = timelineState[idx];
         if (!sc) return false;
         const dt = dataTransfer;
+        const assetDockId = dt.getData('text/asset-dock-id');
+        if (assetDockId) {
+          const item = assetDockItems.find((x) => x.id === assetDockId);
+          if (item) return applyDockAssetToScene(idx, item, clientX);
+        }
+
         const assetType = dt.getData('text/asset-type');
         const assetPath = dt.getData('text/asset-path');
         if (assetType && assetPath) {
           sc.assets = sc.assets || {};
           sc.assets[assetType] = assetPath;
+          const cueSecond = timelineSecondFromClientX(clientX);
+          const sceneStart = sceneStartSecond(idx);
+          sc.asset_cues = Array.isArray(sc.asset_cues) ? sc.asset_cues : [];
+          sc.asset_cues.push({
+            id: `asset-cue-${Date.now()}`,
+            name: String(assetPath).split('/').pop() || assetType,
+            kind: 'generated-image',
+            role: assetType,
+            path: assetPath,
+            scene_index: idx,
+            timeline_second: Number.isFinite(cueSecond) ? cueSecond : sceneStart,
+            scene_second: Number.isFinite(cueSecond) ? Math.max(0, cueSecond - sceneStart) : 0,
+          });
           renderTimeline();
           showToast(`Attached ${assetType.toUpperCase()} to scene ${idx + 1}.`, 'ok');
           notifyImageChangeNeedsRerender();
@@ -10951,29 +11980,10 @@
 
         const droppedFiles = Array.from(dt.files || []);
         if (droppedFiles.length) {
-          const img = droppedFiles.find((f) => (f.type || '').startsWith('image/'));
-          if (!img) {
-            showToast('Drop an image file to attach to a scene.', 'err');
-            return true;
+          const added = addFilesToAssetDock(droppedFiles);
+          for (const item of added) {
+            await applyDockAssetToScene(idx, item, clientX);
           }
-          const role = imageModeEl.value === 'foreground' ? 'foreground' : 'background';
-          let rel = null;
-          try {
-            rel = await uploadImageToCurrentJob(img, role);
-          } catch {
-            rel = null;
-          }
-          if (!rel) return true;
-          sc.assets = sc.assets || {};
-          sc.assets[role] = rel;
-          if (role === 'background') {
-            setThumb(bgThumbEl, { url: `/work/jobs/${currentJobId}/${rel}?t=${Date.now()}`, type: 'background', relPath: rel });
-          } else {
-            setThumb(fgThumbEl, { url: `/work/jobs/${currentJobId}/${rel}?t=${Date.now()}`, type: 'foreground', relPath: rel });
-          }
-          renderTimeline();
-          showToast(`Attached ${img.name} to scene ${idx + 1}.`, 'ok');
-          notifyImageChangeNeedsRerender();
           return true;
         }
 
@@ -10997,6 +12007,20 @@
           snippet = raw.slice(0, 600);
         }
         sc.narration = [sc.narration || '', snippet].filter(Boolean).join('\n');
+        if (sourceTimeline || sourceSnippet || raw) {
+          const item = addReferenceToAssetDock(raw.split('\n')[0].slice(0, 80) || 'Timeline note', kind === 'file' ? 'source' : 'markdown', snippet);
+          sc.attachments = Array.isArray(sc.attachments) ? sc.attachments : [];
+          sc.attachments.push({
+            id: item.id,
+            name: item.name,
+            kind: item.kind,
+            role: 'source',
+            path: item.name,
+            scene_index: idx,
+            timeline_second: timelineSecondFromClientX(clientX) ?? sceneStartSecond(idx),
+            scene_second: 0,
+          });
+        }
         renderTimeline();
         showToast(`Added note to scene ${idx + 1}.`, 'ok');
         return true;
@@ -11080,11 +12104,28 @@
         return badge;
       }
 
+      function buildTimelineAttachmentBadge(att) {
+        const badge = document.createElement('div');
+        badge.className = 'timeline-badge timeline-attachment-badge';
+        const kind = assetKindLabel(att?.kind || att?.role || 'asset');
+        const at = Number.isFinite(Number(att?.timeline_second)) ? `${Math.round(Number(att.timeline_second))}s` : 'scene';
+        badge.innerHTML = `<strong>${escapeHtml(kind)}</strong><span>${escapeHtml(compactLabel(att?.name || att?.path || 'asset', 22))} @ ${escapeHtml(at)}</span>`;
+        badge.title = `${att?.name || att?.path || 'Asset'}\n${kind} at ${at}`;
+        return badge;
+      }
+
       function buildTimelineAssetDot(role, relPath) {
         const dot = document.createElement('span');
         dot.className = `timeline-asset-dot ${role === 'background' ? 'bg' : 'fg'}`;
         const name = role === 'background' ? 'Background' : 'Foreground';
         dot.title = `${name} asset\n${relPath || ''}`.trim();
+        return dot;
+      }
+
+      function buildTimelineAttachmentDot(att) {
+        const dot = document.createElement('span');
+        dot.className = 'timeline-asset-dot attachment';
+        dot.title = `${att?.name || 'Attachment'}\n${assetKindLabel(att?.kind || 'asset')}`;
         return dot;
       }
 
@@ -11112,14 +12153,18 @@
           block.draggable = true;
           block.dataset.index = idx;
           block.style.flex = `0 0 ${Math.max(120, Number(scene.seconds || 1) * 14)}px`;
+          const attachments = Array.isArray(scene.attachments) ? scene.attachments : [];
+          const cues = Array.isArray(scene.asset_cues) ? scene.asset_cues : [];
           block.classList.toggle('has-bg', !!scene.assets?.background);
           block.classList.toggle('has-fg', !!scene.assets?.foreground);
+          block.classList.toggle('has-attachments', attachments.length > 0 || cues.length > 0);
           block.title = [
             `Scene ${idx + 1} • ${start}s–${end}s`,
             (scene.goal || 'Scene'),
             (scene.narration || '').trim() ? `Narration: ${(scene.narration || '').trim()}` : '',
             scene.assets?.background ? `BG: ${scene.assets.background}` : '',
             scene.assets?.foreground ? `FG: ${scene.assets.foreground}` : '',
+            attachments.length ? `Attachments: ${attachments.map((a) => `${a.name || a.path || 'asset'} @ ${a.timeline_second ?? start}s`).join(', ')}` : '',
           ].filter(Boolean).join('\n');
 
           const header = document.createElement('div');
@@ -11130,6 +12175,7 @@
           headerMeta.className = 'timeline-block-meta';
           if (scene.assets?.background) headerMeta.appendChild(buildTimelineAssetDot('background', scene.assets.background));
           if (scene.assets?.foreground) headerMeta.appendChild(buildTimelineAssetDot('foreground', scene.assets.foreground));
+          attachments.slice(0, 3).forEach((att) => headerMeta.appendChild(buildTimelineAttachmentDot(att)));
           const delSceneBtn = document.createElement('button');
           delSceneBtn.type = 'button';
           delSceneBtn.className = 'timeline-scene-delete';
@@ -11149,6 +12195,8 @@
                 actions: [],
                 narration: '',
                 assets: {},
+                attachments: [],
+                asset_cues: [],
               });
             }
             renderTimeline();
@@ -11209,6 +12257,13 @@
             fg.title = `Foreground image\n${scene.assets.foreground}`;
             badges.appendChild(fg);
           }
+          attachments.slice(0, 4).forEach((att) => badges.appendChild(buildTimelineAttachmentBadge(att)));
+          if (attachments.length > 4) {
+            const more = document.createElement('div');
+            more.className = 'timeline-badge timeline-attachment-badge';
+            more.textContent = `+${attachments.length - 4} more`;
+            badges.appendChild(more);
+          }
 
           const noteInput = document.createElement('textarea');
           noteInput.className = 'timeline-edit-note';
@@ -11262,6 +12317,14 @@
           block.appendChild(badges);
           block.appendChild(details);
           block.appendChild(handle);
+          const firstCue = attachments[0] || cues[0] || null;
+          if (firstCue) {
+            const pill = document.createElement('div');
+            pill.className = 'timeline-insert-pill';
+            const at = Number.isFinite(Number(firstCue.timeline_second)) ? `${Math.round(Number(firstCue.timeline_second))}s` : 'scene';
+            pill.textContent = `${assetKindLabel(firstCue.kind || firstCue.role)} ${at}`;
+            block.appendChild(pill);
+          }
 
           block.addEventListener('dragstart', (e) => {
             block.classList.add('dragging');
@@ -11286,7 +12349,7 @@
               renderTimeline();
               return;
             }
-            await applyDropToSceneIndex(to, e.dataTransfer);
+            await applyDropToSceneIndex(to, e.dataTransfer, e.clientX);
           };
           block.addEventListener('drop', handleSceneDrop);
 
@@ -11306,6 +12369,7 @@
         refreshSceneTargetPlaceholders();
         scheduleAutosave();
         updateFirst60Checklist();
+        updateAssetDockSelection();
       }
 
       if (timelineTrackEl) {
@@ -11344,7 +12408,7 @@
             renderTimeline();
             return;
           }
-          await applyDropToSceneIndex(idx, e.dataTransfer);
+          await applyDropToSceneIndex(idx, e.dataTransfer, e.clientX);
         });
       }
 
@@ -11379,7 +12443,9 @@
             elements: sc.elements || [],
             actions: sc.actions || [],
             narration: sc.narration || '',
-            assets: sc.assets || {}
+            assets: sc.assets || {},
+            attachments: sc.attachments || [],
+            asset_cues: sc.asset_cues || [],
           }))
         };
         lastPlanBox.value = JSON.stringify(plan, null, 2);
@@ -11417,6 +12483,8 @@
             actions: sc.actions || [],
             narration: sc.narration || '',
             assets: sc.assets || {},
+            attachments: sc.attachments || [],
+            asset_cues: sc.asset_cues || [],
           }));
           renderTimeline();
           return timelineState.length > 0;
@@ -11474,6 +12542,8 @@
           actions: copy?.actions || [],
           narration: copy?.narration || `Extend the explanation with ${delta}s of additional clarity and examples.`,
           assets: copy?.assets || {},
+          attachments: copy?.attachments || [],
+          asset_cues: copy?.asset_cues || [],
         });
         renderTimeline();
         syncPlanFromTimeline();
@@ -11888,7 +12958,10 @@
             goal: sc.goal,
             elements: sc.elements,
             actions: sc.actions,
-            narration: sc.narration
+            narration: sc.narration,
+            assets: sc.assets || {},
+            attachments: sc.attachments || [],
+            asset_cues: sc.asset_cues || [],
           }));
           renderTimeline();
         }
@@ -12336,7 +13409,9 @@
                 elements: sc.elements,
                 actions: sc.actions,
                 narration: sc.narration,
-                assets: sc.assets || {}
+                assets: sc.assets || {},
+                attachments: sc.attachments || [],
+                asset_cues: sc.asset_cues || [],
               }));
               renderTimeline();
             }
@@ -12570,6 +13645,84 @@
         a.click();
         a.remove();
         showToast('Downloading video…', 'ok');
+      });
+
+      safeOn(insertStarterCodeBtn, 'click', () => {
+        setCodeValue(starterManimCode());
+        setActiveTab('code');
+        showToast('Starter Manim scene inserted.', 'ok');
+      });
+      safeOn(openCodePromptBtn, 'click', () => {
+        setActiveTab('canvas');
+        chatInputEl.focus();
+        statusEl.textContent = 'Describe the code change in chat.';
+      });
+      safeOn(copyCodeBtn, 'click', async () => {
+        const src = codeEl.value || '';
+        if (!src.trim()) return;
+        try {
+          await navigator.clipboard.writeText(src);
+          showToast('Code copied.', 'ok');
+        } catch {
+          showToast('Clipboard unavailable.', 'err');
+        }
+      });
+      safeOn(formatCodeBtn, 'click', () => {
+        if (!codeEl.value.trim()) return;
+        setCodeValue(cleanCodeSpacing(codeEl.value));
+        showToast('Code spacing cleaned.', 'ok');
+      });
+      safeOn(sendCodeToChatBtn, 'click', () => {
+        const src = codeEl.value || '';
+        if (!src.trim()) return;
+        const snippet = src.length > 2400 ? `${src.slice(0, 2400)}\n# ...truncated...` : src;
+        chatInputEl.value = `${chatInputEl.value || ''}\n\nPlease review and improve this Manim code:\n\`\`\`python\n${snippet}\n\`\`\``.trim();
+        setActiveTab('canvas');
+        chatInputEl.focus();
+      });
+      safeOn(openGalleryBtn, 'click', () => {
+        setActiveTab('gallery');
+        renderGallery();
+      });
+      document.querySelectorAll('[data-snippet]').forEach((btn) => {
+        safeOn(btn, 'click', () => insertCodeAtCursor(snippetFor(btn.dataset.snippet)));
+      });
+      safeOn(gallerySearchEl, 'input', renderGallery);
+
+      safeOn(assetDockPickBtn, 'click', () => assetDockPickerEl?.click());
+      safeOn(assetDockPickerEl, 'change', (e) => {
+        addFilesToAssetDock(e.target.files || []);
+        assetDockPickerEl.value = '';
+      });
+      safeOn(assetDockPlaceBtn, 'click', placeSelectedAssetAtSecond);
+      safeOn(assetDockSecondEl, 'keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          placeSelectedAssetAtSecond();
+        }
+      });
+      [assetDockEl, assetDockDropEl].forEach((target) => {
+        safeOn(target, 'dragover', (e) => {
+          e.preventDefault();
+          assetDockEl?.classList.add('is-drop');
+        });
+        safeOn(target, 'dragleave', (e) => {
+          if (assetDockEl && !assetDockEl.contains(e.relatedTarget)) assetDockEl.classList.remove('is-drop');
+        });
+        safeOn(target, 'drop', (e) => {
+          e.preventDefault();
+          assetDockEl?.classList.remove('is-drop');
+          const files = Array.from(e.dataTransfer?.files || []);
+          if (files.length) {
+            addFilesToAssetDock(files);
+            return;
+          }
+          const text = (e.dataTransfer?.getData('text/plain') || '').trim();
+          if (text) {
+            addReferenceToAssetDock(text.split('\n')[0].slice(0, 80) || 'Dropped reference', 'source', text);
+            showToast('Reference added to dock.', 'ok');
+          }
+        });
       });
 
       async function execTerminalCommand(cmd, { append = false, silent = false } = {}) {
@@ -13047,6 +14200,7 @@
       loadWorkspaceFiles();
       initImagePresetControls();
       renderSources();
+      renderAssetDock();
       setPreviewAspect(aspectEl.value);
       initChatSessions();
       startSessionPoller();
