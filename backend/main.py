@@ -287,9 +287,17 @@ def _billing_status_for_user(user_id: str) -> Dict[str, Any]:
         store = _read_billing_store()
         user = _ensure_billing_user(store, user_id)
         _write_billing_store(store)
+        payments = user.get("payments") if isinstance(user.get("payments"), list) else []
+        paid_video_credits = sum(
+            int(payment.get("video_credits") or 0)
+            for payment in payments
+            if isinstance(payment, dict)
+        )
         return {
             "user_id": user_id,
             "credits": int(user.get("credits") or 0),
+            "paid_video_credits": paid_video_credits,
+            "creator_pack_unlocked": paid_video_credits > 0,
             "starter_free_video_credits": _configured_free_credits(),
             "credit_packs": _billing_packs_payload(),
             "stripe_checkout_configured": _stripe_checkout_configured(),
