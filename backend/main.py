@@ -71,6 +71,10 @@ DEFAULT_TEXT_PROVIDER = "openai"
 DEFAULT_OPENAI_TEXT_MODEL = "gpt-5"
 DEFAULT_GEMINI_TEXT_MODEL = "gemini-3-flash-preview"
 STARTER_FREE_VIDEO_CREDITS = 3
+MAX_RENDER_SECONDS = float(os.getenv("NORTHSTAR_MAX_RENDER_SECONDS", "75"))
+MAX_RENDER_SCENES = int(os.getenv("NORTHSTAR_MAX_RENDER_SCENES", "6"))
+MAX_RENDER_ITEMS_PER_LIST = int(os.getenv("NORTHSTAR_MAX_RENDER_ITEMS_PER_LIST", "5"))
+MAX_RENDER_SCENE_SECONDS = float(os.getenv("NORTHSTAR_MAX_RENDER_SCENE_SECONDS", "10"))
 CREDIT_PACKS = [
     {
         "price_usd": 9,
@@ -1146,6 +1150,11 @@ def _build_director_brief(req: AnimateReq) -> str:
         graph_text,
         narr_text,
         f"Aspect ratio: {req.aspect_ratio}",
+        (
+            f"Hosted render budget: at most {MAX_RENDER_SCENES} scenes, "
+            f"{int(MAX_RENDER_SECONDS)} seconds total, {MAX_RENDER_ITEMS_PER_LIST} elements/actions per scene, "
+            f"and {int(MAX_RENDER_SCENE_SECONDS)} seconds per scene. Keep Manim code simple enough for low-quality preview rendering."
+        ),
     ]
     if req.target_seconds:
         lines.append(
@@ -1298,6 +1307,75 @@ def _float_or_zero(value: Any) -> float:
         return float(value)
     except Exception:
         return 0.0
+
+
+def _clamp_int(value: Any, *, default: int, low: int, high: int) -> int:
+    try:
+        num = int(value)
+    except (TypeError, ValueError):
+        num = default
+    return max(low, min(high, num))
+
+
+def _normalize_plan_for_render(
+    plan: Dict[str, Any],
+    *,
+    max_scenes: Optional[int] = None,
+    max_objects: Optional[int] = None,
+    target_seconds: Optional[float] = None,
+) -> Dict[str, Any]:
+    """Keep model-created plans within a predictable hosted render budget."""
+    scene_budget = _clamp_int(max_scenes, default=MAX_RENDER_SCENES, low=1, high=MAX_RENDER_SCENES)
+    item_budget = _clamp_int(max_objects, default=MAX_RENDER_ITEMS_PER_LIST, low=1, high=MAX_RENDER_ITEMS_PER_LIST)
+    target_budget = _float_or_zero(target_seconds) or _float_or_zero(plan.get("total_seconds"))
+    target_budget = max(6.0, min(MAX_RENDER_SECONDS, target_budget or MAX_RENDER_SECONDS))
+
+    raw_scenes = plan.get("scenes") if isinstance(plan.get("scenes"), list) else []
+    normalized_scenes: list[Dict[str, Any]] = []
+    for idx, raw in enumerate(raw_scenes[:scene_budget], start=1):
+        sc = raw if isinstance(raw, dict) else {}
+        out = dict(sc)
+        seconds = _float_or_zero(sc.get("seconds")) or max(2.0, target_budget / max(1, min(scene_budget, len(raw_scenes) or 1)))
+        out["seconds"] = max(2.0, min(MAX_RENDER_SCENE_SECONDS, seconds))
+        out["goal"] = _clip_text(sc.get("goal") or f"Scene {idx}", 180)
+        out["narration"] = _clip_text(sc.get("narration") or "", 220)
+        for key in ("elements", "actions"):
+            values = sc.get(key) if isinstance(sc.get(key), list) else []
+            out[key] = [_clip_text(item, 140) for item in values[:item_budget] if str(item).strip()]
+        normalized_scenes.append(out)
+
+    if not normalized_scenes:
+        normalized_scenes = [
+            {
+                "seconds": min(6.0, target_budget),
+                "goal": _clip_text(plan.get("title") or "Create a clear first animation.", 180),
+                "elements": ["Title", "Core visual", "Takeaway"],
+                "actions": ["Introduce the concept.", "Animate the core idea.", "End with one takeaway."],
+                "narration": _clip_text(plan.get("title") or "A short NorthStar animation.", 220),
+            }
+        ]
+
+    total = sum(_float_or_zero(sc.get("seconds")) for sc in normalized_scenes)
+    if total > target_budget and total > 0:
+        scale = target_budget / total
+        for sc in normalized_scenes:
+            sc["seconds"] = max(2.0, round(_float_or_zero(sc.get("seconds")) * scale, 2))
+
+    normalized = dict(plan)
+    normalized["title"] = _clip_text(plan.get("title") or "NorthStar animation", 100)
+    normalized["scenes"] = normalized_scenes
+    normalized["total_seconds"] = round(sum(_float_or_zero(sc.get("seconds")) for sc in normalized_scenes), 2)
+    normalized.setdefault("render_budget", {})
+    if isinstance(normalized["render_budget"], dict):
+        normalized["render_budget"].update(
+            {
+                "max_seconds": MAX_RENDER_SECONDS,
+                "max_scenes": scene_budget,
+                "max_items_per_list": item_budget,
+                "max_scene_seconds": MAX_RENDER_SCENE_SECONDS,
+            }
+        )
+    return normalized
 
 
 def _duration_label(value: Any) -> str:
@@ -3134,6 +3212,12 @@ def plan(req: PlanReq):
             provider=text_provider,
         )
         plan_obj = _parse_json(plan_text)
+        plan_obj = _normalize_plan_for_render(
+            plan_obj,
+            max_scenes=req.max_scenes,
+            max_objects=req.max_objects,
+            target_seconds=req.target_seconds,
+        )
         paths.plan_path.write_text(json.dumps(plan_obj, indent=2), encoding="utf-8")
     except (GeminiError, json.JSONDecodeError) as exc:
         return JSONResponse(
@@ -3197,6 +3281,7 @@ def approve(req: ApproveReq, request: Request, response: Response):
 
     try:
         plan_obj = _parse_json(req.plan_text)
+        plan_obj = _normalize_plan_for_render(plan_obj)
         paths.plan_path.write_text(json.dumps(plan_obj, indent=2), encoding="utf-8")
     except json.JSONDecodeError as exc:
         return JSONResponse(
@@ -3611,6 +3696,12 @@ def crazy_run(req: CrazyRunReq, request: Request, response: Response):
                 provider=text_provider,
             )
             plan_obj = _parse_json(plan_text)
+            plan_obj = _normalize_plan_for_render(
+                plan_obj,
+                max_scenes=req.max_scenes,
+                max_objects=req.max_objects,
+                target_seconds=req.target_seconds,
+            )
             paths.plan_path.write_text(json.dumps(plan_obj, indent=2), encoding="utf-8")
 
             assets_description = ""

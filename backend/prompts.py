@@ -5,6 +5,8 @@ Return ONLY valid JSON that matches the schema.
 Constraints:
 - Keep scenes coherent and focused (1 main idea per scene).
 - Avoid overcrowding; follow max_objects if provided.
+- Prefer 3-6 scenes for hosted rendering unless the user explicitly requests fewer.
+- Keep each scene short and concrete; do not add extra sub-scenes.
 - Use clear, short narration text per scene.
 - Include a strong hook, a clear core explanation, and a concise recap.
 - Ensure total_seconds equals the sum of scene seconds.
@@ -51,6 +53,9 @@ Rules:
 - No network calls, no reading external files.
 - Use reliable primitives: Text, Dot, Arrow, Axes, NumberPlane, ValueTracker, always_redraw, Circle, Rectangle, Line, VGroup.
 - You may use simple animations: FadeIn, FadeOut, Create, Write, Transform, LaggedStart.
+- Keep render complexity low: no 3D scenes, no dense particle systems, no nested updaters, no more than one ValueTracker per scene.
+- Prefer a small number of clearly animated objects over many decorative objects.
+- Target preview-safe timing; avoid long waits and avoid more than 6 animations per scene.
 - ImageMobject is allowed when assets are provided.
 - Prefer Text over LaTeX (avoid MathTex unless necessary).
 - Do NOT do FadeOut(VGroup(*self.mobjects)) because self.mobjects may include non-VMobject items like ValueTracker.
