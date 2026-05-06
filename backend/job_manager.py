@@ -3,6 +3,7 @@ from __future__ import annotations
 import difflib
 import json
 import os
+import re
 import subprocess
 import threading
 import time
@@ -48,6 +49,118 @@ def _append_failure_log(logs_path: Path, section: str, message: str) -> None:
     with logs_path.open("a", encoding="utf-8") as f:
         f.write(f"\n\n=== {section} ===\n")
         f.write((message or "Unknown failure").strip() + "\n")
+
+
+def _compact_text(value: Any, *, max_chars: int = 180) -> str:
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    text = text.encode("ascii", "replace").decode("ascii")
+    if len(text) <= max_chars:
+        return text
+    return text[: max(0, max_chars - 3)].rstrip() + "..."
+
+
+def _fallback_manim_code(plan_obj: Dict[str, Any]) -> str:
+    title = _compact_text(plan_obj.get("title") or "NorthStar storyboard", max_chars=80)
+    raw_scenes = plan_obj.get("scenes") if isinstance(plan_obj.get("scenes"), list) else []
+    scenes: list[Dict[str, Any]] = []
+    for idx, sc in enumerate(raw_scenes[:8], start=1):
+        if not isinstance(sc, dict):
+            continue
+        try:
+            seconds = float(sc.get("seconds") or 4)
+        except (TypeError, ValueError):
+            seconds = 4.0
+        bullets = []
+        for field in ("elements", "actions"):
+            values = sc.get(field) if isinstance(sc.get(field), list) else []
+            for item in values[:3]:
+                if len(bullets) >= 4:
+                    break
+                bullets.append(_compact_text(item, max_chars=110))
+        scenes.append(
+            {
+                "index": idx,
+                "seconds": max(2.0, min(7.0, seconds)),
+                "goal": _compact_text(sc.get("goal") or f"Scene {idx}", max_chars=150),
+                "narration": _compact_text(sc.get("narration") or "", max_chars=180),
+                "bullets": [item for item in bullets if item],
+            }
+        )
+    if not scenes:
+        scenes.append(
+            {
+                "index": 1,
+                "seconds": 4.0,
+                "goal": "Create a clear first storyboard.",
+                "narration": "NorthStar created a fallback storyboard because code generation did not finish.",
+                "bullets": ["Review the plan.", "Edit the code.", "Render again when ready."],
+            }
+        )
+
+    return f'''from manim import *
+import textwrap
+
+TITLE = {json.dumps(title, ensure_ascii=True)}
+SCENES = {json.dumps(scenes, ensure_ascii=True, indent=2)}
+
+
+def wrap_text(text, width=34, max_lines=4):
+    clean = " ".join(str(text or "").split())
+    lines = textwrap.wrap(clean, width=width)[:max_lines]
+    return "\\n".join(lines) if lines else ""
+
+
+class GeneratedScene(Scene):
+    def construct(self):
+        self.camera.background_color = "#08111f"
+        total = max(1, len(SCENES))
+        for idx, scene in enumerate(SCENES, start=1):
+            duration = max(2.0, min(7.0, float(scene.get("seconds") or 4)))
+            progress = idx / total
+
+            grid = NumberPlane(
+                x_range=[-8, 8, 1],
+                y_range=[-5, 5, 1],
+                background_line_style={{"stroke_color": BLUE_E, "stroke_width": 1, "stroke_opacity": 0.16}},
+            )
+            heading = Text(wrap_text(TITLE, 28, 1), font_size=30, color=WHITE).to_edge(UP, buff=0.34)
+            badge = Text(f"Scene {{idx}}/{{total}}", font_size=20, color=BLUE_B).to_corner(UL, buff=0.35)
+            goal = Text(wrap_text(scene.get("goal"), 33, 3), font_size=27, color=WHITE, line_spacing=0.9)
+            goal.move_to(UP * 2.0)
+
+            beam = VGroup(
+                Arrow(LEFT * 3.6, RIGHT * 3.6, buff=0, color=BLUE_B, stroke_width=5),
+                Rectangle(width=0.38, height=2.15, color=TEAL_B, stroke_width=4).shift(LEFT * 0.9),
+                Rectangle(width=0.38, height=2.15, color=GREEN_B, stroke_width=4).shift(RIGHT * 0.9),
+                Circle(radius=0.38, color=YELLOW_B, stroke_width=4).shift(RIGHT * 3.15),
+            ).move_to(DOWN * 0.2)
+
+            bullet_lines = []
+            for item in scene.get("bullets", [])[:4]:
+                wrapped = wrap_text(item, 34, 2).split("\\n")
+                if wrapped and wrapped[0]:
+                    bullet_lines.append(f"- {{wrapped[0]}}")
+                    bullet_lines.extend([f"  {{line}}" for line in wrapped[1:] if line])
+            bullets = Text("\\n".join(bullet_lines), font_size=19, color=GRAY_A, line_spacing=0.75)
+            bullets.next_to(beam, DOWN, buff=0.45)
+
+            narration = Text(wrap_text(scene.get("narration"), 40, 2), font_size=20, color=TEAL_A, line_spacing=0.8)
+            narration.to_edge(DOWN, buff=0.72)
+
+            start = LEFT * 3.7 + DOWN * 3.05
+            end = RIGHT * 3.7 + DOWN * 3.05
+            track = Line(start, end, color=GRAY_E, stroke_width=7)
+            fill = Line(start, start + (end - start) * progress, color=GREEN_C, stroke_width=7)
+
+            card = VGroup(heading, badge, goal, beam, bullets, narration, track, fill)
+            self.add(grid)
+            self.play(FadeIn(heading), FadeIn(badge), Write(goal), run_time=0.7)
+            self.play(Create(beam), FadeIn(bullets, shift=UP * 0.08), Create(track), Create(fill), run_time=0.85)
+            if scene.get("narration"):
+                self.play(FadeIn(narration, shift=UP * 0.08), run_time=0.45)
+            self.wait(max(0.3, duration - 2.0))
+            self.play(FadeOut(card), FadeOut(grid), run_time=0.25)
+'''
 
 
 def _build_srt(plan: Dict[str, Any]) -> str:
@@ -211,18 +324,28 @@ class JobManager:
             except Exception:
                 pass
 
-            code = generate_content(
-                manim_code_user_prompt(
-                    json.dumps(plan_obj),
-                    assets_description=assets_description,
-                    render_settings=render_settings,
-                ),
-                system_text=MANIM_CODE_SYSTEM,
-                api_key=api_key,
-                model=_task_model(text_model, text_provider, "OPENAI_CODE_MODEL"),
-                provider=text_provider,
-            )
-            code = sanitize_manim_code(code)
+            try:
+                code = generate_content(
+                    manim_code_user_prompt(
+                        json.dumps(plan_obj),
+                        assets_description=assets_description,
+                        render_settings=render_settings,
+                    ),
+                    system_text=MANIM_CODE_SYSTEM,
+                    api_key=api_key,
+                    model=_task_model(text_model, text_provider, "OPENAI_CODE_MODEL"),
+                    provider=text_provider,
+                )
+                code = sanitize_manim_code(code)
+            except (GeminiError, CodeSanitizationError) as exc:
+                _append_failure_log(
+                    logs_path,
+                    "storyboard fallback",
+                    f"Model code generation failed; rendering deterministic storyboard fallback instead.\n{exc}",
+                )
+                code = _fallback_manim_code(plan_obj)
+                state.diagnosis = f"Model code generation failed; rendered storyboard fallback instead. {exc}"[:4000]
+                state.retry_result = "storyboard_fallback"
             scene_path.write_text(code, encoding="utf-8")
 
             state.step = "render"
