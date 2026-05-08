@@ -33,5 +33,34 @@ Open `http://127.0.0.1:8000` for the landing page or `http://127.0.0.1:8000/app`
 Output files: `work/jobs/<job_id>/`  
 Credits: Manim by Grant Sanderson (3Blue1Brown) + Manim Community.
 
+## CLI
+Run the same NorthStar pipeline from the terminal:
+
+```bash
+# Terminal 1: start the local backend
+python -m backend.cli serve --reload
+
+# Terminal 2: render a short MP4
+python northstar.py render --seconds 30 --quality pql \
+  "30s high-school explainer: two waves combine into one resultant."
+
+# Inspect an existing job
+python northstar.py status <job_id>
+
+# Create only the editable plan JSON
+python northstar.py plan --out plan.json \
+  "Explain the photoelectric effect in 45 seconds."
+
+# Approve a saved plan and wait for the MP4
+python northstar.py approve <job_id> --plan-file plan.json --wait
+
+# Add OpenAI voiceover to a rendered job
+python northstar.py voiceover <job_id> --provider openai --voice marin --draft-script
+```
+
+The CLI uses `NORTHSTAR_URL` when set, otherwise `http://127.0.0.1:8000`.
+It stores its anonymous render-credit cookie at `~/.northstar/cookies.json` so
+CLI renders use the same local billing/session flow across commands.
+
 ## Devpost tags
 `gemini-api` `manim` `education` `edtech` `ai-video` `multimodal-ai` `fastapi` `python` `creator-tools` `scientific-visualization`
