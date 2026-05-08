@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from .code_format import CodeSanitizationError, sanitize_manim_code
+from .code_format import CodeSanitizationError, manim_render_safety_issues, sanitize_manim_code
 from .gemini_http import GeminiError, generate_content
 from .job_state import JobState, append_event, load_state, write_state
 from .prompts import MANIM_CODE_SYSTEM, REPAIR_SYSTEM, manim_code_user_prompt
@@ -222,6 +222,60 @@ def _diagnose_logs(logs: str) -> str:
     return "\n".join(interesting[-24:])[:4000]
 
 
+def _render_failure_summary(logs: str) -> str:
+    text = (logs or "").lower()
+    if any(token in text for token in ("render timed out", "timed out", "timeout")):
+        return (
+            "Render timeout: the scene took too long to render. "
+            "Shorten the plan, reduce simultaneous animations, or use low quality."
+        )
+    if any(
+        token in text
+        for token in (
+            "modulenotfounderror",
+            "no module named",
+            "executable not found",
+            "ffmpeg not found",
+            "latex error",
+            "latex executable",
+        )
+    ):
+        return (
+            "Missing dependency: Manim, ffmpeg, LaTeX, or a Python package was unavailable. "
+            "Open Settings -> Rendering and run the setup health checks."
+        )
+    if any(token in text for token in ("stripe", "billing", "credits", "payment required", "insufficient_quota")):
+        return "Billing or quota issue: check Creator credits, Stripe configuration, or model API quota."
+    if any(
+        token in text
+        for token in (
+            "traceback",
+            "nameerror",
+            "typeerror",
+            "valueerror",
+            "attributeerror",
+            "indexerror",
+            "manimce",
+        )
+    ):
+        return (
+            "Manim code error: generated code failed even after repair and safe storyboard rescue. "
+            "Inspect the logs and simplify the scene plan."
+        )
+    return "Unknown render failure: inspect the log tail and try a shorter, simpler plan."
+
+
+def _append_diagnosis(summary: str, logs: str) -> str:
+    details = _diagnose_logs(logs)
+    if not details:
+        return summary[:4000]
+    return f"{summary}\n\n{details}"[:4000]
+
+
+def _safety_issue_text(issues: list[str]) -> str:
+    return "\n".join(f"- {issue}" for issue in issues[:8])
+
+
 def _code_diff(before: str, after: str) -> str:
     diff = difflib.unified_diff(
         before.splitlines(),
@@ -337,6 +391,21 @@ class JobManager:
                     provider=text_provider,
                 )
                 code = sanitize_manim_code(code)
+                safety_issues = manim_render_safety_issues(code)
+                if safety_issues:
+                    _append_failure_log(
+                        logs_path,
+                        "code safety preflight",
+                        "Generated Manim code exceeded the hosted render budget.\n"
+                        f"{_safety_issue_text(safety_issues)}\n"
+                        "Rendering deterministic storyboard fallback instead.",
+                    )
+                    code = _fallback_manim_code(plan_obj)
+                    state.diagnosis = (
+                        "Generated Manim code exceeded the hosted render budget; rendered storyboard fallback instead. "
+                        + "; ".join(safety_issues[:4])
+                    )[:4000]
+                    state.retry_result = "storyboard_fallback"
             except (GeminiError, CodeSanitizationError) as exc:
                 _append_failure_log(
                     logs_path,
@@ -417,30 +486,79 @@ class JobManager:
                 state.retry_result = "repair_requested"
                 write_state(job_dir, state)
 
-                repair_user = (
-                    "The render failed.\n"
-                    "Here are the logs:\n"
-                    f"{logs}\n\n"
-                    "Here is the code:\n"
-                    f"{scene_path.read_text(encoding='utf-8')}\n\n"
-                    "Return a fixed full python file."
-                )
-                old_code = scene_path.read_text(encoding="utf-8")
-                code2 = generate_content(
-                    repair_user,
-                    system_text=REPAIR_SYSTEM,
-                    api_key=api_key,
-                    model=_task_model(text_model, text_provider, "OPENAI_REPAIR_MODEL"),
-                    provider=text_provider,
-                )
-                code2 = sanitize_manim_code(code2)
-                scene_path.write_text(code2, encoding="utf-8")
-                state.code_diff = _code_diff(old_code, code2)
+                try:
+                    repair_user = (
+                        "The render failed.\n"
+                        "Here are the logs:\n"
+                        f"{logs}\n\n"
+                        "Here is the code:\n"
+                        f"{scene_path.read_text(encoding='utf-8')}\n\n"
+                        "Return a fixed full python file."
+                    )
+                    old_code = scene_path.read_text(encoding="utf-8")
+                    code2 = generate_content(
+                        repair_user,
+                        system_text=REPAIR_SYSTEM,
+                        api_key=api_key,
+                        model=_task_model(text_model, text_provider, "OPENAI_REPAIR_MODEL"),
+                        provider=text_provider,
+                    )
+                    code2 = sanitize_manim_code(code2)
+                    safety_issues = manim_render_safety_issues(code2)
+                    if safety_issues:
+                        raise CodeSanitizationError(
+                            "Repair code failed render-safety preflight: "
+                            + "; ".join(safety_issues[:4])
+                        )
+                    scene_path.write_text(code2, encoding="utf-8")
+                    state.code_diff = _code_diff(old_code, code2)
+
+                    state.status = "running"
+                    state.step = "render"
+                    state.message = "Rendering MP4 (retry)…"
+                    state.retry_result = "retry_started"
+                    state.updated_at = time.time()
+                    write_state(job_dir, state)
+                    append_event(
+                        job_dir,
+                        type_="state",
+                        payload={"status": state.status, "step": state.step, "message": state.message},
+                    )
+
+                    ok = render_with_manim_stream(
+                        scene_file=scene_path,
+                        out_mp4=out_mp4,
+                        logs_path=logs_path,
+                        quality=quality,
+                        manim_py=manim_py,
+                    )
+                except (GeminiError, CodeSanitizationError) as exc:
+                    _append_failure_log(
+                        logs_path,
+                        "repair request",
+                        f"Repair generation failed; switching to deterministic storyboard rescue.\n{exc}",
+                    )
+                    state.diagnosis = f"Repair generation failed; switching to deterministic storyboard rescue. {exc}"[:4000]
+                    state.retry_result = "repair_failed"
+                    write_state(job_dir, state)
+
+            if not ok:
+                failed_code = ""
+                try:
+                    failed_code = scene_path.read_text(encoding="utf-8")
+                    (job_dir / "scene.failed.py").write_text(failed_code, encoding="utf-8")
+                except Exception:
+                    failed_code = ""
+
+                fallback_code = _fallback_manim_code(plan_obj)
+                scene_path.write_text(fallback_code, encoding="utf-8")
+                if failed_code:
+                    state.code_diff = _code_diff(failed_code, fallback_code)
 
                 state.status = "running"
                 state.step = "render"
-                state.message = "Rendering MP4 (retry)…"
-                state.retry_result = "retry_started"
+                state.message = "Rendering safe storyboard fallback…"
+                state.retry_result = "storyboard_rescue_started"
                 state.updated_at = time.time()
                 write_state(job_dir, state)
                 append_event(
@@ -448,24 +566,31 @@ class JobManager:
                     type_="state",
                     payload={"status": state.status, "step": state.step, "message": state.message},
                 )
+                _append_failure_log(
+                    logs_path,
+                    "storyboard rescue",
+                    "Generated Manim code did not render after repair. Rendering deterministic fallback storyboard at low quality.",
+                )
 
                 ok = render_with_manim_stream(
                     scene_file=scene_path,
                     out_mp4=out_mp4,
                     logs_path=logs_path,
-                    quality=quality,
+                    quality="pql",
                     manim_py=manim_py,
                 )
 
             if not ok:
+                try:
+                    all_logs = logs_path.read_text(encoding="utf-8")
+                except Exception:
+                    all_logs = ""
+                summary = _render_failure_summary(all_logs)
                 state.status = "failed"
                 state.step = "render"
-                state.error = "Render failed"
-                state.retry_result = "retry_failed"
-                try:
-                    state.diagnosis = _diagnose_logs(logs_path.read_text(encoding="utf-8"))
-                except Exception:
-                    pass
+                state.error = summary
+                state.retry_result = "storyboard_rescue_failed"
+                state.diagnosis = _append_diagnosis(summary, all_logs)
                 state.message = "Failed."
                 state.updated_at = time.time()
                 write_state(job_dir, state)
@@ -482,6 +607,13 @@ class JobManager:
             state.video_path = str(out_mp4)
             if state.retry_result == "retry_started":
                 state.retry_result = "fixed_on_retry"
+            elif state.retry_result == "storyboard_rescue_started":
+                state.retry_result = "storyboard_rescue_succeeded"
+                state.message = "Render complete with safe storyboard fallback."
+                state.diagnosis = (
+                    "Generated Manim code failed after repair, so NorthStar rendered a deterministic storyboard fallback. "
+                    "The failed generated code was saved as scene.failed.py for inspection."
+                )
             state.updated_at = time.time()
             write_state(job_dir, state)
             append_event(

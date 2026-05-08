@@ -4088,7 +4088,10 @@
                     </div>
                     <label for="voiceoverVoiceSelect">Voice</label>
                     <select id="voiceoverVoiceSelect">
-                      <option value="">Use settings voice</option>
+                      <option value="marin" data-provider="openai">OpenAI Marin (recommended)</option>
+                      <option value="cedar" data-provider="openai">OpenAI Cedar (natural)</option>
+                      <option value="coral" data-provider="openai">OpenAI Coral (bright)</option>
+                      <option value="">Use ElevenLabs settings voice</option>
                       <option value="21m00Tcm4TlvDq8ikWAM">Rachel (clear)</option>
                       <option value="EXAVITQu4vr4xnSDxMaL">Bella (warm)</option>
                       <option value="TxGEqnHWrfWFTfGW9XjX">Josh (confident)</option>
@@ -4096,7 +4099,8 @@
                     </select>
                     <label for="voiceoverModelSelect">Voice model</label>
                     <select id="voiceoverModelSelect">
-                      <option value="">Use settings model</option>
+                      <option value="gpt-4o-mini-tts" data-provider="openai">OpenAI gpt-4o-mini-tts</option>
+                      <option value="">Use ElevenLabs settings model</option>
                       <option value="eleven_multilingual_v2">eleven_multilingual_v2</option>
                       <option value="eleven_turbo_v2_5">eleven_turbo_v2_5</option>
                     </select>
@@ -5954,6 +5958,7 @@
             body: JSON.stringify({
               voice_id: voiceoverVoiceSelectEl ? (voiceoverVoiceSelectEl.value || null) : null,
               model_id: voiceoverModelSelectEl ? (voiceoverModelSelectEl.value || null) : null,
+              provider: (voiceoverVoiceSelectEl && voiceoverVoiceSelectEl.selectedOptions[0]?.dataset.provider) || (voiceoverModelSelectEl && voiceoverModelSelectEl.selectedOptions[0]?.dataset.provider) || null,
               script_text: voiceoverScriptEl ? (voiceoverScriptEl.value || null) : null,
               use_gemini_script: !!(voiceoverUseGeminiEl && voiceoverUseGeminiEl.checked),
               include_chat_context: !!(voiceoverUseContextEl && voiceoverUseContextEl.checked),

@@ -54,6 +54,7 @@ Rules:
 - Use reliable primitives: Text, Dot, Arrow, Axes, NumberPlane, ValueTracker, always_redraw, Circle, Rectangle, Line, VGroup.
 - You may use simple animations: FadeIn, FadeOut, Create, Write, Transform, LaggedStart.
 - Keep render complexity low: no 3D scenes, no dense particle systems, no nested updaters, no more than one ValueTracker per scene.
+- Do not use ThreeDScene, ThreeDAxes, Surface, StreamLines, VectorField, add_updater, file/network access, or loops that create dozens of objects.
 - Prefer a small number of clearly animated objects over many decorative objects.
 - Target preview-safe timing; avoid long waits and avoid more than 6 animations per scene.
 - ImageMobject is allowed when assets are provided.
@@ -89,4 +90,5 @@ Rules:
 - No network calls, no reading external files.
 - Prefer Text over LaTeX (avoid MathTex unless necessary).
 - Avoid VGroup on non-VMobject inputs; ValueTracker must not be packed into VGroup.
+- Do not introduce 3D scenes, updater-heavy code, dense object loops, file reads, network calls, or large Tex/MathTex blocks.
 """

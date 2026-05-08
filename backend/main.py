@@ -39,7 +39,8 @@ from .prompts import (
 from .renderer import concat_videos, cut_video_range, render_with_manim
 from .storage import job_paths, new_job_id
 from .templates import TEMPLATES
-from .code_format import CodeSanitizationError, sanitize_manim_code
+from .code_format import CodeSanitizationError, manim_render_safety_issues, sanitize_manim_code
+from .video_postprocess import max_upload_bytes, postprocess_mp4
 from .context_store import (
     add_memory,
     delete_memory,
@@ -75,6 +76,7 @@ MAX_RENDER_SECONDS = float(os.getenv("NORTHSTAR_MAX_RENDER_SECONDS", "75"))
 MAX_RENDER_SCENES = int(os.getenv("NORTHSTAR_MAX_RENDER_SCENES", "6"))
 MAX_RENDER_ITEMS_PER_LIST = int(os.getenv("NORTHSTAR_MAX_RENDER_ITEMS_PER_LIST", "5"))
 MAX_RENDER_SCENE_SECONDS = float(os.getenv("NORTHSTAR_MAX_RENDER_SCENE_SECONDS", "10"))
+OPENAI_TTS_VOICES = {"alloy", "ash", "ballad", "coral", "echo", "fable", "marin", "nova", "onyx", "sage", "shimmer", "verse", "cedar"}
 CREDIT_PACKS = [
     {
         "price_usd": 9,
@@ -777,6 +779,7 @@ class CutRangeReq(BaseModel):
 class VoiceoverReq(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
+    provider: Optional[str] = None
     voice_id: Optional[str] = None
     model_id: Optional[str] = None
     script_text: Optional[str] = None
@@ -1251,6 +1254,7 @@ def _job_files(paths) -> list[str]:
     candidates: list[Path] = [
         paths.plan_path,
         paths.scene_path,
+        paths.job_dir / "scene.failed.py",
         paths.out_mp4,
         paths.logs_path,
         paths.job_dir / "state.json",
@@ -2269,6 +2273,65 @@ def _add_elevenlabs_voiceover(*, paths, api_key: str, voice_id: str, model_id: O
         return False, ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()[-4000:]
 
     merged_tmp.replace(paths.out_mp4)
+    postprocess_mp4(paths.out_mp4, quality="pqm", logs_path=paths.logs_path)
+    return True, str(paths.out_mp4.relative_to(ROOT))
+
+
+def _add_openai_tts_voiceover(*, paths, api_key: str, voice_id: str, model_id: Optional[str], text: str) -> tuple[bool, str]:
+    if not paths.out_mp4.exists():
+        return False, "Render an MP4 first before adding voiceover."
+    payload_text = (text or "").strip()
+    if not payload_text:
+        return False, "No narration text found. Add captions or scene narration first."
+
+    voice = (voice_id or "marin").strip().lower()
+    if voice not in OPENAI_TTS_VOICES:
+        return False, f"Unsupported OpenAI voice '{voice}'. Use marin, cedar, coral, alloy, or another built-in OpenAI TTS voice."
+    model = (model_id or "gpt-4o-mini-tts").strip()
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    body = {
+        "model": model,
+        "voice": voice,
+        "input": payload_text,
+        "response_format": "mp3",
+        "instructions": "Narrate as a clear educational animation voiceover. Keep pacing calm, precise, and suitable for a short science explainer.",
+    }
+    try:
+        resp = requests.post("https://api.openai.com/v1/audio/speech", headers=headers, json=body, timeout=120)
+        if resp.status_code >= 400:
+            return False, f"OpenAI TTS error {resp.status_code}: {resp.text[:500]}"
+    except Exception as exc:
+        return False, f"OpenAI TTS request failed: {exc}"
+
+    audio_mp3 = paths.job_dir / "voiceover-openai.mp3"
+    audio_mp3.write_bytes(resp.content)
+
+    merged_tmp = paths.job_dir / "out-voiceover.mp4"
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        str(paths.out_mp4),
+        "-i",
+        str(audio_mp3),
+        "-c:v",
+        "copy",
+        "-c:a",
+        "aac",
+        "-shortest",
+        str(merged_tmp),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0 or not merged_tmp.exists():
+        return False, ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()[-4000:]
+
+    merged_tmp.replace(paths.out_mp4)
+    ok, msg = postprocess_mp4(paths.out_mp4, quality="pqm", logs_path=paths.logs_path)
+    if not ok:
+        return False, msg
     return True, str(paths.out_mp4.relative_to(ROOT))
 
 
@@ -2876,8 +2939,10 @@ def upload_job_asset(req: UploadJobAssetReq):
 
     if not blob:
         return JSONResponse({"ok": False, "error": "Decoded file is empty"}, status_code=400)
-    if len(blob) > 10 * 1024 * 1024:
-        return JSONResponse({"ok": False, "error": "File is too large (max 10MB)"}, status_code=413)
+    upload_limit = max_upload_bytes()
+    if len(blob) > upload_limit:
+        limit_mb = max(1, upload_limit // (1024 * 1024))
+        return JSONResponse({"ok": False, "error": f"File is too large (max {limit_mb}MB)"}, status_code=413)
 
     suffix = Path(req.filename or "").suffix.lower()
     if suffix not in {".png", ".jpg", ".jpeg", ".webp"}:
@@ -3515,15 +3580,21 @@ def copy_job_output(job_id: str):
 def add_voiceover(job_id: str, req: Optional[VoiceoverReq] = None):
     req = req or VoiceoverReq()
     settings = load_settings()
-    api_key = (settings.get("elevenlabs_api_key") or "").strip()
+    provider = (req.provider or "").strip().lower()
     voice_id = (req.voice_id or settings.get("elevenlabs_voice_id") or "").strip()
     model_id = (req.model_id or settings.get("elevenlabs_model_id") or "").strip() or None
+    if not provider:
+        provider = "openai" if ((voice_id or "").lower() in OPENAI_TTS_VOICES or str(model_id or "").startswith("gpt-")) else "elevenlabs"
+    api_key = (settings.get("openai_api_key") or os.getenv("OPENAI_API_KEY") or "").strip() if provider == "openai" else (settings.get("elevenlabs_api_key") or "").strip()
     text_provider, text_api_key, text_model = _text_generation_settings(settings)
+    if provider == "openai" and not voice_id:
+        voice_id = "marin"
     if not api_key or not voice_id:
+        provider_name = "OpenAI" if provider == "openai" else "ElevenLabs"
         return JSONResponse(
             {
                 "ok": False,
-                "error": "Configure ElevenLabs API key and Voice ID in Settings first.",
+                "error": f"Configure {provider_name} API key and Voice ID in Settings first.",
             },
             status_code=400,
         )
@@ -3559,18 +3630,28 @@ def add_voiceover(job_id: str, req: Optional[VoiceoverReq] = None):
     if not text:
         return JSONResponse({"ok": False, "error": "No narration text available for voiceover."}, status_code=400)
 
-    ok, msg = _add_elevenlabs_voiceover(
-        paths=paths,
-        api_key=api_key,
-        voice_id=voice_id,
-        model_id=model_id,
-        text=text,
-    )
+    if provider == "openai":
+        ok, msg = _add_openai_tts_voiceover(
+            paths=paths,
+            api_key=api_key,
+            voice_id=voice_id,
+            model_id=model_id,
+            text=text,
+        )
+    else:
+        ok, msg = _add_elevenlabs_voiceover(
+            paths=paths,
+            api_key=api_key,
+            voice_id=voice_id,
+            model_id=model_id,
+            text=text,
+        )
     if not ok:
         return JSONResponse({"ok": False, "error": msg}, status_code=400)
     return {
         "ok": True,
         "video_path": msg,
+        "voice_provider": provider,
         "voice_id": voice_id,
         "model_id": model_id or "",
         "job_files": _job_files(paths),
@@ -4001,6 +4082,24 @@ def animate(req: AnimateReq, request: Request, response: Response):
             provider=text_provider,
         )
         code = sanitize_manim_code(code)
+        safety_issues = manim_render_safety_issues(code)
+        if safety_issues:
+            paths.logs_path.write_text(
+                "=== code safety preflight ===\n"
+                "Generated Manim code exceeded the hosted render budget.\n"
+                + "\n".join(f"- {issue}" for issue in safety_issues[:8])
+                + "\n",
+                encoding="utf-8",
+            )
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "job_id": job_id,
+                    "error": "Code safety preflight failed: " + "; ".join(safety_issues[:3]),
+                    "plan": plan,
+                },
+                status_code=400,
+            )
         paths.scene_path.write_text(code, encoding="utf-8")
     except (GeminiError, CodeSanitizationError) as exc:
         return JSONResponse(
@@ -4113,6 +4212,24 @@ def render_code(req: RenderCodeReq, request: Request, response: Response):
     except CodeSanitizationError as exc:
         return JSONResponse(
             {"ok": False, "job_id": job_id, "error": f"Invalid code: {exc}"},
+            status_code=400,
+        )
+    safety_issues = manim_render_safety_issues(clean_code)
+    if safety_issues:
+        paths.logs_path.write_text(
+            "=== code safety preflight ===\n"
+            "Edited code exceeded the hosted render budget.\n"
+            + "\n".join(f"- {issue}" for issue in safety_issues[:8])
+            + "\n",
+            encoding="utf-8",
+        )
+        return JSONResponse(
+            {
+                "ok": False,
+                "job_id": job_id,
+                "error": "Code safety preflight failed: " + "; ".join(safety_issues[:3]),
+                "logs": paths.logs_path.read_text(encoding="utf-8"),
+            },
             status_code=400,
         )
     paths.scene_path.write_text(clean_code, encoding="utf-8")
