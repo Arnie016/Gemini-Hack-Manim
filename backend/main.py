@@ -76,6 +76,8 @@ MAX_RENDER_SECONDS = float(os.getenv("NORTHSTAR_MAX_RENDER_SECONDS", "75"))
 MAX_RENDER_SCENES = int(os.getenv("NORTHSTAR_MAX_RENDER_SCENES", "6"))
 MAX_RENDER_ITEMS_PER_LIST = int(os.getenv("NORTHSTAR_MAX_RENDER_ITEMS_PER_LIST", "5"))
 MAX_RENDER_SCENE_SECONDS = float(os.getenv("NORTHSTAR_MAX_RENDER_SCENE_SECONDS", "10"))
+STALE_JOB_SECONDS = float(os.getenv("NORTHSTAR_STALE_JOB_SECONDS", "600"))
+APP_STARTED_AT = time.time()
 OPENAI_TTS_VOICES = {"alloy", "ash", "ballad", "coral", "echo", "fable", "marin", "nova", "onyx", "sage", "shimmer", "verse", "cedar"}
 CREDIT_PACKS = [
     {
@@ -2497,6 +2499,57 @@ def _output_path_writable() -> tuple[bool, str]:
         return False, str(exc)
 
 
+def _recover_or_fail_interrupted_job(paths, state: JobState) -> JobState:
+    """Surface render workers lost across restarts instead of leaving jobs spinning."""
+    if state.status not in {"running", "repairing"}:
+        return state
+    if job_manager.is_running(paths.job_id):
+        return state
+    if paths.out_mp4.exists():
+        state.status = "done"
+        state.step = "idle"
+        state.message = "Render complete."
+        state.video_path = str(paths.out_mp4)
+        state.updated_at = time.time()
+        write_state(paths.job_dir, state)
+        append_event(
+            paths.job_dir,
+            type_="state",
+            payload={"status": state.status, "step": state.step, "message": state.message},
+        )
+        return state
+
+    last_update = float(state.updated_at or 0.0)
+    if last_update >= APP_STARTED_AT and (time.time() - last_update) < STALE_JOB_SECONDS:
+        return state
+
+    state.status = "failed"
+    state.message = "Failed."
+    state.error = (
+        "Render interrupted before completion. The server restarted or the worker stopped "
+        "before writing out.mp4."
+    )
+    state.diagnosis = (
+        "This job was marked running, but no render worker is active in the current process. "
+        "Create a new plan or approve this plan again to restart the render."
+    )
+    state.retry_result = "interrupted"
+    state.updated_at = time.time()
+    write_state(paths.job_dir, state)
+    append_event(
+        paths.job_dir,
+        type_="state",
+        payload={"status": state.status, "step": state.step, "error": state.error},
+    )
+    try:
+        with paths.logs_path.open("a", encoding="utf-8") as f:
+            f.write("\n\n=== interrupted worker ===\n")
+            f.write(state.error + "\n")
+    except Exception:
+        pass
+    return state
+
+
 def _preflight_payload(settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     settings = settings or load_settings()
     health_data = _health_snapshot(settings)
@@ -3432,6 +3485,7 @@ def job_status(job_id: str):
     if not paths.job_dir.exists():
         return JSONResponse({"ok": False, "job_id": job_id, "error": "Unknown job_id"}, status_code=404)
     st = load_state(paths.job_dir, job_id)
+    st = _recover_or_fail_interrupted_job(paths, st)
     resp: Dict[str, Any] = {
         "ok": True,
         "job_id": job_id,
@@ -3478,6 +3532,7 @@ def job_events(job_id: str):
     def gen():
         # Initial state snapshot.
         st = load_state(paths.job_dir, job_id)
+        st = _recover_or_fail_interrupted_job(paths, st)
         yield f"event: state\ndata: {_json.dumps({'status': st.status, 'step': st.step, 'message': st.message, 'error': st.error})}\n\n"
 
         log_pos = 0
@@ -3521,6 +3576,7 @@ def job_events(job_id: str):
                     if mt != state_mtime:
                         state_mtime = mt
                         st = load_state(paths.job_dir, job_id)
+                        st = _recover_or_fail_interrupted_job(paths, st)
                         yield f"event: state\ndata: {_json.dumps({'status': st.status, 'step': st.step, 'message': st.message, 'error': st.error})}\n\n"
                         if st.status in {"done", "failed"}:
                             break
