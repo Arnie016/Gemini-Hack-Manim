@@ -4531,8 +4531,12 @@
             <textarea id="chatInput" placeholder="Explain the photoelectric effect in 60 seconds for high-school physics. Show red vs blue light, threshold frequency, and Einstein's equation."></textarea>
             <div class="chat-compose">
               <input id="filePicker" type="file" class="hidden" multiple />
+              <input id="folderPicker" type="file" class="hidden" multiple webkitdirectory directory />
               <button id="attachBtn" class="compose-btn" title="Attach file (+)" aria-label="Attach file">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+              </button>
+              <button id="folderAttachBtn" class="compose-btn" title="Attach folder" aria-label="Attach folder">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"/></svg>
               </button>
               <select id="chatModel" class="compose-model" title="Model" aria-label="Model">
                 <option value="gpt-5">gpt-5 Pro</option>
@@ -5274,6 +5278,8 @@
       const planBtn = document.getElementById('planBtn');
       const attachBtnEl = document.getElementById('attachBtn');
       const filePickerEl = document.getElementById('filePicker');
+      const folderAttachBtnEl = document.getElementById('folderAttachBtn');
+      const folderPickerEl = document.getElementById('folderPicker');
       const voiceBtnEl = document.getElementById('voiceBtn');
       const mentionBarEl = document.getElementById('mentionBar');
       const mentionInfoEl = document.getElementById('mentionInfo');
@@ -6474,6 +6480,7 @@
           plan_text: currentPlanText || '',
           timeline: Array.isArray(timelineState) ? timelineState : [],
           code: codeEl?.value || '',
+          sources: getSources(),
           chat_sessions: chatSessions,
           active_chat_session_id: activeChatSessionId,
         };
@@ -6592,6 +6599,10 @@
         if (snap.plan_text) currentPlanText = snap.plan_text;
         if (Array.isArray(snap.timeline)) { timelineState = snap.timeline; renderTimeline(); }
         if (typeof snap.code === 'string') { codeEl.value = snap.code; refreshGutter(); if (highlightOn) refreshHighlight(); }
+        if (Array.isArray(snap.sources)) {
+          setSources(snap.sources);
+          renderSources();
+        }
         syncComposeModeChips();
         return true;
       }
@@ -7063,9 +7074,62 @@
         return `Uploaded source file: ${fileName || 'source'}`;
       }
 
+      function extractLatexSnippets(text, limit = 10) {
+        const raw = String(text || '');
+        if (!raw.trim()) return [];
+        const snippets = [];
+        const patterns = [
+          /\$\$([\s\S]{1,900}?)\$\$/g,
+          /\\\[([\s\S]{1,900}?)\\\]/g,
+          /\\\(([\s\S]{1,500}?)\\\)/g,
+          /\\begin\{(?:equation|align|aligned|gather|cases|matrix|pmatrix|bmatrix)\*?\}([\s\S]{1,1200}?)\\end\{(?:equation|align|aligned|gather|cases|matrix|pmatrix|bmatrix)\*?\}/g,
+        ];
+        patterns.forEach((re) => {
+          let match;
+          while ((match = re.exec(raw)) && snippets.length < limit) {
+            const body = String(match[1] || match[0] || '')
+              .replace(/\s+/g, ' ')
+              .trim();
+            if (body && !snippets.includes(body)) snippets.push(body.slice(0, 420));
+          }
+        });
+        if (snippets.length < limit) {
+          const commandLines = raw.split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter((line) => /\\(?:frac|sum|int|lim|sqrt|alpha|beta|gamma|theta|lambda|omega|vec|hat|dot|partial|nabla|cdot|times|leq|geq|approx|rightarrow)/.test(line));
+          commandLines.forEach((line) => {
+            const cleaned = line.replace(/\s+/g, ' ').trim();
+            if (cleaned && !snippets.includes(cleaned) && snippets.length < limit) snippets.push(cleaned.slice(0, 420));
+          });
+        }
+        return snippets;
+      }
+
+      function buildLatexReferenceBlock() {
+        const candidates = [
+          chatInputEl?.value || '',
+          directorBriefEl?.value || '',
+          ...getSources().map((src) => `${src.title || ''}\n${src.notes || ''}\n${src.summary || ''}`),
+        ];
+        const snippets = [];
+        candidates.forEach((text) => {
+          extractLatexSnippets(text, 12).forEach((snippet) => {
+            if (!snippets.includes(snippet) && snippets.length < 12) snippets.push(snippet);
+          });
+        });
+        if (!snippets.length) return '';
+        return [
+          'LaTeX/math snippets supplied by the creator:',
+          ...snippets.map((snippet, idx) => `${idx + 1}. ${snippet}`),
+          'Use these as source-of-truth for equations. Prefer one short MathTex expression per scene, include plain-language labels, and avoid large LaTeX blocks that could fail render.',
+        ].join('\n');
+      }
+
       async function saveUploadedSourceText(file, text) {
+        const rel = String(file?.webkitRelativePath || '').trim();
+        const folder = rel && rel.includes('/') ? rel.split('/').slice(0, -1).map(safeUploadFileName).join('/') : '';
         const fileName = safeUploadFileName(file?.name || 'source.txt');
-        const base = `notes/uploads/${fileName}`;
+        const base = folder ? `notes/uploads/${folder}/${fileName}` : `notes/uploads/${fileName}`;
         let saved = await tryWriteWorkspaceFile(base, text);
         if (!saved) {
           for (let i = 2; i < 20 && !saved; i++) {
@@ -9528,13 +9592,30 @@
       async function attachFilesFromPicker(files) {
         const list = Array.from(files || []);
         if (!list.length) return;
+        const importedSources = [];
+        const dockedAssets = [];
+        const skipped = [];
         for (const f of list) {
           const isImage = (f.type || '').startsWith('image/');
-          if (f.size > 800_000) {
-            showToast(`Skipped ${f.name}: file too large for inline attach.`, 'err');
+          const isSourceText = isSupportedSourceTextFile(f);
+          const isDockAsset = !isSourceText || isImage || /\.(svg|pdf|mp4|mov|webm|m4v|wav|mp3|m4a|aac|ogg)$/i.test(f.name || '');
+          if (f.size > SOURCE_UPLOAD_MAX_BYTES && isSourceText) {
+            skipped.push(`${f.name}: source text must be under 500 KB`);
             continue;
           }
-          if (isImage) {
+          if (isSourceText) {
+            try {
+              const source = await indexUploadedSourceFile(f);
+              if (source) {
+                importedSources.push(source);
+                addReferenceToAssetDock(source.title || f.name, f.name.toLowerCase().endsWith('.tex') ? 'source' : 'markdown', sourceTimelineNote(source));
+              }
+            } catch {
+              skipped.push(`${f.name}: could not read text`);
+            }
+            continue;
+          }
+          if (isImage && currentJobId && f.size <= 800_000) {
             const role = imageModeEl.value === 'foreground' ? 'foreground' : 'background';
             const rel = await uploadImageToCurrentJob(f, role);
             if (rel) {
@@ -9548,33 +9629,50 @@
             }
             continue;
           }
-          const isText = /^text\//.test(f.type) || /\.(md|txt|py|json|yaml|yml|csv)$/i.test(f.name);
-          if (!isText) {
-            showToast(`Skipped ${f.name}: only text/image files are supported.`, 'err');
-            continue;
+          if (isDockAsset) {
+            const added = addFilesToAssetDock([f]);
+            if (added.length) dockedAssets.push(added[0]);
           }
-          const text = await f.text();
-          chatInputEl.value += `\\n\\n[File: ${f.name}]\\n${text}\\n`;
-          const base = `notes/uploads/${f.name}`;
-          let saved = await tryWriteWorkspaceFile(base, text);
-          if (!saved) {
-            for (let i = 2; i < 20 && !saved; i++) {
-              const cand = `notes/uploads/${f.name.replace(/(\.[^.]*)?$/, `-${i}$1`)}`;
-              saved = await tryWriteWorkspaceFile(cand, text);
-            }
-          }
-          if (saved) {
-            loadWorkspaceFiles();
-            showToast(`Attached + saved: ${saved}`, 'ok');
-          } else {
-            showToast(`Attached: ${f.name}`, 'ok');
-          }
+        }
+        if (importedSources.length) {
+          renderSources({ preserveStatus: true });
+          const promptLines = importedSources.slice(0, 8).map((src) => {
+            const path = src.file_path ? ` (${src.file_path})` : '';
+            return `- ${src.title}${path}`;
+          });
+          const addition = [
+            '[Attached source material]',
+            ...promptLines,
+            'Use these sources and any pasted LaTeX as the ground truth for the animation plan.',
+          ].join('\n');
+          const cur = String(chatInputEl.value || '').trim();
+          chatInputEl.value = cur ? `${cur}\n\n${addition}` : addition;
+          setContextTab('docs');
+          setSourceStatus(`${importedSources.length} source file(s) saved and attached to this run.`, 'ok');
+        }
+        if (dockedAssets.length) {
+          showToast(`${dockedAssets.length} non-text asset${dockedAssets.length === 1 ? '' : 's'} added to dock.`, 'ok');
+        }
+        if (skipped.length) {
+          showToast(`Skipped ${skipped.length} file${skipped.length === 1 ? '' : 's'}; see status.`, 'err');
+          statusEl.textContent = `Skipped: ${skipped.slice(0, 3).join('; ')}${skipped.length > 3 ? '...' : ''}`;
+        }
+        if (importedSources.length || dockedAssets.length) {
+          await loadWorkspaceFiles();
+          scheduleAutosave();
         }
       }
 
       if (attachBtnEl && filePickerEl) {
         attachBtnEl.addEventListener('click', () => filePickerEl.click());
         filePickerEl.addEventListener('change', (e) => {
+          attachFilesFromPicker(e.target.files);
+          e.target.value = '';
+        });
+      }
+      if (folderAttachBtnEl && folderPickerEl) {
+        folderAttachBtnEl.addEventListener('click', () => folderPickerEl.click());
+        folderPickerEl.addEventListener('change', (e) => {
           attachFilesFromPicker(e.target.files);
           e.target.value = '';
         });
@@ -11754,6 +11852,32 @@
         return item;
       }
 
+      async function addFilesToAssetDockAndSources(files) {
+        const list = Array.from(files || []);
+        if (!list.length) return [];
+        const dockFiles = [];
+        const imported = [];
+        for (const file of list) {
+          if (isSupportedSourceTextFile(file) && file.size <= SOURCE_UPLOAD_MAX_BYTES) {
+            const source = await indexUploadedSourceFile(file);
+            if (source) {
+              imported.push(source);
+              addReferenceToAssetDock(source.title || file.name, file.name.toLowerCase().endsWith('.tex') ? 'source' : 'markdown', sourceTimelineNote(source));
+            }
+          } else {
+            dockFiles.push(file);
+          }
+        }
+        const added = addFilesToAssetDock(dockFiles);
+        if (imported.length) {
+          renderSources({ preserveStatus: true });
+          setSourceStatus(`${imported.length} source file(s) imported from asset dock. They will ground the next plan.`, 'ok');
+          setContextTab('docs');
+        }
+        if (imported.length || added.length) scheduleAutosave();
+        return [...imported, ...added];
+      }
+
       function addGeneratedAssetToDock({ name, role, path, url }) {
         const rel = String(path || '').trim();
         if (!rel) return null;
@@ -12715,6 +12839,8 @@
         if (directorBriefEl.value.trim()) pieces.push(directorBriefEl.value.trim());
         const sourceBlock = buildSourceReferenceBlock();
         if (sourceBlock) pieces.push(sourceBlock);
+        const latexBlock = buildLatexReferenceBlock();
+        if (latexBlock) pieces.push(latexBlock);
         const creativeLines = [];
         if (creativeMotionEl) creativeLines.push(`Camera motion intensity: ${creativeMotionEl.value}/100`);
         if (creativeDensityEl) creativeLines.push(`On-screen label density: ${creativeDensityEl.value}/100`);
@@ -13758,8 +13884,8 @@
       safeOn(gallerySearchEl, 'input', renderGallery);
 
       safeOn(assetDockPickBtn, 'click', () => assetDockPickerEl?.click());
-      safeOn(assetDockPickerEl, 'change', (e) => {
-        addFilesToAssetDock(e.target.files || []);
+      safeOn(assetDockPickerEl, 'change', async (e) => {
+        await addFilesToAssetDockAndSources(e.target.files || []);
         assetDockPickerEl.value = '';
       });
       safeOn(assetDockPlaceBtn, 'click', placeSelectedAssetAtSecond);
@@ -13777,12 +13903,12 @@
         safeOn(target, 'dragleave', (e) => {
           if (assetDockEl && !assetDockEl.contains(e.relatedTarget)) assetDockEl.classList.remove('is-drop');
         });
-        safeOn(target, 'drop', (e) => {
+        safeOn(target, 'drop', async (e) => {
           e.preventDefault();
           assetDockEl?.classList.remove('is-drop');
           const files = Array.from(e.dataTransfer?.files || []);
           if (files.length) {
-            addFilesToAssetDock(files);
+            await addFilesToAssetDockAndSources(files);
             return;
           }
           const text = (e.dataTransfer?.getData('text/plain') || '').trim();

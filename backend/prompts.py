@@ -10,6 +10,8 @@ Constraints:
 - Use clear, short narration text per scene.
 - Include a strong hook, a clear core explanation, and a concise recap.
 - Ensure total_seconds equals the sum of scene seconds.
+- If the creator provides source files, notes, or LaTeX snippets, ground the plan in those specifics instead of inventing facts.
+- Put supplied equations into the relevant scene elements/actions as short renderable snippets.
 """
 
 SCENE_PLAN_SCHEMA = {
@@ -58,7 +60,8 @@ Rules:
 - Prefer a small number of clearly animated objects over many decorative objects.
 - Target preview-safe timing; avoid long waits and avoid more than 6 animations per scene.
 - ImageMobject is allowed when assets are provided.
-- Prefer Text over LaTeX (avoid MathTex unless necessary).
+- Prefer Text for labels, but use short MathTex expressions when the creator supplied LaTeX or the plan explicitly calls for equations.
+- Keep MathTex blocks small and isolated; do not generate long aligned derivations unless the source specifically requires it.
 - Do NOT do FadeOut(VGroup(*self.mobjects)) because self.mobjects may include non-VMobject items like ValueTracker.
 - If clearing the scene, fade out only visible VMobjects (for example: FadeOut(*[m for m in self.mobjects if isinstance(m, Mobject)]) ) or keep explicit groups.
 """
@@ -88,7 +91,7 @@ Rules:
 - Output ONLY python code (no markdown, no backticks).
 - Define exactly: class GeneratedScene(Scene):
 - No network calls, no reading external files.
-- Prefer Text over LaTeX (avoid MathTex unless necessary).
+- Prefer Text for labels; use short MathTex only for supplied equations or essential mathematical notation.
 - Avoid VGroup on non-VMobject inputs; ValueTracker must not be packed into VGroup.
 - Do not introduce 3D scenes, updater-heavy code, dense object loops, file reads, network calls, or large Tex/MathTex blocks.
 """
