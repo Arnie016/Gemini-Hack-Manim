@@ -2560,21 +2560,22 @@ def _recover_or_fail_interrupted_job(paths, state: JobState) -> JobState:
     return state
 
 
-def _preflight_payload(settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def _preflight_payload(settings: Optional[Dict[str, Any]] = None, *, require_api_key: bool = True) -> Dict[str, Any]:
     settings = settings or load_settings()
     health_data = _health_snapshot(settings)
     text_provider, text_api_key, text_model = _text_generation_settings(settings)
     api_ok = bool((text_api_key or "").strip())
     write_ok, write_error = _output_path_writable()
     checks = {
-        "api_key": api_ok,
         "manim": bool(health_data.get("manim_ok")),
         "ffmpeg": bool(health_data.get("ffmpeg_ok")),
         "output_writable": write_ok,
     }
+    if require_api_key:
+        checks = {"api_key": api_ok, **checks}
     missing = [name for name, ok in checks.items() if not ok]
     fix_action = ""
-    if not checks["api_key"]:
+    if require_api_key and not checks.get("api_key"):
         fix_action = "open_settings_api"
     elif not checks["manim"] or not checks["ffmpeg"]:
         fix_action = "open_settings_render_get_started"
@@ -2591,6 +2592,17 @@ def _preflight_payload(settings: Optional[Dict[str, Any]] = None) -> Dict[str, A
         "text_model": text_model,
         "health": health_data,
     }
+
+
+def _render_manim_py(settings: Dict[str, Any], preflight: Optional[Dict[str, Any]] = None) -> str:
+    """Use the same Manim Python that passed health/preflight probing."""
+    health_data = (preflight or {}).get("health") if isinstance(preflight, dict) else None
+    if isinstance(health_data, dict) and health_data.get("manim_ok") and health_data.get("manim_py"):
+        return str(health_data["manim_py"])
+    runtime = _resolve_manim_runtime(settings, probe=True)
+    if runtime.get("manim_ok") and runtime.get("manim_py"):
+        return str(runtime["manim_py"])
+    return str(_resolve_manim_runtime(settings, probe=False).get("manim_py") or "python3")
 
 
 @app.get("/api/preflight")
@@ -3413,7 +3425,7 @@ def approve(req: ApproveReq, request: Request, response: Response):
         )
     text_provider, api_key, text_model = _text_generation_settings(settings, req.model)
     image_api_key = settings.get("api_key") or os.environ.get("GEMINI_API_KEY")
-    manim_py = _resolve_manim_runtime(settings, probe=False).get("manim_py")
+    manim_py = _render_manim_py(settings, preflight)
 
     try:
         plan_obj = _parse_json(req.plan_text)
@@ -3812,7 +3824,7 @@ def crazy_run(req: CrazyRunReq, request: Request, response: Response):
     text_provider, api_key, text_model = _text_generation_settings(settings, req.model)
     image_api_key = settings.get("api_key") or os.environ.get("GEMINI_API_KEY")
     image_model = req.image_model or settings.get("image_model")
-    manim_py = _resolve_manim_runtime(settings, probe=False).get("manim_py")
+    manim_py = _render_manim_py(settings, preflight)
 
     count = max(1, min(5, int(req.variants or 3)))
     billing_user_id, billing_error = _require_render_credits(request, response, amount=count)
@@ -4085,10 +4097,21 @@ def animate(req: AnimateReq, request: Request, response: Response):
         _record_job_owner(paths.job_dir, billing_user_id)
     image_warning: Optional[str] = None
     settings = load_settings()
+    preflight = _preflight_payload(settings)
+    if not preflight.get("ok"):
+        return JSONResponse(
+            {
+                "ok": False,
+                "job_id": job_id,
+                "error": "Preflight failed. Open Settings and run Get started.",
+                "preflight": preflight,
+            },
+            status_code=400,
+        )
     text_provider, api_key, text_model = _text_generation_settings(settings)
     image_api_key = settings.get("api_key") or os.environ.get("GEMINI_API_KEY")
     image_model = req.image_model or settings.get("image_model")
-    manim_py = _resolve_manim_runtime(settings, probe=False).get("manim_py")
+    manim_py = _render_manim_py(settings, preflight)
 
     # 1) Plan
     try:
@@ -4300,7 +4323,18 @@ def render_code(req: RenderCodeReq, request: Request, response: Response):
         )
     paths.scene_path.write_text(clean_code, encoding="utf-8")
     settings = load_settings()
-    manim_py = _resolve_manim_runtime(settings, probe=False).get("manim_py")
+    preflight = _preflight_payload(settings, require_api_key=False)
+    if not preflight.get("ok"):
+        return JSONResponse(
+            {
+                "ok": False,
+                "job_id": job_id,
+                "error": "Render preflight failed. Open Settings and run Get started.",
+                "preflight": preflight,
+            },
+            status_code=400,
+        )
+    manim_py = _render_manim_py(settings, preflight)
     ok, logs = render_with_manim(
         paths.scene_path,
         paths.out_mp4,

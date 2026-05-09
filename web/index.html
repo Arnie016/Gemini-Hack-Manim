@@ -11035,8 +11035,8 @@
       function renderManimPythonHint(settingsData, healthData = null) {
         if (!settingsManimAutoHintEl) return;
         const savedPy = String(settingsData?.manim_py || '').trim();
-        const detectedPy = String(settingsData?.detected_manim_py || healthData?.manim_py || '').trim();
-        const detectedSource = formatManimSourceLabel(settingsData?.detected_manim_py_source || healthData?.manim_py_source || '');
+        const detectedPy = String(healthData?.manim_py || settingsData?.detected_manim_py || '').trim();
+        const detectedSource = formatManimSourceLabel(healthData?.manim_py_source || settingsData?.detected_manim_py_source || '');
         if (savedPy && detectedPy && savedPy !== detectedPy) {
           settingsManimAutoHintEl.textContent = `Saved runtime unavailable. Using ${detectedPy}${detectedSource ? ` (${detectedSource})` : ''}.`;
           return;
