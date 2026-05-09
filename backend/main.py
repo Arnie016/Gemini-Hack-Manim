@@ -1356,6 +1356,16 @@ def _normalize_plan_for_render(
         for key in ("elements", "actions"):
             values = sc.get(key) if isinstance(sc.get(key), list) else []
             out[key] = [_clip_text(item, 140) for item in values[:item_budget] if str(item).strip()]
+        source_notes = sc.get("source_notes") if isinstance(sc.get("source_notes"), list) else []
+        cleaned_source_notes = [
+            _clip_text(item, 900)
+            for item in source_notes[:4]
+            if str(item).strip()
+        ]
+        if cleaned_source_notes:
+            out["source_notes"] = cleaned_source_notes
+        else:
+            out.pop("source_notes", None)
         normalized_scenes.append(out)
 
     if not normalized_scenes:

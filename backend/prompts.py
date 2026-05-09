@@ -12,6 +12,7 @@ Constraints:
 - Ensure total_seconds equals the sum of scene seconds.
 - If the creator provides source files, notes, or LaTeX snippets, ground the plan in those specifics instead of inventing facts.
 - Put supplied equations into the relevant scene elements/actions as short renderable snippets.
+- If a scene has source_notes, use them as grounding/context; do not copy long source text directly onto the screen.
 """
 
 SCENE_PLAN_SCHEMA = {
@@ -29,6 +30,7 @@ SCENE_PLAN_SCHEMA = {
                     "elements": {"type": "ARRAY", "items": {"type": "STRING"}},
                     "actions": {"type": "ARRAY", "items": {"type": "STRING"}},
                     "narration": {"type": "STRING"},
+                    "source_notes": {"type": "ARRAY", "items": {"type": "STRING"}},
                 },
                 "required": ["seconds", "goal", "elements", "actions", "narration"],
             },
@@ -83,6 +85,7 @@ def manim_code_user_prompt(
         f"{settings_block}"
         "Use assets only if provided. Keep image usage simple (background fill, small prop).\n"
         "If the plan includes per-scene assets (e.g. scene.assets.background/foreground), apply them only in that scene.\n"
+        "If the plan includes per-scene source_notes, use them to choose accurate labels, equations, and narration, but keep on-screen text short.\n"
     )
 
 

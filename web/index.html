@@ -5752,6 +5752,7 @@
               elements: Array.isArray(sc.elements) ? sc.elements : [],
               actions: Array.isArray(sc.actions) ? sc.actions : [],
               narration: sc.narration || '',
+              source_notes: Array.isArray(sc.source_notes) ? sc.source_notes : [],
               assets: sc.assets || {},
               attachments: sc.attachments || [],
               asset_cues: sc.asset_cues || [],
@@ -6989,14 +6990,25 @@
         return timelineState.length - 1;
       }
 
+      function addSceneSourceNote(scene, noteText) {
+        const note = String(noteText || '').trim();
+        if (!note) return false;
+        scene.source_notes = Array.isArray(scene.source_notes) ? scene.source_notes : [];
+        const compactNote = note.slice(0, 1800);
+        if (!scene.source_notes.includes(compactNote)) {
+          scene.source_notes.push(compactNote);
+          if (scene.source_notes.length > 6) scene.source_notes = scene.source_notes.slice(-6);
+        }
+        return true;
+      }
+
       function applySourceNoteToScene(sceneIdx, noteText) {
         const idx = Number(sceneIdx);
         if (!Number.isInteger(idx) || idx < 0 || idx >= timelineState.length) return false;
-        const note = String(noteText || '').trim();
-        if (!note) return false;
         const scene = timelineState[idx];
-        scene.narration = [scene.narration || '', note].filter(Boolean).join('\n');
+        if (!addSceneSourceNote(scene, noteText)) return false;
         renderTimeline();
+        syncPlanFromTimeline();
         scheduleAutosave();
         return true;
       }
@@ -8325,6 +8337,7 @@
             elements: sc.elements,
             actions: sc.actions,
             narration: sc.narration,
+            source_notes: Array.isArray(sc.source_notes) ? sc.source_notes : [],
             assets: sc.assets || {},
             attachments: sc.attachments || [],
             asset_cues: sc.asset_cues || [],
@@ -9008,7 +9021,10 @@
             elements: sc.elements,
             actions: sc.actions,
             narration: sc.narration,
-            assets: sc.assets || {}
+            source_notes: Array.isArray(sc.source_notes) ? sc.source_notes : [],
+            assets: sc.assets || {},
+            attachments: sc.attachments || [],
+            asset_cues: sc.asset_cues || [],
           }));
           renderTimeline();
           showToast('TL;DR refreshed.', 'ok');
@@ -12056,12 +12072,14 @@
           } catch {}
         }
 
-        if ((item.kind === 'markdown' || item.kind === 'source') && item.file) {
+        if ((item.kind === 'markdown' || item.kind === 'source') && item.text) {
+          addSceneSourceNote(sc, `[Asset ${item.name} @ ${cue.timeline_second}s]\n${String(item.text).slice(0, 900)}`);
+        } else if ((item.kind === 'markdown' || item.kind === 'source') && item.file) {
           try {
             const text = await item.file.text();
             if (text) {
               const note = `[Asset ${item.name} @ ${cue.timeline_second}s]\n${text.slice(0, 700)}`;
-              sc.narration = [sc.narration || '', note].filter(Boolean).join('\n');
+              addSceneSourceNote(sc, note);
             }
           } catch {}
         }
@@ -12184,7 +12202,11 @@
         } else {
           snippet = raw.slice(0, 600);
         }
-        sc.narration = [sc.narration || '', snippet].filter(Boolean).join('\n');
+        if (sourceTimeline || sourceSnippet || kind === 'file' || kind === 'folder') {
+          addSceneSourceNote(sc, snippet);
+        } else {
+          sc.narration = [sc.narration || '', snippet].filter(Boolean).join('\n');
+        }
         if (sourceTimeline || sourceSnippet || raw) {
           const item = addReferenceToAssetDock(raw.split('\n')[0].slice(0, 80) || 'Timeline note', kind === 'file' ? 'source' : 'markdown', snippet);
           sc.attachments = Array.isArray(sc.attachments) ? sc.attachments : [];
@@ -12333,13 +12355,15 @@
           block.style.flex = `0 0 ${Math.max(120, Number(scene.seconds || 1) * 14)}px`;
           const attachments = Array.isArray(scene.attachments) ? scene.attachments : [];
           const cues = Array.isArray(scene.asset_cues) ? scene.asset_cues : [];
+          const sourceNotes = Array.isArray(scene.source_notes) ? scene.source_notes.filter(Boolean) : [];
           block.classList.toggle('has-bg', !!scene.assets?.background);
           block.classList.toggle('has-fg', !!scene.assets?.foreground);
-          block.classList.toggle('has-attachments', attachments.length > 0 || cues.length > 0);
+          block.classList.toggle('has-attachments', attachments.length > 0 || cues.length > 0 || sourceNotes.length > 0);
           block.title = [
             `Scene ${idx + 1} • ${start}s–${end}s`,
             (scene.goal || 'Scene'),
             (scene.narration || '').trim() ? `Narration: ${(scene.narration || '').trim()}` : '',
+            sourceNotes.length ? `Source notes: ${sourceNotes.length}` : '',
             scene.assets?.background ? `BG: ${scene.assets.background}` : '',
             scene.assets?.foreground ? `FG: ${scene.assets.foreground}` : '',
             attachments.length ? `Attachments: ${attachments.map((a) => `${a.name || a.path || 'asset'} @ ${a.timeline_second ?? start}s`).join(', ')}` : '',
@@ -12354,6 +12378,7 @@
           if (scene.assets?.background) headerMeta.appendChild(buildTimelineAssetDot('background', scene.assets.background));
           if (scene.assets?.foreground) headerMeta.appendChild(buildTimelineAssetDot('foreground', scene.assets.foreground));
           attachments.slice(0, 3).forEach((att) => headerMeta.appendChild(buildTimelineAttachmentDot(att)));
+          sourceNotes.slice(0, 1).forEach(() => headerMeta.appendChild(buildTimelineAttachmentDot({ name: `${sourceNotes.length} source note${sourceNotes.length === 1 ? '' : 's'}`, kind: 'source' })));
           const delSceneBtn = document.createElement('button');
           delSceneBtn.type = 'button';
           delSceneBtn.className = 'timeline-scene-delete';
@@ -12434,6 +12459,13 @@
             const fg = buildTimelineAssetBadge('foreground', scene.assets.foreground);
             fg.title = `Foreground image\n${scene.assets.foreground}`;
             badges.appendChild(fg);
+          }
+          if (sourceNotes.length) {
+            badges.appendChild(buildTimelineAttachmentBadge({
+              kind: 'source',
+              name: `${sourceNotes.length} source note${sourceNotes.length === 1 ? '' : 's'}`,
+              timeline_second: start,
+            }));
           }
           attachments.slice(0, 4).forEach((att) => badges.appendChild(buildTimelineAttachmentBadge(att)));
           if (attachments.length > 4) {
@@ -12621,6 +12653,7 @@
             elements: sc.elements || [],
             actions: sc.actions || [],
             narration: sc.narration || '',
+            source_notes: Array.isArray(sc.source_notes) ? sc.source_notes : [],
             assets: sc.assets || {},
             attachments: sc.attachments || [],
             asset_cues: sc.asset_cues || [],
@@ -12660,6 +12693,7 @@
             elements: sc.elements || [],
             actions: sc.actions || [],
             narration: sc.narration || '',
+            source_notes: Array.isArray(sc.source_notes) ? sc.source_notes : [],
             assets: sc.assets || {},
             attachments: sc.attachments || [],
             asset_cues: sc.asset_cues || [],
@@ -12719,6 +12753,7 @@
           elements: copy?.elements || [],
           actions: copy?.actions || [],
           narration: copy?.narration || `Extend the explanation with ${delta}s of additional clarity and examples.`,
+          source_notes: Array.isArray(copy?.source_notes) ? [...copy.source_notes] : [],
           assets: copy?.assets || {},
           attachments: copy?.attachments || [],
           asset_cues: copy?.asset_cues || [],
@@ -13149,6 +13184,7 @@
             elements: sc.elements,
             actions: sc.actions,
             narration: sc.narration,
+            source_notes: Array.isArray(sc.source_notes) ? sc.source_notes : [],
             assets: sc.assets || {},
             attachments: sc.attachments || [],
             asset_cues: sc.asset_cues || [],
@@ -13321,7 +13357,10 @@
               elements: sc.elements,
               actions: sc.actions,
               narration: sc.narration,
+              source_notes: Array.isArray(sc.source_notes) ? sc.source_notes : [],
               assets: sc.assets || {},
+              attachments: sc.attachments || [],
+              asset_cues: sc.asset_cues || [],
             }));
           }
           session.step_states = { plan: 'done', approve: 'done', code: 'active', render: 'active' };
@@ -13603,6 +13642,7 @@
                 elements: sc.elements,
                 actions: sc.actions,
                 narration: sc.narration,
+                source_notes: Array.isArray(sc.source_notes) ? sc.source_notes : [],
                 assets: sc.assets || {},
                 attachments: sc.attachments || [],
                 asset_cues: sc.asset_cues || [],
