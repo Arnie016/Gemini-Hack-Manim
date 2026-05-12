@@ -60,7 +60,7 @@ from .file_store import (
     rename_path,
     write_file,
 )
-from .terminal_runner import TerminalError, run_terminal_command
+from .terminal_runner import TerminalError, run_diagnostic_check, run_terminal_command
 from .job_manager import JobManager
 from .job_state import JobState, append_event, load_state, write_state
 
@@ -392,6 +392,20 @@ def _public_base_url(request: Request) -> str:
     return f"{proto}://{host}".rstrip("/")
 
 
+def _is_local_request(request: Request) -> bool:
+    host = (request.headers.get("host") or request.url.hostname or "").split(":", 1)[0].strip().lower()
+    return host in {"localhost", "127.0.0.1", "::1", "[::1]"}
+
+
+def _terminal_enabled_for_request(request: Request) -> bool:
+    flag = (os.getenv("NORTHSTAR_ENABLE_TERMINAL") or "").strip().lower()
+    if flag in {"0", "false", "no", "off"}:
+        return False
+    if flag in {"1", "true", "yes", "on"}:
+        return _is_local_request(request)
+    return _is_local_request(request) and not os.getenv("RENDER")
+
+
 def _create_stripe_checkout_session(*, request: Request, user_id: str, pack: Dict[str, Any]) -> Dict[str, Any]:
     secret = _stripe_secret_key()
     price_id = (os.getenv(str(pack["stripe_price_env"])) or "").strip()
@@ -683,6 +697,10 @@ class RenderCodeReq(BaseModel):
 
 class TerminalReq(BaseModel):
     command: str
+
+
+class DiagnosticsReq(BaseModel):
+    check: str = "all"
 
 
 class SettingsReq(BaseModel):
@@ -2700,8 +2718,46 @@ async def billing_webhook(request: Request):
     return {"ok": True, "event_type": event_type, "result": result}
 
 
+@app.get("/api/terminal/status")
+def terminal_status(request: Request):
+    enabled = _terminal_enabled_for_request(request)
+    return {
+        "ok": True,
+        "terminal_enabled": enabled,
+        "mode": "local_terminal" if enabled else "hosted_diagnostics",
+        "diagnostics": ["all", "manim", "ffmpeg", "disk", "jobs"],
+        "message": (
+            "Local terminal is available for localhost developer sessions."
+            if enabled
+            else "Hosted mode disables arbitrary terminal commands. Use fixed diagnostics instead."
+        ),
+    }
+
+
+@app.post("/api/diagnostics/run")
+def diagnostics_run(req: DiagnosticsReq):
+    settings = load_settings()
+    try:
+        runtime = _resolve_manim_runtime(settings, probe=False)
+        out = run_diagnostic_check(req.check, manim_py=runtime.get("manim_py") or "python3")
+        return {"ok": True, "check": req.check, "output": out}
+    except TerminalError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+
 @app.post("/api/terminal/run")
-def terminal_run(req: TerminalReq):
+def terminal_run(req: TerminalReq, request: Request):
+    if not _terminal_enabled_for_request(request):
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": (
+                    "Hosted mode disables arbitrary terminal commands. "
+                    "Use /api/diagnostics/run for health, Manim, ffmpeg, disk, and job probes."
+                ),
+            },
+            status_code=403,
+        )
     settings = load_settings()
     try:
         runtime = _resolve_manim_runtime(settings, probe=False)

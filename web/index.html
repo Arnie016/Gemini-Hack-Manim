@@ -4490,10 +4490,17 @@
 
         <div class="terminal hidden" id="terminalPanel">
           <div class="toolbar" style="margin:0 0 8px 0;">
-            <div class="muted">Terminal</div>
+            <div class="muted" id="terminalTitle">Diagnostics</div>
             <div class="spacer"></div>
+            <select id="diagnosticCheck" class="btn-inline" style="width: 170px;">
+              <option value="all">All checks</option>
+              <option value="manim">Manim</option>
+              <option value="ffmpeg">ffmpeg</option>
+              <option value="disk">Disk</option>
+              <option value="jobs">Jobs</option>
+            </select>
             <input id="termCmd" class="btn-inline" style="width: 320px;" placeholder="help | manim --version | ffmpeg -version | ls jobs" />
-            <button id="termRun" class="ghost btn-inline" title="Run command">Run</button>
+            <button id="termRun" class="ghost btn-inline" title="Run diagnostics">Run</button>
           </div>
           <pre id="logs">Logs will appear here.</pre>
         </div>
@@ -4990,6 +4997,8 @@
       const galleryCountEl = document.getElementById('galleryCount');
       const logsEl = document.getElementById('logs');
       const terminalPanel = document.getElementById('terminalPanel');
+      const terminalTitleEl = document.getElementById('terminalTitle');
+      const diagnosticCheckEl = document.getElementById('diagnosticCheck');
       const termCmdEl = document.getElementById('termCmd');
       const termRunEl = document.getElementById('termRun');
       const busyOverlayEl = document.getElementById('busyOverlay');
@@ -4998,6 +5007,7 @@
       const busyThoughtEl = document.getElementById('busyThought');
       const toastEl = document.getElementById('toast');
       let toastTimer = null;
+      let terminalEnabled = false;
       document.querySelectorAll('button:not([type])').forEach((btn) => btn.setAttribute('type', 'button'));
 
       function relocateGenerationControls() {
@@ -7424,7 +7434,41 @@
         terminalPanel.classList.toggle('hidden', !terminalMode);
         updateTopbarToggles();
         if (terminalMode) {
-          setTimeout(() => termCmdEl?.focus(), 0);
+          const focusTarget = terminalEnabled ? termCmdEl : diagnosticCheckEl;
+          setTimeout(() => focusTarget?.focus(), 0);
+        }
+      }
+
+      function applyTerminalStatus(data) {
+        terminalEnabled = !!data?.terminal_enabled;
+        if (terminalTitleEl) terminalTitleEl.textContent = terminalEnabled ? 'Local terminal' : 'Diagnostics';
+        if (termCmdEl) {
+          termCmdEl.classList.toggle('hidden', !terminalEnabled);
+          termCmdEl.disabled = !terminalEnabled;
+          termCmdEl.placeholder = terminalEnabled
+            ? 'help | manim --version | ffmpeg -version | ls jobs'
+            : 'Hosted mode uses fixed diagnostics only';
+        }
+        if (diagnosticCheckEl) diagnosticCheckEl.classList.toggle('hidden', terminalEnabled);
+        if (toggleTerminalBtn) {
+          toggleTerminalBtn.title = terminalEnabled ? 'Terminal' : 'Diagnostics';
+          toggleTerminalBtn.setAttribute('aria-label', terminalEnabled ? 'Terminal' : 'Diagnostics');
+          toggleTerminalBtn.dataset.tip = terminalEnabled ? 'Terminal' : 'Diagnostics';
+        }
+        if (logsEl && !terminalEnabled && logsEl.textContent === 'Logs will appear here.') {
+          logsEl.textContent = data?.message || 'Hosted mode disables arbitrary terminal commands. Run diagnostics instead.';
+        }
+      }
+
+      async function loadTerminalStatus() {
+        try {
+          const resp = await fetch('/api/terminal/status');
+          const data = await resp.json();
+          applyTerminalStatus(data);
+          return data;
+        } catch {
+          applyTerminalStatus({ terminal_enabled: false, message: 'Diagnostics unavailable until the backend is reachable.' });
+          return null;
         }
       }
 
@@ -11214,6 +11258,17 @@
           showToast('All dependencies already installed.', 'ok');
           return;
         }
+        if (!terminalEnabled) {
+          setTerminalMode(true);
+          logsEl.textContent = [
+            'Hosted mode disables dependency installation from the browser.',
+            '',
+            `Missing: ${missing.join(', ')}`,
+            'Use Rendering readiness diagnostics, then fix the deployment image or local setup.'
+          ].join('\n');
+          showToast('Hosted installs are disabled. Open diagnostics for details.', 'err');
+          return;
+        }
         setTerminalMode(true);
         showToast('Installing missing dependencies…', 'ok');
         const py = (settingsManimPyEl.value || data.manim_py || 'python3').trim() || 'python3';
@@ -13963,19 +14018,19 @@
         const command = (cmd || '').trim();
         if (!command) return '';
         termRunEl.disabled = true;
-        termCmdEl.value = command;
+        if (termCmdEl) termCmdEl.value = command;
         const prefix = `${append ? '\n' : ''}> ${command}\n`;
         logsEl.textContent = (append ? (logsEl.textContent || '') : '') + prefix;
         try {
-          const resp = await fetch('/api/terminal/run', {
+          const resp = await fetch(terminalEnabled ? '/api/terminal/run' : '/api/diagnostics/run', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ command })
+            body: JSON.stringify(terminalEnabled ? { command } : { check: command })
           });
           const data = await resp.json();
           const output = data.ok ? (data.output || '') : (data.error || 'Command failed');
           if (!silent) logsEl.textContent += (output || '') + '\n';
-          if (data.ok) pushHistory(`Terminal: ${command}`);
+          if (data.ok) pushHistory(`${terminalEnabled ? 'Terminal' : 'Diagnostics'}: ${command}`);
           return output || '';
         } catch (e) {
           logsEl.textContent += 'Failed to reach backend.\n';
@@ -13986,7 +14041,9 @@
       }
 
       async function runTerminalCommand() {
-        const cmd = (termCmdEl.value || '').trim();
+        const cmd = terminalEnabled
+          ? (termCmdEl.value || '').trim()
+          : (diagnosticCheckEl?.value || 'all').trim();
         if (!cmd) return;
         await execTerminalCommand(cmd, { append: false });
       }
@@ -14436,6 +14493,7 @@
       const inboundConceptDraft = readInboundConceptDraft();
       const templatesPromise = loadTemplates();
       loadSettings();
+      loadTerminalStatus();
       loadMemories();
       loadSkills();
       loadWorkspaceFiles();
