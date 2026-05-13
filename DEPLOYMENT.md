@@ -52,6 +52,10 @@ Launch product:
 
 - New user trial: 3 free rendered videos
 - Creator credit pack: SGD 9, 12 video credits
+- Pricing model version: `northstar-credits-v1`
+- Credit unit: one successful Manim MP4 render
+
+See `docs/STRIPE_PRICING_PROCEDURE.md` for the full setup, Stripe metadata contract, testing checklist, and when to add subscriptions.
 
 Implemented launch contract:
 

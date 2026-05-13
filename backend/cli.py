@@ -10,6 +10,8 @@ from typing import Any, Dict, Optional
 
 import requests
 
+from .backtest import run_local_backtest
+
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8000"
 COOKIE_PATH = Path(os.getenv("NORTHSTAR_CLI_COOKIE", "~/.northstar/cookies.json")).expanduser()
@@ -189,6 +191,35 @@ def cmd_voiceover(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_backtest_science(args: argparse.Namespace) -> int:
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    out_dir = Path(args.out_dir) if args.out_dir else Path("work") / "backtests" / f"science-{stamp}"
+    report = run_local_backtest(
+        out_dir=out_dir,
+        limit=args.limit,
+        family=args.family,
+        render=args.render,
+        manim_py=args.manim_py,
+        quality=args.quality,
+        seconds=args.seconds,
+        aspect_ratio=args.aspect,
+    )
+    if args.json:
+        _print_json(report)
+        return 0
+
+    print(f"NorthStar science backtest: {report['mode']}")
+    score_label = report["average_score"] if report["average_score"] is not None else "n/a"
+    print(f"Concepts: {report['passed']}/{report['total']} passed, average score {score_label}")
+    print(f"Report: {Path(report['out_dir']) / 'report.md'}")
+    print(f"JSON: {Path(report['out_dir']) / 'report.json'}")
+    if report["failed"]:
+        for item in report["results"]:
+            if not item.get("ok"):
+                print(f"- FAIL {item['topic']}: {', '.join(item.get('issues') or [])}")
+    return 0 if report["ok"] or not args.fail_on_render_score else 1
+
+
 def _add_common_generation_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--model", default=None, help="Text model override, e.g. gpt-5-mini.")
     parser.add_argument("--seconds", type=float, default=None, help="Target duration in seconds.")
@@ -257,6 +288,26 @@ def build_parser() -> argparse.ArgumentParser:
     voice.add_argument("--script-file", default=None)
     voice.add_argument("--draft-script", action="store_true", help="Let the text model draft narration from the saved plan.")
     voice.set_defaults(func=cmd_voiceover)
+
+    backtest = sub.add_parser(
+        "backtest-science",
+        help="Generate, optionally render, and score a suite of science Manim concepts.",
+    )
+    backtest.add_argument("--limit", type=int, default=10, help="Number of concepts to test. Use 100 for the broad suite.")
+    backtest.add_argument("--family", default=None, help="Optional family filter, e.g. Optics, Mechanics, Quantum.")
+    backtest.add_argument("--render", action="store_true", help="Actually render MP4s with Manim. Omit for fast code-only generation.")
+    backtest.add_argument("--quality", default="pql", choices=["pql", "pqm", "pqh", "low", "medium", "high"])
+    backtest.add_argument("--seconds", type=float, default=12.0, help="Target seconds per deterministic test video.")
+    backtest.add_argument("--aspect", default="9:16", help="Aspect ratio for generated scenes, e.g. 9:16 or 16:9.")
+    backtest.add_argument("--manim-py", default=None, help="Python executable with Manim installed.")
+    backtest.add_argument("--out-dir", default=None, help="Output directory for generated code, MP4s, logs, and reports.")
+    backtest.add_argument("--json", action="store_true", help="Print the full JSON report.")
+    backtest.add_argument(
+        "--fail-on-render-score",
+        action="store_true",
+        help="Exit non-zero when any rendered concept scores below the pass threshold.",
+    )
+    backtest.set_defaults(func=cmd_backtest_science)
 
     return parser
 

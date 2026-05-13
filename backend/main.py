@@ -79,12 +79,27 @@ MAX_RENDER_SCENE_SECONDS = float(os.getenv("NORTHSTAR_MAX_RENDER_SCENE_SECONDS",
 STALE_JOB_SECONDS = float(os.getenv("NORTHSTAR_STALE_JOB_SECONDS", "600"))
 APP_STARTED_AT = time.time()
 OPENAI_TTS_VOICES = {"alloy", "ash", "ballad", "coral", "echo", "fable", "marin", "nova", "onyx", "sage", "shimmer", "verse", "cedar"}
+PRICING_MODEL_VERSION = os.getenv("NORTHSTAR_PRICING_MODEL_VERSION", "northstar-credits-v1")
+PRICING_POSITIONING = (
+    "Freemium credit model: let new creators render a few real videos free, then sell one simple "
+    "Creator pack before introducing subscriptions."
+)
 CREDIT_PACKS = [
     {
         "price_usd": 9,
         "price_label": "SGD 9",
         "video_credits": 12,
         "label": "Creator credit pack",
+        "headline": "Creator",
+        "description": "For solo creators making polished Manim explainers from prompts, notes, and cheat sheets.",
+        "features": [
+            "12 additional video render credits",
+            "Pro model access for planning/code generation",
+            "Crazy mode for parallel render variants",
+            "More active sessions for longer animation runs",
+            "Editable Manim code, timeline, captions, and share package",
+        ],
+        "best_for": "teachers, students, technical creators, and launch demos",
         "stripe_price_env": "STRIPE_PRICE_9",
     },
 ]
@@ -275,6 +290,10 @@ def _billing_packs_payload() -> list[Dict[str, Any]]:
                 "price_label": str(pack.get("price_label") or f"${pack['price_usd']}"),
                 "video_credits": int(pack["video_credits"]),
                 "label": str(pack["label"]),
+                "headline": str(pack.get("headline") or pack["label"]),
+                "description": str(pack.get("description") or ""),
+                "features": list(pack.get("features") or []),
+                "best_for": str(pack.get("best_for") or ""),
                 "stripe_price_env": env_key,
                 "stripe_price_configured": bool(os.getenv(env_key)),
             }
@@ -306,6 +325,8 @@ def _billing_status_for_user(user_id: str) -> Dict[str, Any]:
             "credit_packs": _billing_packs_payload(),
             "stripe_checkout_configured": _stripe_checkout_configured(),
             "hosted_uses_platform_openai_key": True,
+            "pricing_model_version": PRICING_MODEL_VERSION,
+            "pricing_positioning": PRICING_POSITIONING,
         }
 
 
@@ -431,6 +452,11 @@ def _create_stripe_checkout_session(*, request: Request, user_id: str, pack: Dic
         "metadata[pack_price_usd]": str(price_usd),
         "metadata[video_credits]": str(video_credits),
         "metadata[product]": "northstar_credits",
+        "metadata[pricing_model_version]": PRICING_MODEL_VERSION,
+        "metadata[credit_unit]": "successful_manim_mp4_render",
+        "custom_text[submit][message]": (
+            "Your credits are added to this browser session after Stripe confirms payment."
+        ),
     }
     resp = requests.post(
         STRIPE_CHECKOUT_SESSIONS_URL,

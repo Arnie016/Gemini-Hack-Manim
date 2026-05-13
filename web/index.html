@@ -10928,6 +10928,8 @@
         const credits = Number(data.credits ?? trial);
         const configured = !!data.stripe_checkout_configured;
         const creatorUnlocked = !!(data.creator_pack_unlocked || Number(data.paid_video_credits || 0) > 0);
+        const packs = Array.isArray(data.credit_packs) ? data.credit_packs : [];
+        const creatorPack = packs.find((pack) => Number(pack.price_usd) === 9) || packs[0] || null;
         if (creditBalanceValueEl) creditBalanceValueEl.textContent = `${credits} video${credits === 1 ? '' : 's'}`;
         if (creditTrialValueEl) creditTrialValueEl.textContent = `${trial} video${trial === 1 ? '' : 's'}`;
         if (creditCheckoutValueEl) creditCheckoutValueEl.textContent = configured ? 'Live' : 'Setup needed';
@@ -10947,6 +10949,18 @@
           }
         }
         document.querySelectorAll('[data-credit-pack]').forEach((btn) => {
+          const pack = packs.find((item) => Number(item.price_usd) === Number(btn.dataset.creditPack)) || creatorPack;
+          if (pack) {
+            const price = pack.price_label || btn.dataset.creditLabel || 'Creator pack';
+            const features = Array.isArray(pack.features) && pack.features.length
+              ? pack.features.slice(0, 3).join('\n')
+              : `${pack.video_credits || 12} video credits`;
+            const strong = btn.querySelector('strong');
+            const span = btn.querySelector('span');
+            if (strong) strong.textContent = price;
+            if (span) span.textContent = `${pack.video_credits || 12} video credits\n${features}`;
+            btn.setAttribute('data-credit-label', price);
+          }
           btn.disabled = !configured;
           btn.title = configured ? 'Open Stripe checkout' : 'Set STRIPE_SECRET_KEY and STRIPE_PRICE_* on Render first';
         });

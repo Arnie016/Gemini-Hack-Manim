@@ -9,6 +9,18 @@ from typing import Tuple
 from .video_postprocess import postprocess_mp4
 
 
+def _subprocess_text(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
+def _timeout_logs(exc: subprocess.TimeoutExpired) -> str:
+    return _subprocess_text(exc.stdout) + "\n" + _subprocess_text(exc.stderr)
+
+
 def render_with_manim(
     scene_file: Path,
     out_mp4: Path,
@@ -55,7 +67,7 @@ def render_with_manim(
     except FileNotFoundError as exc:
         return False, f"Executable not found: {exc}"
     except subprocess.TimeoutExpired as exc:
-        logs = (exc.stdout or "") + "\n" + (exc.stderr or "")
+        logs = _timeout_logs(exc)
         return False, logs + "\nRender timed out"
 
     logs = (proc.stdout or "") + "\n" + (proc.stderr or "")
@@ -131,7 +143,7 @@ def concat_videos(
         )
         logs_all += (proc.stdout or "") + "\n" + (proc.stderr or "")
     except subprocess.TimeoutExpired as exc:
-        logs_all += (exc.stdout or "") + "\n" + (exc.stderr or "")
+        logs_all += _timeout_logs(exc)
         logs_all += "\nffmpeg concat timed out\n"
         proc = None
 
