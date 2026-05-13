@@ -1,0 +1,48 @@
+{
+  "version": "0.1",
+  "project": {
+    "slug": "youtube-short",
+    "title": "YouTube Short",
+    "description": "A vertical short optimized for one idea.",
+    "brand": {
+      "colors": ["#6BA8FF", "#4ADE80", "#070B12"],
+      "fontFamily": "Inter, system-ui, sans-serif"
+    }
+  },
+  "duration": 30,
+  "fps": 30,
+  "sources": [],
+  "tracks": [
+    {
+      "id": "captions",
+      "type": "caption",
+      "items": [
+        {
+          "id": "short-cap-1",
+          "kind": "caption",
+          "start": 0,
+          "duration": 4,
+          "text": "One sharp claim. One visible demo. One clear result."
+        },
+        {
+          "id": "short-cap-2",
+          "kind": "caption",
+          "start": 18,
+          "duration": 6,
+          "text": "Reuse the same timeline for the full launch video."
+        }
+      ]
+    }
+  ],
+  "beats": [
+    { "time": 0, "label": "Hook" },
+    { "time": 5, "label": "Demo" },
+    { "time": 21, "label": "CTA" }
+  ],
+  "exports": [
+    { "preset": "youtube_short", "filename": "youtube-short.mp4", "burnCaptions": true, "thumbnailAt": 1 }
+  ],
+  "qa": {
+    "checks": ["blank_frames", "caption_contrast", "caption_safe_area", "crop_safety", "audio_peaks"]
+  }
+}

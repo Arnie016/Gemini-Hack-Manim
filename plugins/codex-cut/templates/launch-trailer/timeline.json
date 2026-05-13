@@ -1,0 +1,73 @@
+{
+  "version": "0.1",
+  "project": {
+    "slug": "launch-trailer",
+    "title": "Launch Trailer",
+    "description": "A 45 second product launch trailer.",
+    "brand": {
+      "colors": ["#6BA8FF", "#4ADE80", "#0B1020"],
+      "fontFamily": "Inter, system-ui, sans-serif"
+    }
+  },
+  "duration": 45,
+  "fps": 30,
+  "sources": [],
+  "tracks": [
+    {
+      "id": "titles",
+      "type": "overlay",
+      "items": [
+        {
+          "id": "hook-title",
+          "kind": "title",
+          "start": 0,
+          "duration": 4,
+          "text": "Turn raw product work into a launch-ready video.",
+          "transform": { "scale": 1, "opacity": 1 }
+        },
+        {
+          "id": "proof-title",
+          "kind": "title",
+          "start": 28,
+          "duration": 6,
+          "text": "Captions, crops, exports, and QA are all files Codex can edit."
+        }
+      ]
+    },
+    {
+      "id": "captions",
+      "type": "caption",
+      "items": [
+        {
+          "id": "caption-1",
+          "kind": "caption",
+          "start": 4,
+          "duration": 7,
+          "text": "Import a recording. Ask for a launch trailer. Keep every decision editable."
+        },
+        {
+          "id": "caption-2",
+          "kind": "caption",
+          "start": 35,
+          "duration": 7,
+          "text": "Export Product Hunt, X, LinkedIn, YouTube, and Shorts from the same timeline."
+        }
+      ]
+    }
+  ],
+  "beats": [
+    { "time": 0, "label": "Hook", "intent": "Name the painful workflow." },
+    { "time": 8, "label": "Demo", "intent": "Show the product workflow." },
+    { "time": 28, "label": "Proof", "intent": "Show files, QA, and exports." },
+    { "time": 39, "label": "CTA", "intent": "Invite the viewer to try it." }
+  ],
+  "exports": [
+    { "preset": "producthunt", "filename": "launch-trailer-producthunt.mp4", "burnCaptions": true, "thumbnailAt": 2 },
+    { "preset": "x_landscape", "filename": "launch-trailer-x.mp4", "burnCaptions": true, "thumbnailAt": 2 },
+    { "preset": "youtube_short", "filename": "launch-trailer-short.mp4", "burnCaptions": true, "thumbnailAt": 2 }
+  ],
+  "qa": {
+    "sampleTimestamps": [0.5, 4, 12, 22, 34, 42],
+    "checks": ["blank_frames", "caption_contrast", "caption_safe_area", "crop_safety", "audio_peaks", "export_dimensions"]
+  }
+}

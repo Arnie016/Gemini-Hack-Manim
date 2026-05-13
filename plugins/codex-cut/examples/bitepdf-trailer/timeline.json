@@ -1,0 +1,79 @@
+{
+  "version": "0.1",
+  "project": {
+    "slug": "bitepdf-trailer",
+    "title": "BitePDF Launch Trailer",
+    "description": "Example launch trailer structure for a PDF product demo.",
+    "brand": {
+      "colors": ["#6BA8FF", "#F7FAFC", "#101828"],
+      "fontFamily": "Inter, system-ui, sans-serif"
+    }
+  },
+  "duration": 42,
+  "fps": 30,
+  "sources": [
+    {
+      "id": "demo-recording",
+      "path": "sources/bitepdf-demo.mp4",
+      "type": "video",
+      "duration": 42
+    }
+  ],
+  "tracks": [
+    {
+      "id": "video",
+      "type": "video",
+      "items": [
+        {
+          "id": "clip-main",
+          "kind": "clip",
+          "start": 0,
+          "duration": 42,
+          "sourceId": "demo-recording"
+        }
+      ]
+    },
+    {
+      "id": "captions",
+      "type": "caption",
+      "items": [
+        {
+          "id": "cap-1",
+          "kind": "caption",
+          "start": 0,
+          "duration": 5,
+          "text": "PDF workflows should feel searchable, editable, and fast."
+        },
+        {
+          "id": "cap-2",
+          "kind": "caption",
+          "start": 24,
+          "duration": 7,
+          "text": "BitePDF turns scattered documents into an answerable workspace."
+        },
+        {
+          "id": "cap-3",
+          "kind": "caption",
+          "start": 34,
+          "duration": 6,
+          "text": "Built for launch pages, demos, and real product workflows."
+        }
+      ]
+    }
+  ],
+  "beats": [
+    { "time": 0, "label": "Pain" },
+    { "time": 8, "label": "Upload" },
+    { "time": 17, "label": "Ask" },
+    { "time": 28, "label": "Proof" },
+    { "time": 36, "label": "CTA" }
+  ],
+  "exports": [
+    { "preset": "producthunt", "filename": "bitepdf-producthunt.mp4", "burnCaptions": true, "thumbnailAt": 2 },
+    { "preset": "youtube_short", "filename": "bitepdf-short.mp4", "burnCaptions": true, "thumbnailAt": 2 }
+  ],
+  "qa": {
+    "sampleTimestamps": [0.5, 4, 9, 18, 30, 40],
+    "checks": ["blank_frames", "caption_contrast", "caption_safe_area", "crop_safety", "audio_peaks", "export_dimensions"]
+  }
+}

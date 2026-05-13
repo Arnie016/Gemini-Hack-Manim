@@ -1,0 +1,47 @@
+{
+  "name": "codex-cut",
+  "version": "0.1.0",
+  "description": "Codex-native video production workflows for timeline editing, Remotion rendering, FFmpeg exports, captions, and visual QA.",
+  "author": {
+    "name": "NorthStar Studio",
+    "email": "founders@northstarstudio.io",
+    "url": "https://northstarstudio.io"
+  },
+  "homepage": "https://northstarstudio.io",
+  "repository": "https://github.com/Arnie016/Gemini-Hack-Manim",
+  "license": "MIT",
+  "keywords": [
+    "video",
+    "remotion",
+    "ffmpeg",
+    "captions",
+    "timeline",
+    "launch-videos",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Codex Cut",
+    "shortDescription": "Edit videos by editing timelines, code, captions, assets, and exports inside Codex.",
+    "longDescription": "Codex Cut turns Codex into a video production environment: import raw clips, build a JSON timeline, generate editable Remotion scenes, run FFmpeg transforms, QA screenshots for crop/readability issues, and export platform-specific launch videos.",
+    "developerName": "NorthStar Studio",
+    "category": "Productivity",
+    "capabilities": [
+      "Code Editing",
+      "Video Rendering",
+      "Filesystem",
+      "Visual QA"
+    ],
+    "websiteURL": "https://northstarstudio.io",
+    "privacyPolicyURL": "https://northstarstudio.io/privacy",
+    "termsOfServiceURL": "https://northstarstudio.io/terms",
+    "defaultPrompt": [
+      "/video make launch trailer from this app",
+      "/video cut 45s trailer for Product Hunt",
+      "/video add captions and export youtube-short",
+      "/video qa check crops captions blank frames"
+    ],
+    "brandColor": "#6BA8FF"
+  }
+}

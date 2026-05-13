@@ -1,0 +1,50 @@
+{
+  "version": "0.1",
+  "project": {
+    "slug": "app-demo",
+    "title": "App Demo",
+    "description": "A focused software workflow demo.",
+    "brand": {
+      "colors": ["#6BA8FF", "#FFFFFF", "#0B1020"],
+      "fontFamily": "Inter, system-ui, sans-serif"
+    }
+  },
+  "duration": 60,
+  "fps": 30,
+  "sources": [],
+  "tracks": [
+    {
+      "id": "captions",
+      "type": "caption",
+      "items": [
+        {
+          "id": "cap-hook",
+          "kind": "caption",
+          "start": 0,
+          "duration": 5,
+          "text": "Here is the fastest path from app idea to shareable demo."
+        },
+        {
+          "id": "cap-flow",
+          "kind": "caption",
+          "start": 12,
+          "duration": 8,
+          "text": "Codex edits the timeline, captions, code, and export settings directly."
+        }
+      ]
+    }
+  ],
+  "beats": [
+    { "time": 0, "label": "Problem" },
+    { "time": 10, "label": "Workflow" },
+    { "time": 35, "label": "Result" },
+    { "time": 52, "label": "CTA" }
+  ],
+  "exports": [
+    { "preset": "youtube", "filename": "app-demo-youtube.mp4", "burnCaptions": false, "thumbnailAt": 3 },
+    { "preset": "linkedin", "filename": "app-demo-linkedin.mp4", "burnCaptions": true, "thumbnailAt": 3 }
+  ],
+  "qa": {
+    "checks": ["blank_frames", "caption_contrast", "caption_safe_area", "crop_safety", "export_dimensions"]
+  }
+}
