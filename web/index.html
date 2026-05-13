@@ -7981,12 +7981,59 @@
 
       function refreshPlanBoxFromChat() {
         if (!chatMessagesEl) return;
-        const boxes = Array.from(chatMessagesEl.querySelectorAll('textarea.plan-editor'));
+        const boxes = Array.from(chatMessagesEl.querySelectorAll('textarea.plan-json-editor, textarea.plan-editor'));
         lastPlanBox = boxes.length ? boxes[boxes.length - 1] : null;
+      }
+
+      function bindPlanActionButtons(scope) {
+        const root = scope || chatMessagesEl;
+        if (!root) return;
+        root.querySelectorAll('.approve-render-btn').forEach((btn) => {
+          if (btn.dataset.boundApprove === 'true') return;
+          btn.dataset.boundApprove = 'true';
+          btn.addEventListener('click', async () => {
+            const container = btn.closest('.chat-msg, .drawer-section, div') || root;
+            const planBox = container.querySelector('textarea.plan-json-editor, textarea.plan-editor') || lastPlanBox;
+            if (!planBox) {
+              showToast('Plan JSON is missing. Create a new plan first.', 'err');
+              return;
+            }
+            btn.disabled = true;
+            const previousText = btn.textContent;
+            btn.textContent = 'Processing…';
+            if (timelineState.length) {
+              syncPlanFromTimeline();
+            }
+            if (crazyModeEl && crazyModeEl.checked) {
+              if (!hasCreatorPackAccess()) {
+                promptCreatorPackForCrazy();
+                btn.disabled = false;
+                btn.textContent = previousText || 'Approve & Render';
+                return;
+              }
+              startCrazyCountdown(async () => {
+                await createCrazyRun();
+              });
+              btn.disabled = false;
+              btn.textContent = previousText || 'Approve & Render';
+              setStep('approve', 'active');
+              setStepNote('approve', 'Crazy mode armed. Undo within 10s or launch 3 variants.');
+              return;
+            }
+            await approvePlan(planBox.value);
+            btn.disabled = false;
+            btn.textContent = previousText || 'Approve & Render';
+          });
+        });
       }
 
       function updateSessionPhase(session) {
         if (!session) return;
+        if (session.phase === 'stale' && (!session.job_id || session.job_id === session.stale_job_id)) return;
+        if (session.phase === 'stale' && session.job_id && session.job_id !== session.stale_job_id) {
+          session.phase = '';
+          session.stale_job_id = '';
+        }
         const states = session.step_states || {};
         const hasJob = !!String(session.job_id || '').trim();
         if (!hasJob) {
@@ -8026,6 +8073,10 @@
         session.prompt = chatInputEl ? chatInputEl.value : '';
         session.model = chatModelEl ? chatModelEl.value : '';
         session.last_sig = lastChatSignature || '';
+        if (session.phase === 'stale' && currentJobId && currentJobId !== session.stale_job_id) {
+          session.phase = '';
+          session.stale_job_id = '';
+        }
         session.job_id = currentJobId || '';
         session.plan_text = currentPlanText || '';
         session.timeline_state = Array.isArray(timelineState) ? timelineState : [];
@@ -8046,6 +8097,7 @@
         if (!session) return;
         updateSessionPhase(session);
         if (chatMessagesEl) chatMessagesEl.innerHTML = session.messages_html || '';
+        bindPlanActionButtons(chatMessagesEl);
         if (chatInputEl) chatInputEl.value = session.prompt || '';
         if (chatModelEl && session.model) {
           const hasModel = Array.from(chatModelEl.options || []).some((o) => o.value === session.model);
@@ -8053,6 +8105,7 @@
         }
         lastChatSignature = session.last_sig || '';
         currentJobId = session.job_id || '';
+        if (jobIdEl) jobIdEl.textContent = currentJobId || 'No job yet';
         currentPlanText = session.plan_text || '';
         timelineState = Array.isArray(session.timeline_state) ? session.timeline_state : [];
         timelineMeta = session.timeline_meta || { title: 'Scene Plan' };
@@ -8461,7 +8514,7 @@
       let sessionPoller = null;
       function markSessionStale(session, message) {
         if (!session) return;
-        session.job_id = '';
+        session.stale_job_id = session.job_id || session.stale_job_id || '';
         session.phase = 'stale';
         session.missing_checks = 0;
         session.pending_delete = false;
@@ -8479,6 +8532,7 @@
         const now = Date.now();
         for (const session of chatSessions) {
           if (!session.job_id) continue;
+          if (session.phase === 'stale') continue;
           if (session.phase === 'rendered' || session.phase === 'failed') continue;
           try {
             const resp = await fetch(`/api/jobs/${encodeURIComponent(session.job_id)}`);
@@ -13199,12 +13253,14 @@
         wrapper.appendChild(approveBtn);
 
         addChat('agent', 'Scene Plan (edit if needed)', '', wrapper);
+        bindPlanActionButtons(wrapper);
         setStep('plan', 'done');
         setStepNote('plan', `Plan ready: ${data.plan?.scenes?.length || 0} scenes.`);
         setStep('approve', 'active');
         setStepNote('approve', 'Review the plan JSON, then click Approve & Render.');
 
         approveBtn.addEventListener('click', async () => {
+          if (approveBtn.dataset.boundApprove === 'true') return;
           approveBtn.disabled = true;
           approveBtn.textContent = 'Processing…';
           if (timelineState.length) {
@@ -13503,6 +13559,17 @@
           planText = lastPlanBox.value;
         }
         const runJobId = currentJobId;
+        const runSessionId = activeChatSessionId;
+        const runSession = () => chatSessions.find((s) => s.id === runSessionId) || null;
+        const isRunSessionActive = () => activeChatSessionId === runSessionId;
+        const storeRunState = (st) => {
+          const session = runSession();
+          if (!session || !st || !st.ok) return;
+          applyJobStateToSession(session, st);
+          if (isRunSessionActive()) applySessionToUI(session);
+          renderChatSessions();
+          scheduleAutosave();
+        };
         const preferredCodePath = resolvePreferredCodePath();
         if (preferredCodePath) {
           setStepNote('code', `Preflight passed. Generating code into ${preferredCodePath}…`);
@@ -13800,15 +13867,24 @@
               const stResp = await fetch(`/api/jobs/${encodeURIComponent(runJobId)}`);
               const st = await stResp.json();
               if (!st.ok) return;
-              if (st.code) pushCode(st.code);
-              if (st.job_files) updateJobFiles(st.job_files);
+              if (isRunSessionActive()) {
+                if (st.code) pushCode(st.code);
+                if (st.job_files) updateJobFiles(st.job_files);
+              } else {
+                storeRunState(st);
+              }
               if (st.status === 'done' || st.status === 'failed') {
                 finished = true;
                 stopPoll();
                 try { es.close(); } catch {}
                 jobEventSource = null;
-                setBusy(false);
-                await applyFinalState(st, st.error || '');
+                if (isRunSessionActive()) {
+                  setBusy(false);
+                  await applyFinalState(st, st.error || '');
+                } else {
+                  storeRunState(st);
+                  finish(st);
+                }
               }
             } catch {}
           }, 450);
@@ -13840,6 +13916,24 @@
             const step = s?.step || '';
             const msg = s?.message || '';
             const err = s?.error || '';
+            if (!isRunSessionActive()) {
+              if (status === 'done' || status === 'failed') {
+                if (finished) return;
+                finished = true;
+                stopPoll();
+                try { es.close(); } catch {}
+                jobEventSource = null;
+                try {
+                  const stResp = await fetch(`/api/jobs/${encodeURIComponent(runJobId)}`);
+                  const st = await stResp.json();
+                  storeRunState(st);
+                  finish(st);
+                } catch {
+                  finish({ ok: false, error: 'Failed to load final state.' });
+                }
+              }
+              return;
+            }
             if (msg) statusEl.textContent = msg;
             if (busySubEl && msg) busySubEl.textContent = msg;
 

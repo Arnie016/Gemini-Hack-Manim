@@ -541,6 +541,14 @@ def _manim_python_candidates(settings: Optional[Dict[str, Any]] = None) -> list[
         for rel in (".venv/bin/python", "venv/bin/python", ".venv/Scripts/python.exe", "venv/Scripts/python.exe"):
             raw.append((str(root_dir / rel), source_name))
 
+    home = Path.home()
+    mise_python_root = home / ".local" / "share" / "mise" / "installs" / "python"
+    if mise_python_root.exists():
+        for py in sorted(mise_python_root.glob("*/bin/python3"), reverse=True):
+            raw.append((str(py), "mise_python"))
+        for py in sorted(mise_python_root.glob("*/bin/python"), reverse=True):
+            raw.append((str(py), "mise_python"))
+
     raw.extend([("python3", "path_python3"), ("python", "path_python")])
 
     seen: set[str] = set()
