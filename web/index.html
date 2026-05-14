@@ -2098,6 +2098,54 @@
       .source-status.ok { color: #93c5fd; }
       .source-status.warn { color: #facc15; }
       .source-status.err { color: #fca5a5; }
+      .connector-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        gap: 8px;
+      }
+      .connector-card {
+        border: 1px solid rgba(255,255,255,0.10);
+        border-radius: 12px;
+        background: rgba(9, 12, 18, 0.58);
+        padding: 10px;
+        display: grid;
+        gap: 6px;
+      }
+      .connector-card.enabled {
+        border-color: rgba(52, 211, 153, 0.45);
+        background: rgba(16, 185, 129, 0.08);
+      }
+      .connector-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .connector-name {
+        font-weight: 800;
+        color: var(--text);
+      }
+      .connector-meta {
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.35;
+      }
+      .connector-status {
+        width: fit-content;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.12);
+        padding: 3px 8px;
+        font-size: 10px;
+        color: var(--muted);
+      }
+      .connector-status.ready,
+      .connector-status.configured {
+        color: #bbf7d0;
+        border-color: rgba(34, 197, 94, 0.35);
+      }
+      .connector-summary {
+        white-space: pre-wrap;
+        line-height: 1.4;
+      }
       .index-skeleton {
         position: relative;
         overflow: hidden;
@@ -4278,6 +4326,7 @@
                 <button class="ghost active" data-stab="api">API & Models</button>
                 <button class="ghost" data-stab="credits">Credits</button>
                 <button class="ghost" data-stab="render">Rendering</button>
+                <button class="ghost" data-stab="connectors">Connectors</button>
                 <button class="ghost" data-stab="output">Output</button>
                 <button class="ghost" data-stab="agent">Agent</button>
                 <button class="ghost" data-stab="skills">Skills</button>
@@ -4411,6 +4460,19 @@
                       <button id="cancelInstall" class="ghost">Cancel</button>
                     </div>
                     <pre id="health" class="muted" style="margin-top:8px; white-space:pre-wrap;">No checks yet.</pre>
+                  </div>
+                </div>
+
+                <div class="settings-section" data-stab="connectors">
+                  <div class="drawer-section">
+                    <div class="drawer-title">Context Connectors</div>
+                    <div class="muted">Connectors define what outside context NorthStar can use for animation planning: docs, transcripts, repos, review notes, memory, and publishing metadata. This local layer is ready for BYO OAuth/API credentials; selected connectors are added to the director brief as grounding instructions.</div>
+                    <div class="row" style="margin-top:10px;">
+                      <button id="refreshConnectors" class="secondary">Refresh connectors</button>
+                      <button id="applyConnectorsToPrompt" class="ghost">Add to prompt</button>
+                    </div>
+                    <div id="settingsConnectorCards" class="connector-grid" style="margin-top:10px;"></div>
+                    <pre id="settingsConnectorSummary" class="muted connector-summary" style="margin-top:10px;">No connectors selected.</pre>
                   </div>
                 </div>
 
@@ -4588,9 +4650,10 @@
           <details class="context-block">
             <summary>Sources & context</summary>
             <div class="context-tabs" role="tablist" aria-label="Context tabs">
-              <button class="ctx-tab active" data-ctx="memory" role="tab" aria-selected="true" title="Memory facts for this run">Memory</button>
-              <button class="ctx-tab" data-ctx="docs" role="tab" aria-selected="false" title="Indexed links, transcripts, and source summaries">Docs</button>
-              <button class="ctx-tab" data-ctx="skills" role="tab" aria-selected="false" title="Skill icon rail with quick enable/disable">Skills</button>
+                <button class="ctx-tab active" data-ctx="memory" role="tab" aria-selected="true" title="Memory facts for this run">Memory</button>
+                <button class="ctx-tab" data-ctx="docs" role="tab" aria-selected="false" title="Indexed links, transcripts, and source summaries">Docs</button>
+                <button class="ctx-tab" data-ctx="connectors" role="tab" aria-selected="false" title="Connected apps that can provide source context">Connectors</button>
+                <button class="ctx-tab" data-ctx="skills" role="tab" aria-selected="false" title="Skill icon rail with quick enable/disable">Skills</button>
             </div>
             <div class="context-panel-shell">
               <div class="context-panel active" data-ctx="memory" role="tabpanel">
@@ -4642,6 +4705,12 @@
                 </div>
                 <div id="sourceCards" class="saved-grid" style="margin-top:10px;"></div>
                 <div id="sourceStatus" class="source-status muted">No sources yet.</div>
+              </div>
+
+              <div class="context-panel" data-ctx="connectors" role="tabpanel">
+                <div class="muted" style="margin-bottom:6px;">Select apps whose context should shape the next story plan. Exact private data must still be attached or indexed before citation.</div>
+                <div id="connectorContextSummary" class="connector-summary muted">No connectors selected.</div>
+                <div id="connectorContextCards" class="connector-grid" style="margin-top:8px;"></div>
               </div>
 
               <div class="context-panel" data-ctx="skills" role="tabpanel">
@@ -5364,6 +5433,12 @@
       const settingsElevenApiKeyEl = document.getElementById('settingsElevenApiKey');
       const settingsElevenVoiceIdEl = document.getElementById('settingsElevenVoiceId');
       const settingsElevenModelIdEl = document.getElementById('settingsElevenModelId');
+      const connectorContextCardsEl = document.getElementById('connectorContextCards');
+      const connectorContextSummaryEl = document.getElementById('connectorContextSummary');
+      const settingsConnectorCardsEl = document.getElementById('settingsConnectorCards');
+      const settingsConnectorSummaryEl = document.getElementById('settingsConnectorSummary');
+      const refreshConnectorsEl = document.getElementById('refreshConnectors');
+      const applyConnectorsToPromptEl = document.getElementById('applyConnectorsToPrompt');
 
       const rulesTextEl = document.getElementById('rulesText');
       const subagentsTextEl = document.getElementById('subagentsText');
@@ -6152,6 +6227,9 @@
       let selectedTreeKind = '';
       let skillsCache = [];
       let selectedSkillIdSet = new Set();
+      let connectorCatalog = [];
+      let enabledConnectorIds = new Set();
+      let connectorContextCache = null;
       let directorBriefTrimAt = 0;
       const renderNoticeByJob = new Set();
       let lastChatSignature = '';
@@ -12952,6 +13030,116 @@
         ].join('\n');
       }
 
+      function connectorPromptBlock() {
+        const summary = String(connectorContextCache?.summary || '').trim();
+        const contract = String(connectorContextCache?.prompt_contract || '').trim();
+        if (!summary) return '';
+        return [
+          'Connected app context:',
+          contract || 'Use connector context as grounding instructions only.',
+          summary,
+        ].join('\n');
+      }
+
+      function connectorStatusLabel(status) {
+        switch (String(status || '').trim()) {
+          case 'ready': return 'Ready';
+          case 'configured': return 'Configured';
+          case 'setup_needed': return 'Needs setup';
+          default: return 'Available';
+        }
+      }
+
+      function renderConnectorCards() {
+        const targets = [connectorContextCardsEl, settingsConnectorCardsEl].filter(Boolean);
+        targets.forEach((target) => { target.innerHTML = ''; });
+        const enabledCount = enabledConnectorIds.size;
+        const summary = connectorPromptBlock() || 'No connectors selected. Enable a connector to add its context role to the next animation plan.';
+        if (connectorContextSummaryEl) connectorContextSummaryEl.textContent = summary;
+        if (settingsConnectorSummaryEl) settingsConnectorSummaryEl.textContent = `${enabledCount} connector${enabledCount === 1 ? '' : 's'} selected.\n\n${summary}`;
+        connectorCatalog.forEach((connector) => {
+          targets.forEach((target) => {
+            const card = document.createElement('label');
+            card.className = `connector-card ${enabledConnectorIds.has(connector.id) ? 'enabled' : ''}`;
+            card.innerHTML = `
+              <div class="connector-head">
+                <input type="checkbox" ${enabledConnectorIds.has(connector.id) ? 'checked' : ''} data-connector-id="${escapeHtml(connector.id)}" />
+                <div>
+                  <div class="connector-name">${escapeHtml(connector.name)}</div>
+                  <div class="connector-meta">${escapeHtml(connector.category || 'Context')} · ${escapeHtml((connector.context_types || []).join(', '))}</div>
+                </div>
+              </div>
+              <div class="connector-meta">${escapeHtml(connector.animation_use || '')}</div>
+              <div class="connector-status ${escapeHtml(connector.status || '')}">${escapeHtml(connectorStatusLabel(connector.status))}</div>
+            `;
+            card.querySelector('input')?.addEventListener('change', async (e) => {
+              const id = e.currentTarget.dataset.connectorId;
+              if (!id) return;
+              if (e.currentTarget.checked) enabledConnectorIds.add(id);
+              else enabledConnectorIds.delete(id);
+              await saveConnectors();
+            });
+            target.appendChild(card);
+          });
+        });
+      }
+
+      async function loadConnectors() {
+        try {
+          const resp = await fetch('/api/connectors');
+          const data = await parseApiResponse(resp, 'Connectors failed to load.');
+          connectorCatalog = Array.isArray(data.connectors) ? data.connectors : [];
+          enabledConnectorIds = new Set(connectorCatalog.filter((c) => c.enabled).map((c) => c.id));
+          await loadConnectorContext();
+          renderConnectorCards();
+        } catch (err) {
+          const msg = err?.message || 'Connectors unavailable.';
+          if (connectorContextSummaryEl) connectorContextSummaryEl.textContent = msg;
+          if (settingsConnectorSummaryEl) settingsConnectorSummaryEl.textContent = msg;
+        }
+      }
+
+      async function loadConnectorContext() {
+        try {
+          const resp = await fetch('/api/connectors/context');
+          const data = await parseApiResponse(resp, 'Connector context failed.');
+          connectorContextCache = data;
+        } catch {
+          connectorContextCache = null;
+        }
+      }
+
+      async function saveConnectors() {
+        try {
+          const resp = await fetch('/api/connectors', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled_connector_ids: Array.from(enabledConnectorIds) }),
+          });
+          const data = await parseApiResponse(resp, 'Could not save connectors.');
+          connectorCatalog = Array.isArray(data.connectors) ? data.connectors : connectorCatalog;
+          connectorContextCache = data.context || null;
+          renderConnectorCards();
+          scheduleAutosave();
+          showToast('Connector context updated.', 'ok');
+        } catch (err) {
+          showToast(err?.message || 'Could not save connectors.', 'err');
+          renderConnectorCards();
+        }
+      }
+
+      function addConnectorContextToPrompt() {
+        const block = connectorPromptBlock();
+        if (!block || !chatInputEl) {
+          showToast('Select at least one connector first.', 'err');
+          return;
+        }
+        const cur = String(chatInputEl.value || '').trim();
+        chatInputEl.value = cur ? `${cur}\n\n${block}` : block;
+        showToast('Connector context added to prompt.', 'ok');
+        scheduleAutosave();
+      }
+
       async function handleAgenticEditCommand(raw) {
         const text = String(raw || '').trim().toLowerCase();
         if (!text) return false;
@@ -12997,6 +13185,8 @@
         if (directorBriefEl.value.trim()) pieces.push(directorBriefEl.value.trim());
         const sourceBlock = buildSourceReferenceBlock();
         if (sourceBlock) pieces.push(sourceBlock);
+        const connectedBlock = connectorPromptBlock();
+        if (connectedBlock) pieces.push(connectedBlock);
         const latexBlock = buildLatexReferenceBlock();
         if (latexBlock) pieces.push(latexBlock);
         const creativeLines = [];
@@ -14260,6 +14450,8 @@
         await refreshSidebarHealth();
       });
       safeOn(refreshSidebarHealthBtn, 'click', refreshSidebarHealth);
+      safeOn(refreshConnectorsEl, 'click', loadConnectors);
+      safeOn(applyConnectorsToPromptEl, 'click', addConnectorContextToPrompt);
       safeOn(resetLayoutBtn, 'click', resetLayout);
       safeOn(replayWelcomeBtn, 'click', () => {
         try { localStorage.removeItem(WELCOME_SEEN_KEY); } catch {}
@@ -14604,6 +14796,7 @@
       loadTerminalStatus();
       loadMemories();
       loadSkills();
+      loadConnectors();
       loadWorkspaceFiles();
       initImagePresetControls();
       renderSources();

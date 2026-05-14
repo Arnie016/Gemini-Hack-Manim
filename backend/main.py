@@ -63,6 +63,7 @@ from .file_store import (
 from .terminal_runner import TerminalError, run_diagnostic_check, run_terminal_command
 from .job_manager import JobManager
 from .job_state import JobState, append_event, load_state, write_state
+from .connectors import connector_catalog, connector_context
 
 ROOT = Path(__file__).resolve().parents[1]
 WORK = ROOT / "work"
@@ -650,6 +651,9 @@ def _resolve_manim_runtime(settings: Optional[Dict[str, Any]] = None, *, probe: 
 def _settings_payload(settings: Dict[str, Any]) -> Dict[str, Any]:
     text_provider, _text_api_key, text_model = _text_generation_settings(settings)
     runtime = _resolve_manim_runtime(settings, probe=False)
+    enabled_connectors = settings.get("enabled_connector_ids")
+    if not isinstance(enabled_connectors, list):
+        enabled_connectors = []
     return {
         "has_api_key": _has_text_api_key(settings),
         "has_text_api_key": _has_text_api_key(settings),
@@ -666,6 +670,8 @@ def _settings_payload(settings: Dict[str, Any]) -> Dict[str, Any]:
         "has_elevenlabs_key": bool(settings.get("elevenlabs_api_key")),
         "elevenlabs_voice_id": settings.get("elevenlabs_voice_id") or "",
         "elevenlabs_model_id": settings.get("elevenlabs_model_id") or "",
+        "enabled_connector_ids": enabled_connectors,
+        "connectors": connector_catalog(enabled_connectors),
         "project_root": str(ROOT),
         "work_root": str(WORK),
         "billing": {
@@ -847,6 +853,10 @@ class SourceIndexReq(BaseModel):
     notes: Optional[str] = None
     source_type: str = "auto"  # auto | youtube | web
     model: Optional[str] = None
+
+
+class ConnectorSelectionReq(BaseModel):
+    enabled_connector_ids: list[str] = []
 
 
 class ScriptPackReq(BaseModel):
@@ -2688,6 +2698,37 @@ def set_settings(req: SettingsReq):
         }
     )
     return {"ok": True, **_settings_payload(settings)}
+
+
+@app.get("/api/connectors")
+def get_connectors():
+    settings = load_settings()
+    enabled = settings.get("enabled_connector_ids")
+    if not isinstance(enabled, list):
+        enabled = []
+    return {"ok": True, "connectors": connector_catalog(enabled)}
+
+
+@app.post("/api/connectors")
+def set_connectors(req: ConnectorSelectionReq):
+    allowed = {item["id"] for item in connector_catalog([])}
+    enabled = [cid for cid in req.enabled_connector_ids if cid in allowed]
+    settings = update_settings({"enabled_connector_ids": enabled})
+    return {
+        "ok": True,
+        "enabled_connector_ids": settings.get("enabled_connector_ids") or [],
+        "connectors": connector_catalog(settings.get("enabled_connector_ids") or []),
+        "context": connector_context(settings.get("enabled_connector_ids") or []),
+    }
+
+
+@app.get("/api/connectors/context")
+def get_connector_context():
+    settings = load_settings()
+    enabled = settings.get("enabled_connector_ids")
+    if not isinstance(enabled, list):
+        enabled = []
+    return {"ok": True, **connector_context(enabled)}
 
 
 @app.get("/api/billing/status")
