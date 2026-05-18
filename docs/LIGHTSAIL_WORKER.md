@@ -32,16 +32,15 @@ NORTHSTAR_ARTIFACT_STORE=local
 NORTHSTAR_ARTIFACT_PREFIX=renders
 ```
 
-For cross-host Render + Lightsail queueing and S3-compatible artifact publishing from the worker, add:
+For cross-host Render + Lightsail queueing and S3-compatible artifact publishing from the worker, add the same bucket credentials to both Render and Lightsail. For the current Singapore bucket, use:
 
 ```bash
 NORTHSTAR_QUEUE_STORE=s3
-NORTHSTAR_QUEUE_BUCKET=<bucket>
+NORTHSTAR_QUEUE_BUCKET=northstarstorage
 NORTHSTAR_QUEUE_PREFIX=queue
 NORTHSTAR_ARTIFACT_STORE=s3
-NORTHSTAR_ARTIFACT_BUCKET=<bucket>
+NORTHSTAR_ARTIFACT_BUCKET=northstarstorage
 NORTHSTAR_ARTIFACT_PREFIX=renders
-NORTHSTAR_ARTIFACT_PUBLIC_BASE_URL=<public base URL>
 AWS_REGION=ap-southeast-1
 AWS_ACCESS_KEY_ID=<secret>
 AWS_SECRET_ACCESS_KEY=<secret>
@@ -55,9 +54,11 @@ NORTHSTAR_ARTIFACT_ENDPOINT_URL=<s3-compatible endpoint URL>
 
 Keep the frontend pointed at `https://northstarstudio.io`. Do not expose or call the Lightsail worker directly from browser code.
 
+Leave `NORTHSTAR_ARTIFACT_PUBLIC_BASE_URL` unset until a CDN/public bucket policy is configured.
+
 ## Lightsail Setup
 
-Assume the app is deployed at `/opt/northstar` and the shared/persistent work directory is `/opt/northstar/work`.
+If you already cloned the repo at `~/northstar/northstar`, use that path. Otherwise this installs into `/opt/northstar`.
 
 ```bash
 sudo apt-get update
@@ -95,11 +96,10 @@ SUPABASE_ANON_KEY=<secret>
 SUPABASE_SERVICE_ROLE_KEY=<secret>
 NORTHSTAR_ARTIFACT_STORE=s3
 NORTHSTAR_QUEUE_STORE=s3
-NORTHSTAR_QUEUE_BUCKET=<bucket>
+NORTHSTAR_QUEUE_BUCKET=northstarstorage
 NORTHSTAR_QUEUE_PREFIX=queue
-NORTHSTAR_ARTIFACT_BUCKET=<bucket>
+NORTHSTAR_ARTIFACT_BUCKET=northstarstorage
 NORTHSTAR_ARTIFACT_PREFIX=renders
-NORTHSTAR_ARTIFACT_PUBLIC_BASE_URL=<public base URL>
 AWS_REGION=ap-southeast-1
 AWS_ACCESS_KEY_ID=<secret>
 AWS_SECRET_ACCESS_KEY=<secret>
