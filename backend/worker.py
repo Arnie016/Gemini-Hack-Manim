@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import time
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -90,7 +91,9 @@ def run_queue_job(job: QueueJob, *, progress: str = "auto") -> bool:
             plan_obj = json.loads(paths.plan_path.read_text(encoding="utf-8"))
         except Exception as exc:
             _mark_failed(job, f"Queued job is missing a valid plan: {exc}")
+            job.payload["final_state"] = asdict(load_state(paths.job_dir, job.job_id))
             return False
+    paths.plan_path.write_text(json.dumps(plan_obj, indent=2), encoding="utf-8")
 
     assets_description = str(payload.get("assets_description") or "")
     bg_candidates = sorted((paths.job_dir / "assets").glob("background*.png"))
@@ -142,7 +145,7 @@ def run_queue_job(job: QueueJob, *, progress: str = "auto") -> bool:
     if st.status == "done":
         try:
             _write_share_package(paths)
-            publish_job_artifacts(job_id=job.job_id, job_dir=paths.job_dir)
+            job.payload["artifacts"] = publish_job_artifacts(job_id=job.job_id, job_dir=paths.job_dir)
         except Exception as exc:
             st = load_state(paths.job_dir, job.job_id)
             st.diagnosis = ((st.diagnosis + "\n") if st.diagnosis else "") + f"Artifact publish failed: {exc}"
@@ -153,12 +156,14 @@ def run_queue_job(job: QueueJob, *, progress: str = "auto") -> bool:
                 type_="artifact_publish_error",
                 payload={"error": str(exc)},
             )
+        job.payload["final_state"] = asdict(load_state(paths.job_dir, job.job_id))
         if progress != "off":
             print(f"worker: completed {job.job_id}", file=sys.stderr)
         return True
 
     if progress != "off":
         print(f"worker: failed {job.job_id}: {st.error or st.message}", file=sys.stderr)
+    job.payload["final_state"] = asdict(load_state(paths.job_dir, job.job_id))
     return False
 
 

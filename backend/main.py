@@ -65,7 +65,7 @@ from .job_manager import JobManager
 from .job_state import JobState, append_event, load_state, write_state
 from .connectors import connector_catalog, connector_context
 from .artifact_store import artifact_store_from_env
-from .render_queue import enqueue_render_job, render_mode
+from .render_queue import completed_job_payload, enqueue_render_job, queued_position, render_mode
 
 ROOT = Path(__file__).resolve().parents[1]
 WORK = ROOT / "work"
@@ -3733,6 +3733,38 @@ def job_status(job_id: str):
         "retry_result": st.retry_result,
         "running": job_manager.is_running(job_id),
     }
+    if st.status == "queued":
+        try:
+            pos = queued_position(job_id)
+            if pos is not None:
+                resp["queue_position"] = pos
+        except Exception:
+            pass
+        try:
+            remote = completed_job_payload(job_id)
+        except Exception:
+            remote = None
+        if remote:
+            final_state = remote.get("final_state") if isinstance(remote.get("final_state"), dict) else {}
+            if final_state:
+                resp.update(
+                    {
+                        "status": final_state.get("status") or resp["status"],
+                        "step": final_state.get("step") or resp["step"],
+                        "message": final_state.get("message") or resp["message"],
+                        "updated_at": final_state.get("updated_at") or resp["updated_at"],
+                        "error": final_state.get("error") or "",
+                        "diagnosis": final_state.get("diagnosis") or resp["diagnosis"],
+                    }
+                )
+            artifacts = remote.get("artifacts") if isinstance(remote.get("artifacts"), dict) else {}
+            published = artifacts.get("published") if isinstance(artifacts.get("published"), dict) else {}
+            if published:
+                resp["remote_artifacts"] = published
+                video = published.get("video") if isinstance(published.get("video"), dict) else {}
+                if video.get("url"):
+                    resp["video_url"] = video["url"]
+            resp["queue_result_key"] = remote.get("queue_result_key")
     if paths.out_mp4.exists():
         resp["video_path"] = str(paths.out_mp4.relative_to(ROOT))
     if st.status == "done" and paths.out_mp4.exists():

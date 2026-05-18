@@ -5,7 +5,7 @@ NorthStar now supports two render modes:
 - `NORTHSTAR_RENDER_MODE=inline`: default. `/api/approve` starts the render in the web process.
 - `NORTHSTAR_RENDER_MODE=queue`: `/api/approve` writes a durable JSON job under `work/queue/pending` and returns quickly. A worker process runs `python -m backend.cli worker`.
 
-The queue is file-backed. Render and the worker must see the same `work/queue` and `work/jobs` filesystem. A separate Render web service and a separate Lightsail VM will not share local disk by default. Use queue mode only when both processes run on the same host/shared volume, or mount a shared filesystem at the same `work` path.
+The default queue is file-backed. Render and the worker must see the same `work/queue` and `work/jobs` filesystem for local queue mode. A separate Render web service and a separate Lightsail VM will not share local disk by default, so cross-host deployments should use S3/R2 queue mode with `NORTHSTAR_QUEUE_STORE=s3`.
 
 ## Render Web Env Vars
 
@@ -32,9 +32,12 @@ NORTHSTAR_ARTIFACT_STORE=local
 NORTHSTAR_ARTIFACT_PREFIX=renders
 ```
 
-For S3-compatible artifact publishing from the worker, add:
+For cross-host Render + Lightsail queueing and S3-compatible artifact publishing from the worker, add:
 
 ```bash
+NORTHSTAR_QUEUE_STORE=s3
+NORTHSTAR_QUEUE_BUCKET=<bucket>
+NORTHSTAR_QUEUE_PREFIX=queue
 NORTHSTAR_ARTIFACT_STORE=s3
 NORTHSTAR_ARTIFACT_BUCKET=<bucket>
 NORTHSTAR_ARTIFACT_PREFIX=renders
@@ -91,6 +94,9 @@ SUPABASE_URL=<secret>
 SUPABASE_ANON_KEY=<secret>
 SUPABASE_SERVICE_ROLE_KEY=<secret>
 NORTHSTAR_ARTIFACT_STORE=s3
+NORTHSTAR_QUEUE_STORE=s3
+NORTHSTAR_QUEUE_BUCKET=<bucket>
+NORTHSTAR_QUEUE_PREFIX=queue
 NORTHSTAR_ARTIFACT_BUCKET=<bucket>
 NORTHSTAR_ARTIFACT_PREFIX=renders
 NORTHSTAR_ARTIFACT_PUBLIC_BASE_URL=<public base URL>
