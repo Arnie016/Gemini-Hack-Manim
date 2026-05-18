@@ -37,6 +37,9 @@ Credits: Manim by Grant Sanderson (3Blue1Brown) + Manim Community.
 Run the same NorthStar pipeline from the terminal:
 
 ```bash
+# Optional first-run guide: asks what you make and recommends a command.
+python -m backend.cli onboard
+
 # Terminal 1: start the local backend
 python -m backend.cli serve --reload
 
@@ -44,8 +47,9 @@ python -m backend.cli serve --reload
 python northstar.py render --seconds 30 --quality pql \
   "30s high-school explainer: two waves combine into one resultant."
 
-# Inspect an existing job
+# Inspect an existing job, or watch it with animated progress in a TTY
 python northstar.py status <job_id>
+python northstar.py status <job_id> --watch --progress auto
 
 # Create only the editable plan JSON
 python northstar.py plan --out plan.json \
@@ -61,6 +65,11 @@ python northstar.py voiceover <job_id> --provider openai --voice marin --draft-s
 The CLI uses `NORTHSTAR_URL` when set, otherwise `http://127.0.0.1:8000`.
 It stores its anonymous render-credit cookie at `~/.northstar/cookies.json` so
 CLI renders use the same local billing/session flow across commands.
+
+Render polling writes progress to stderr and final structured JSON to stdout, so
+the CLI still works in scripts. Use `--progress animate` to force the physics
+spinner, `--progress plain` for line-by-line status, or `--no-progress` for
+quiet automation.
 
 ## Devpost tags
 `gemini-api` `manim` `education` `edtech` `ai-video` `multimodal-ai` `fastapi` `python` `creator-tools` `scientific-visualization`

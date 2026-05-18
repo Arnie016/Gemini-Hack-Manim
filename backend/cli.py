@@ -74,6 +74,67 @@ def _print_json(data: Dict[str, Any]) -> None:
     print(json.dumps(data, indent=2, sort_keys=True))
 
 
+class ProgressAnimator:
+    UNICODE_FRAMES = (
+        "λ  wavefront forming",
+        "ψ  phase aligning",
+        "∫  scene integrating",
+        "↯  vectors moving",
+        "∿  field oscillating",
+        "π  labels settling",
+    )
+    ASCII_FRAMES = (
+        "o---- spring loading",
+        "-o--- spring loading",
+        "--o-- spring loading",
+        "---o- spring loading",
+        "----o spring loading",
+        "---o- spring loading",
+        "--o-- spring loading",
+        "-o--- spring loading",
+    )
+
+    def __init__(self, *, mode: str = "auto") -> None:
+        mode = (mode or "auto").strip().lower()
+        if mode not in {"auto", "animate", "plain", "off"}:
+            mode = "auto"
+        self.mode = mode
+        auto_allowed = (
+            sys.stderr.isatty()
+            and not os.getenv("CI")
+            and (os.getenv("TERM") or "").lower() != "dumb"
+            and not os.getenv("NO_COLOR")
+        )
+        self.enabled = mode == "animate" or (mode == "auto" and auto_allowed)
+        encoding = (getattr(sys.stderr, "encoding", None) or "").lower()
+        self.frames = self.UNICODE_FRAMES if encoding.startswith("utf") else self.ASCII_FRAMES
+        self.idx = 0
+        self.last_len = 0
+
+    @property
+    def plain(self) -> bool:
+        return self.mode in {"auto", "plain"} and not self.enabled
+
+    def draw(self, status: str, step: str, message: str = "") -> None:
+        if not self.enabled:
+            return
+        frame = self.frames[self.idx % len(self.frames)]
+        self.idx += 1
+        label = " ".join(part for part in (status, step) if part)
+        line = f"northstar render | {frame} | {label}"
+        if message:
+            line += f" | {message[:72]}"
+        pad = " " * max(0, self.last_len - len(line))
+        print("\r" + line + pad, end="", file=sys.stderr, flush=True)
+        self.last_len = len(line)
+
+    def clear(self) -> None:
+        if not self.enabled:
+            return
+        print("\r" + (" " * self.last_len) + "\r", end="", file=sys.stderr, flush=True)
+        self.last_len = 0
+
+
 def _plan_payload(args: argparse.Namespace, prompt: str) -> Dict[str, Any]:
     return {
         "idea": prompt,
@@ -119,21 +180,28 @@ def cmd_plan(args: argparse.Namespace) -> int:
 def _wait_for_job(args: argparse.Namespace, job_id: str) -> Dict[str, Any]:
     started = time.time()
     last_line = ""
+    animator = ProgressAnimator(mode=getattr(args, "progress", "auto"))
     while True:
         data = _request_json(args, "GET", f"/api/jobs/{job_id}", timeout=30)
         line = f"{data.get('status')}:{data.get('step')} {data.get('message') or data.get('error') or ''}".strip()
-        if line != last_line:
+        if animator.enabled:
+            animator.draw(str(data.get("status") or ""), str(data.get("step") or ""), str(data.get("message") or data.get("error") or ""))
+        elif animator.plain and line != last_line:
             print(line, file=sys.stderr)
             last_line = line
         if data.get("status") in {"done", "failed"}:
+            animator.clear()
+            if animator.enabled:
+                print(line, file=sys.stderr)
             return data
         if time.time() - started > args.timeout:
+            animator.clear()
             raise CliError(f"Timed out waiting for job {job_id}.")
         time.sleep(args.poll)
 
 
 def cmd_status(args: argparse.Namespace) -> int:
-    data = _request_json(args, "GET", f"/api/jobs/{args.job_id}", timeout=30)
+    data = _wait_for_job(args, args.job_id) if args.watch else _request_json(args, "GET", f"/api/jobs/{args.job_id}", timeout=30)
     _print_json(data)
     return 0
 
@@ -191,6 +259,69 @@ def cmd_voiceover(args: argparse.Namespace) -> int:
     return 0
 
 
+def _ask_choice(prompt: str, choices: list[tuple[str, str]], default: str) -> str:
+    if not sys.stdin.isatty():
+        return default
+    print(prompt)
+    for key, label in choices:
+        marker = " default" if key == default else ""
+        print(f"  {key}) {label}{marker}")
+    raw = input("> ").strip().lower()
+    return raw if any(raw == key for key, _label in choices) else default
+
+
+def cmd_onboard(args: argparse.Namespace) -> int:
+    if args.non_interactive or not sys.stdin.isatty():
+        profile, source, format_choice, speed = "explainer", "prompt", "shorts", "quick"
+    else:
+        print("NorthStar CLI onboarding: 2-minute setup for prompt-to-Manim videos.\n")
+        profile = _ask_choice(
+            "What are you mostly making?",
+            [("explainer", "physics/math explainer"), ("proof", "LaTeX/math proof"), ("demo", "software/product demo")],
+            "explainer",
+        )
+        source = _ask_choice(
+            "What source do you start from?",
+            [("prompt", "plain prompt"), ("notes", "notes/PDF/cheat sheet"), ("latex", "LaTeX")],
+            "prompt",
+        )
+        format_choice = _ask_choice(
+            "Where will it publish?",
+            [("shorts", "9:16 Shorts/TikTok/X"), ("youtube", "16:9 YouTube"), ("square", "1:1 social")],
+            "shorts",
+        )
+        speed = _ask_choice(
+            "Preferred workflow?",
+            [("quick", "fast first draft"), ("pro", "editable plan first"), ("batch", "batch/backtest concepts")],
+            "quick",
+        )
+
+    aspect = {"shorts": "9:16", "youtube": "16:9", "square": "1:1"}.get(format_choice, "9:16")
+    seconds = "45" if speed == "quick" else "60"
+    if profile == "proof":
+        prompt = "Turn this LaTeX proof into an intuitive visual animation with one equation reveal at a time."
+    elif profile == "demo":
+        prompt = "Create a concise product demo animation with captions, zooms, and a clear final takeaway."
+    else:
+        prompt = "Explain wave superposition with two waves combining into one resultant wave."
+    if source == "notes":
+        prompt += " Attach notes or a cheat sheet before rendering."
+    if source == "latex":
+        prompt += " Paste the LaTeX block into the prompt or attach a .tex file."
+
+    print("\nRecommended first command:")
+    print(
+        "python3 -m backend.cli render "
+        f"--aspect {aspect} --seconds {seconds} --quality pql --model gpt-5 "
+        f"{json.dumps(prompt)}"
+    )
+    print("\nBefore rendering, run:")
+    print("python3 -m backend.cli health")
+    print("\nFor reliability testing:")
+    print("python3 -m backend.cli backtest-science --limit 10 --render --seconds 12 --quality pql")
+    return 0
+
+
 def cmd_backtest_science(args: argparse.Namespace) -> int:
     stamp = time.strftime("%Y%m%d-%H%M%S")
     out_dir = Path(args.out_dir) if args.out_dir else Path("work") / "backtests" / f"science-{stamp}"
@@ -235,6 +366,22 @@ def _add_common_generation_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--no-narration", action="store_true")
 
 
+def _add_progress_flags(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--progress",
+        default="auto",
+        choices=["auto", "animate", "plain", "off"],
+        help="Render polling display. auto animates only in an interactive terminal; stdout remains JSON.",
+    )
+    parser.add_argument(
+        "--no-progress",
+        action="store_const",
+        const="off",
+        dest="progress",
+        help="Disable render polling output on stderr.",
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="northstar", description="CLI for NorthStar Manim animation workflows.")
     parser.add_argument("--base-url", default=None, help=f"NorthStar backend URL. Default: {DEFAULT_BASE_URL}")
@@ -248,6 +395,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     health = sub.add_parser("health", help="Check backend health.")
     health.set_defaults(func=cmd_health)
+
+    onboard = sub.add_parser("onboard", help="Run a two-minute CLI setup guide and recommend the first command.")
+    onboard.add_argument("--non-interactive", action="store_true", help="Print default recommendations without questions.")
+    onboard.set_defaults(func=cmd_onboard)
 
     plan = sub.add_parser("plan", help="Create an editable scene plan.")
     _add_common_generation_flags(plan)
@@ -264,6 +415,7 @@ def build_parser() -> argparse.ArgumentParser:
     approve.add_argument("--wait", action="store_true")
     approve.add_argument("--poll", type=float, default=2.0)
     approve.add_argument("--timeout", type=float, default=900)
+    _add_progress_flags(approve)
     approve.set_defaults(func=cmd_approve)
 
     render = sub.add_parser("render", help="Plan, approve, render, and poll a prompt.")
@@ -272,11 +424,16 @@ def build_parser() -> argparse.ArgumentParser:
     render.add_argument("--wait", action=argparse.BooleanOptionalAction, default=True)
     render.add_argument("--poll", type=float, default=2.0)
     render.add_argument("--timeout", type=float, default=900)
+    _add_progress_flags(render)
     render.add_argument("prompt", nargs=argparse.REMAINDER)
     render.set_defaults(func=cmd_render)
 
     status = sub.add_parser("status", help="Show job status.")
     status.add_argument("job_id")
+    status.add_argument("--watch", action="store_true", help="Poll until the job reaches done or failed.")
+    status.add_argument("--poll", type=float, default=2.0)
+    status.add_argument("--timeout", type=float, default=900)
+    _add_progress_flags(status)
     status.set_defaults(func=cmd_status)
 
     voice = sub.add_parser("voiceover", help="Add OpenAI or ElevenLabs narration to a rendered job.")

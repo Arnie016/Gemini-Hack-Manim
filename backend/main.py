@@ -64,6 +64,7 @@ from .terminal_runner import TerminalError, run_diagnostic_check, run_terminal_c
 from .job_manager import JobManager
 from .job_state import JobState, append_event, load_state, write_state
 from .connectors import connector_catalog, connector_context
+from .artifact_store import artifact_store_from_env
 
 ROOT = Path(__file__).resolve().parents[1]
 WORK = ROOT / "work"
@@ -1616,6 +1617,7 @@ def _share_html(manifest: Dict[str, Any]) -> str:
     job_id = html.escape(str(manifest.get("job_id") or ""))
     files = manifest.get("files") if isinstance(manifest.get("files"), dict) else {}
     video = html.escape(str(files.get("video") or ""))
+    video_src = html.escape(str(manifest.get("video_url") or video))
     captions = html.escape(str(files.get("captions") or ""))
     plan = html.escape(str(files.get("plan") or "plan.json"))
     code = html.escape(str(files.get("code") or "scene.py"))
@@ -1641,8 +1643,8 @@ def _share_html(manifest: Dict[str, Any]) -> str:
         scene_items.append("<article class=\"scene\"><h2>Scene plan</h2><p>Open plan.json for the full storyboard.</p></article>")
     track = f"<track src=\"{captions}\" kind=\"captions\" srclang=\"en\" label=\"Captions\">" if captions else ""
     video_block = (
-        f"<video controls playsinline preload=\"metadata\" src=\"{video}\">{track}</video>"
-        if video
+        f"<video controls playsinline preload=\"metadata\" src=\"{video_src}\">{track}</video>"
+        if video_src
         else "<div class=\"missing\">Video file is not present in this package.</div>"
     )
     return f"""<!doctype html>
@@ -1741,6 +1743,46 @@ def _write_share_package(paths, public_base_url: Optional[str] = None) -> Dict[s
     (paths.job_dir / "share.html").write_text(_share_html(manifest), encoding="utf-8")
     (paths.job_dir / "README.md").write_text(_share_readme(manifest), encoding="utf-8")
     (paths.job_dir / "share-copy.md").write_text(_share_copy_markdown(manifest), encoding="utf-8")
+    artifact_files = {
+        "video": paths.out_mp4,
+        "captions": paths.job_dir / "captions.srt",
+        "plan": paths.plan_path,
+        "code": paths.scene_path,
+        "manifest": paths.job_dir / "manifest.json",
+        "share_page": paths.job_dir / "share.html",
+        "share_copy": paths.job_dir / "share-copy.md",
+    }
+    try:
+        store = artifact_store_from_env()
+        published = store.publish_files(job_id=paths.job_id, files=artifact_files)
+    except Exception as exc:
+        manifest["artifact_publish_error"] = str(exc)
+        (paths.job_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        published = {}
+    if published:
+        manifest["remote_artifacts"] = {
+            label: {"key": item.key, "url": item.url, "bytes": item.bytes}
+            for label, item in published.items()
+        }
+        if "video" in published:
+            manifest["video_url"] = published["video"].url
+        (paths.job_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        (paths.job_dir / "share.html").write_text(_share_html(manifest), encoding="utf-8")
+        try:
+            final_published = store.publish_files(
+                job_id=paths.job_id,
+                files={"manifest": paths.job_dir / "manifest.json", "share_page": paths.job_dir / "share.html"},
+            )
+            manifest["remote_artifacts"].update(
+                {
+                    label: {"key": item.key, "url": item.url, "bytes": item.bytes}
+                    for label, item in final_published.items()
+                }
+            )
+            (paths.job_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        except Exception as exc:
+            manifest["artifact_publish_error"] = str(exc)
+            (paths.job_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return manifest
 
 
