@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional
 @dataclass
 class JobState:
     job_id: str
-    status: str  # created|planned|running|repairing|done|failed
+    status: str  # created|planned|queued|running|repairing|done|failed
     step: str  # plan|images|code|render|repair|idle
     message: str = ""
     updated_at: float = 0.0

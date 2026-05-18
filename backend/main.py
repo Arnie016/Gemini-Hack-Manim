@@ -65,6 +65,7 @@ from .job_manager import JobManager
 from .job_state import JobState, append_event, load_state, write_state
 from .connectors import connector_catalog, connector_context
 from .artifact_store import artifact_store_from_env
+from .render_queue import enqueue_render_job, render_mode
 
 ROOT = Path(__file__).resolve().parents[1]
 WORK = ROOT / "work"
@@ -2664,24 +2665,33 @@ def _recover_or_fail_interrupted_job(paths, state: JobState) -> JobState:
     return state
 
 
-def _preflight_payload(settings: Optional[Dict[str, Any]] = None, *, require_api_key: bool = True) -> Dict[str, Any]:
+def _preflight_payload(
+    settings: Optional[Dict[str, Any]] = None,
+    *,
+    require_api_key: bool = True,
+    require_render_runtime: bool = True,
+) -> Dict[str, Any]:
     settings = settings or load_settings()
-    health_data = _health_snapshot(settings)
+    health_data = _health_snapshot(settings) if require_render_runtime else {}
     text_provider, text_api_key, text_model = _text_generation_settings(settings)
     api_ok = bool((text_api_key or "").strip())
     write_ok, write_error = _output_path_writable()
     checks = {
-        "manim": bool(health_data.get("manim_ok")),
-        "ffmpeg": bool(health_data.get("ffmpeg_ok")),
         "output_writable": write_ok,
     }
+    if require_render_runtime:
+        checks = {
+            "manim": bool(health_data.get("manim_ok")),
+            "ffmpeg": bool(health_data.get("ffmpeg_ok")),
+            **checks,
+        }
     if require_api_key:
         checks = {"api_key": api_ok, **checks}
     missing = [name for name, ok in checks.items() if not ok]
     fix_action = ""
     if require_api_key and not checks.get("api_key"):
         fix_action = "open_settings_api"
-    elif not checks["manim"] or not checks["ffmpeg"]:
+    elif require_render_runtime and (not checks["manim"] or not checks["ffmpeg"]):
         fix_action = "open_settings_render_get_started"
     elif not checks["output_writable"]:
         fix_action = "check_output_permissions"
@@ -3585,7 +3595,8 @@ def approve(req: ApproveReq, request: Request, response: Response):
         return billing_error
 
     settings = load_settings()
-    preflight = _preflight_payload(settings)
+    queue_enabled = render_mode() == "queue"
+    preflight = _preflight_payload(settings, require_render_runtime=not queue_enabled)
     if not preflight.get("ok"):
         return JSONResponse(
             {
@@ -3598,7 +3609,7 @@ def approve(req: ApproveReq, request: Request, response: Response):
         )
     text_provider, api_key, text_model = _text_generation_settings(settings, req.model)
     image_api_key = settings.get("api_key") or os.environ.get("GEMINI_API_KEY")
-    manim_py = _render_manim_py(settings, preflight)
+    manim_py = _render_manim_py(settings, preflight) if not queue_enabled else None
 
     try:
         plan_obj = _parse_json(req.plan_text)
@@ -3615,7 +3626,14 @@ def approve(req: ApproveReq, request: Request, response: Response):
     image_warning: Optional[str] = None
     bg_candidates = sorted((paths.job_dir / "assets").glob("background*.png"))
     fg_candidates = sorted((paths.job_dir / "assets").glob("foreground*.png"))
-    if not bg_candidates and not fg_candidates and req.include_images and req.image_prompt and req.image_prompt.strip():
+    if (
+        not queue_enabled
+        and not bg_candidates
+        and not fg_candidates
+        and req.include_images
+        and req.image_prompt
+        and req.image_prompt.strip()
+    ):
         try:
             bg_rel, fg_rel, image_warning, desc = _generate_assets(
                 job_dir=paths.job_dir,
@@ -3638,12 +3656,12 @@ def approve(req: ApproveReq, request: Request, response: Response):
             fg_rel = str(fg_candidates[0].relative_to(paths.job_dir))
             assets_description += f"- foreground: {fg_rel} (small prop/character in lower third)\n"
 
-    # Mark planned state and kick off async approve worker.
+    # Mark state and kick off async approve worker or durable queue worker.
     st = JobState(
         job_id=req.job_id,
-        status="running",
+        status="queued" if queue_enabled else "running",
         step="code",
-        message="Queued…",
+        message="Queued for worker." if queue_enabled else "Queued…",
         updated_at=__import__("time").time(),
         plan_path=str(paths.plan_path),
         scene_path=str(paths.scene_path),
@@ -3654,21 +3672,42 @@ def approve(req: ApproveReq, request: Request, response: Response):
     if billing_user_id:
         _record_job_owner(paths.job_dir, billing_user_id)
 
-    job_manager.start_approve(
-        job_id=req.job_id,
-        job_dir=paths.job_dir,
-        plan_obj=plan_obj,
-        plan_text=req.plan_text,
-        assets_description=assets_description,
-        render_settings=_render_settings_ratio(req.aspect_ratio),
-        quality=req.quality,
-        manim_py=manim_py,
-        api_key=api_key,
-        text_model=text_model,
-        text_provider=text_provider,
-    )
+    render_settings = _render_settings_ratio(req.aspect_ratio)
+    if queue_enabled:
+        enqueue_render_job(
+            {
+                "job_id": req.job_id,
+                "plan_obj": plan_obj,
+                "plan_text": req.plan_text,
+                "assets_description": assets_description,
+                "render_settings": render_settings,
+                "aspect_ratio": req.aspect_ratio,
+                "quality": req.quality,
+                "model": text_model,
+                "text_provider": text_provider,
+                "include_images": req.include_images,
+                "image_prompt": req.image_prompt,
+                "image_mode": req.image_mode,
+                "image_variants": req.image_variants,
+                "image_model": req.image_model,
+            }
+        )
+    else:
+        job_manager.start_approve(
+            job_id=req.job_id,
+            job_dir=paths.job_dir,
+            plan_obj=plan_obj,
+            plan_text=req.plan_text,
+            assets_description=assets_description,
+            render_settings=render_settings,
+            quality=req.quality,
+            manim_py=manim_py,
+            api_key=api_key,
+            text_model=text_model,
+            text_provider=text_provider,
+        )
 
-    response = {"ok": True, "job_id": req.job_id}
+    response = {"ok": True, "job_id": req.job_id, "render_mode": "queue" if queue_enabled else "inline"}
     if image_warning:
         response["image_warning"] = image_warning
     return response

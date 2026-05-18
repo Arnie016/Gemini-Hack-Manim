@@ -336,6 +336,35 @@ class JobManager:
             self._threads[job_id] = t
             t.start()
 
+    def run_approve(
+        self,
+        *,
+        job_id: str,
+        job_dir: Path,
+        plan_obj: Dict[str, Any],
+        plan_text: str,
+        assets_description: str,
+        render_settings: str,
+        quality: str,
+        manim_py: Optional[str],
+        api_key: Optional[str],
+        text_model: Optional[str],
+        text_provider: Optional[str] = None,
+    ) -> None:
+        self._approve_worker(
+            job_id=job_id,
+            job_dir=job_dir,
+            plan_obj=plan_obj,
+            plan_text=plan_text,
+            assets_description=assets_description,
+            render_settings=render_settings,
+            quality=quality,
+            manim_py=manim_py,
+            api_key=api_key,
+            text_model=text_model,
+            text_provider=text_provider,
+        )
+
     def _approve_worker(
         self,
         *,

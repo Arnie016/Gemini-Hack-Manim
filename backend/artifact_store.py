@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import json
 import mimetypes
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Mapping, Optional
+from typing import Any, Dict, Mapping, Optional
 
 
 @dataclass
@@ -88,3 +89,37 @@ def artifact_store_from_env() -> ArtifactStore:
             public_base_url=os.getenv("NORTHSTAR_ARTIFACT_PUBLIC_BASE_URL"),
         )
     raise ValueError(f"Unsupported NORTHSTAR_ARTIFACT_STORE: {provider}")
+
+
+def publish_job_artifacts(*, job_id: str, job_dir: Path) -> Dict[str, Any]:
+    files = {
+        "video": job_dir / "out.mp4",
+        "captions": job_dir / "captions.srt",
+        "plan": job_dir / "plan.json",
+        "code": job_dir / "scene.py",
+        "logs": job_dir / "logs.txt",
+        "manifest": job_dir / "manifest.json",
+        "share_page": job_dir / "share.html",
+        "share_copy": job_dir / "share-copy.md",
+    }
+    store = artifact_store_from_env()
+    published = store.publish_files(job_id=job_id, files=files)
+    result: Dict[str, Any] = {
+        "store": store.name,
+        "published": {
+            label: {"key": item.key, "url": item.url, "bytes": item.bytes}
+            for label, item in published.items()
+        },
+    }
+    manifest_path = job_dir / "artifact_manifest.json"
+    manifest_path.write_text(json.dumps(result, indent=2, sort_keys=True), encoding="utf-8")
+    if store.name != "local":
+        final = store.publish_files(job_id=job_id, files={"artifact_manifest": manifest_path})
+        result["published"].update(
+            {
+                label: {"key": item.key, "url": item.url, "bytes": item.bytes}
+                for label, item in final.items()
+            }
+        )
+        manifest_path.write_text(json.dumps(result, indent=2, sort_keys=True), encoding="utf-8")
+    return result

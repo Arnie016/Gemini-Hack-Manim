@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional
 import requests
 
 from .backtest import run_local_backtest
+from .worker import run_worker
 
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8000"
@@ -351,6 +352,15 @@ def cmd_backtest_science(args: argparse.Namespace) -> int:
     return 0 if report["ok"] or not args.fail_on_render_score else 1
 
 
+def cmd_worker(args: argparse.Namespace) -> int:
+    return run_worker(
+        once=args.once,
+        poll=args.poll,
+        concurrency=args.concurrency,
+        progress=args.progress,
+    )
+
+
 def _add_common_generation_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--model", default=None, help="Text model override, e.g. gpt-5-mini.")
     parser.add_argument("--seconds", type=float, default=None, help="Target duration in seconds.")
@@ -435,6 +445,13 @@ def build_parser() -> argparse.ArgumentParser:
     status.add_argument("--timeout", type=float, default=900)
     _add_progress_flags(status)
     status.set_defaults(func=cmd_status)
+
+    worker = sub.add_parser("worker", help="Run the queue-backed render worker.")
+    worker.add_argument("--once", action="store_true", help="Claim at most one queued render job, then exit.")
+    worker.add_argument("--poll", type=float, default=2.0, help="Seconds to sleep between empty queue polls.")
+    worker.add_argument("--concurrency", type=int, default=1, help="Worker concurrency. Only 1 is supported for file queue.")
+    _add_progress_flags(worker)
+    worker.set_defaults(func=cmd_worker)
 
     voice = sub.add_parser("voiceover", help="Add OpenAI or ElevenLabs narration to a rendered job.")
     voice.add_argument("job_id")
