@@ -1434,8 +1434,8 @@
         overflow: auto;
         display: flex;
         flex-direction: column;
-        gap: 10px;
-        padding: 4px;
+        gap: 8px;
+        padding: 4px 2px;
       }
       .chat-messages:empty { display: none; }
       .composer-card {
@@ -1799,12 +1799,13 @@
         color: var(--text);
       }
       .bubble {
-        max-width: 92%;
-        border-radius: 16px;
-        padding: 10px 12px;
-        border: 1px solid rgba(255,255,255,0.06);
-        background: rgba(11, 18, 32, 0.55);
-        backdrop-filter: blur(8px);
+        max-width: 94%;
+        border-radius: 13px;
+        padding: 9px 11px;
+        border: 1px solid rgba(255,255,255,0.04);
+        background: transparent;
+        backdrop-filter: none;
+        line-height: 1.42;
       }
       .bubble.user {
         align-self: flex-end;
@@ -1813,10 +1814,10 @@
       }
       .bubble.agent {
         align-self: flex-start;
-        border-color: rgba(34,197,94,0.12);
-        background: linear-gradient(180deg, rgba(34,197,94,0.10), rgba(11,18,32,0.35));
+        border-color: rgba(148,163,184,0.09);
+        background: rgba(9, 13, 20, 0.36);
       }
-      .bubble-title { font-weight: 600; font-size: 12px; color: var(--muted); }
+      .bubble-title { font-weight: 700; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
       .bubble pre {
         margin: 8px 0 0 0;
         padding: 10px;
@@ -1948,19 +1949,20 @@
         background: linear-gradient(90deg, #6aa9ff, #22c55e);
       }
       .agent-step {
-        background: #0b1220;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        padding: 6px;
-        font-size: 11px;
+        background: transparent;
+        border: none;
+        border-radius: 999px;
+        padding: 4px 2px;
+        font-size: 10px;
         text-align: center;
         cursor: pointer;
+        color: var(--muted);
       }
-      .agent-step.active { border-color: var(--accent); color: var(--accent); }
-      .agent-step.done { border-color: var(--accent-2); color: var(--accent-2); }
-      .agent-step.error { border-color: var(--danger); color: var(--danger); }
+      .agent-step.active { color: var(--accent); background: rgba(106,169,255,0.08); }
+      .agent-step.done { color: var(--accent-2); background: rgba(34,197,94,0.08); }
+      .agent-step.error { color: var(--danger); background: rgba(239,68,68,0.08); }
       .agent-step.selected {
-        box-shadow: 0 0 0 2px rgba(106,169,255,0.25) inset;
+        box-shadow: none;
       }
 
       @keyframes glowPulse {
@@ -3398,17 +3400,21 @@
       .step-detail {
         order: 4;
         min-height: 0;
-        padding: 8px 10px;
+        padding: 4px 2px;
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        font-size: 12px;
       }
       .chat-messages {
         order: 5;
         flex: 1 1 auto;
         max-height: none;
         min-height: 150px;
-        border: 1px solid rgba(148, 163, 184, 0.16);
-        border-radius: 8px;
-        background: rgba(4, 8, 14, 0.55);
-        padding: 8px;
+        border: none;
+        border-radius: 0;
+        background: transparent;
+        padding: 6px 2px 10px;
       }
       .chat-messages:empty {
         display: flex;
@@ -3425,6 +3431,7 @@
         order: 6;
         max-height: 30vh;
         overflow: auto;
+        display: none;
       }
       .first60-panel {
         order: 7;
@@ -8996,6 +9003,16 @@
           : 'linear-gradient(90deg, #6aa9ff, #22c55e)';
         agentProgressFillEl.style.width = `${pct}%`;
       }
+
+      function providerStatusText(data) {
+        if (!data) return '';
+        const provider = String(data.text_provider || 'openai').toUpperCase();
+        const model = data.text_model || 'gpt-5';
+        const source = data.text_key_source === 'environment'
+          ? 'using server key'
+          : (data.text_key_source === 'saved' ? 'using saved key' : 'key missing');
+        return `${provider} ${model} · ${source}`;
+      }
       if (agentStepsEl) {
         agentStepsEl.addEventListener('click', (e) => {
           const stepEl = e.target.closest('.agent-step');
@@ -9072,6 +9089,10 @@
           composerStateEl.textContent = hasRender
             ? 'Rendered'
             : (hasPlan ? 'Plan ready' : (hasPrompt ? 'Ready to plan' : 'Start here'));
+        }
+        if (lastSettingsData && composerStateEl && !hasRender && !hasPlan) {
+          const providerText = providerStatusText(lastSettingsData);
+          if (providerText) composerStateEl.title = providerText;
         }
 
         setFirst60Item(first60ItemPromptEl, hasPrompt ? 'done' : 'active', hasPrompt ? 'done' : 'Write prompt');
@@ -11141,6 +11162,10 @@
               localStorage.setItem('seenApiKeyHint', '1');
             }
           } catch {}
+        } else if (statusEl && data.text_key_source === 'environment') {
+          statusEl.textContent = `Ready. ${providerStatusText(data)}.`;
+        } else if (statusEl && data.text_key_source === 'saved') {
+          statusEl.textContent = `Ready. ${providerStatusText(data)}.`;
         }
         renderManimPythonHint(data, lastHealthData);
         renderProviderReadiness(data, lastPreflightData);

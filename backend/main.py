@@ -656,12 +656,18 @@ def _settings_payload(settings: Dict[str, Any]) -> Dict[str, Any]:
     enabled_connectors = settings.get("enabled_connector_ids")
     if not isinstance(enabled_connectors, list):
         enabled_connectors = []
+    openai_key_source = "saved" if settings.get("openai_api_key") else ("environment" if os.environ.get("OPENAI_API_KEY") else "")
+    gemini_key_source = "saved" if settings.get("api_key") else ("environment" if os.environ.get("GEMINI_API_KEY") else "")
+    text_key_source = openai_key_source if text_provider == "openai" else gemini_key_source
     return {
         "has_api_key": _has_text_api_key(settings),
         "has_text_api_key": _has_text_api_key(settings),
         "has_openai_api_key": bool(settings.get("openai_api_key") or os.environ.get("OPENAI_API_KEY")),
         "has_gemini_api_key": bool(settings.get("api_key") or os.environ.get("GEMINI_API_KEY")),
         "has_image_api_key": bool(settings.get("api_key") or os.environ.get("GEMINI_API_KEY")),
+        "openai_key_source": openai_key_source,
+        "gemini_key_source": gemini_key_source,
+        "text_key_source": text_key_source,
         "text_provider": text_provider,
         "text_model": text_model,
         "image_model": settings.get("image_model"),
