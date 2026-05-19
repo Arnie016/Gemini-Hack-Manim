@@ -245,6 +245,180 @@ def cmd_render(args: argparse.Namespace) -> int:
     return 0
 
 
+def _plan_summary(plan_data: Dict[str, Any]) -> str:
+    plan = plan_data.get("plan") if isinstance(plan_data.get("plan"), dict) else {}
+    scenes = plan.get("scenes") if isinstance(plan.get("scenes"), list) else []
+    title = str(plan.get("title") or "Scene plan")
+    seconds = plan.get("total_seconds") or sum(float(s.get("seconds") or 0) for s in scenes if isinstance(s, dict))
+    lines = [f"{title} · {seconds:g}s · {len(scenes)} scenes"]
+    for idx, scene in enumerate(scenes[:6], start=1):
+        if not isinstance(scene, dict):
+            continue
+        goal = str(scene.get("goal") or scene.get("narration") or "Scene").strip()
+        sec = scene.get("seconds") or "?"
+        lines.append(f"  {idx}. {sec}s · {goal[:96]}")
+    if len(scenes) > 6:
+        lines.append(f"  ... {len(scenes) - 6} more scenes")
+    return "\n".join(lines)
+
+
+def _job_summary(job_data: Dict[str, Any]) -> str:
+    status = job_data.get("status") or "unknown"
+    step = job_data.get("step") or ""
+    message = job_data.get("message") or job_data.get("error") or ""
+    video = job_data.get("video_url") or job_data.get("output_url") or ""
+    parts = [f"status={status}"]
+    if step:
+        parts.append(f"step={step}")
+    if message:
+        parts.append(str(message))
+    if video:
+        parts.append(f"video={video}")
+    return " · ".join(parts)
+
+
+def _agent_help() -> str:
+    return """Commands:
+  /render <prompt>      plan, approve, render, and wait for MP4
+  /plan <prompt>        create an editable scene plan only
+  /approve             approve and render the last planned job
+  /status [job_id]      show job status
+  /watch [job_id]       watch job until done/failed
+  /health              check backend/runtime/API readiness
+  /json on|off          toggle raw JSON output
+  /help                show this help
+  /quit                exit
+
+Default: type any animation request and NorthStar renders it."""
+
+
+def _agent_banner(args: argparse.Namespace) -> str:
+    return (
+        "\n"
+        "╭─ NorthStar Agentic Manim CLI ─────────────────────────────╮\n"
+        "│ Type physics ideas. I plan, code, render, and report MP4s. │\n"
+        f"│ Backend: {_base_url(args):<49}│\n"
+        "╰────────────────────────────────────────────────────────────╯\n"
+        "Try: explain wave interference in 30 seconds for high school\n"
+        "Use /help for commands.\n"
+    )
+
+
+def cmd_agent(args: argparse.Namespace) -> int:
+    raw_prompt = " ".join(getattr(args, "prompt", []) or []).strip()
+    state: Dict[str, Any] = {"last_job_id": "", "last_plan_text": "", "json": bool(args.json)}
+
+    def show(data: Dict[str, Any]) -> None:
+        if state["json"]:
+            _print_json(data)
+
+    def create_plan(prompt: str) -> Dict[str, Any]:
+        print("Planning scene structure...", file=sys.stderr)
+        data = _request_json(args, "POST", "/api/plan", payload=_plan_payload(args, prompt), timeout=240)
+        state["last_job_id"] = str(data.get("job_id") or "")
+        state["last_plan_text"] = data.get("plan_text") or json.dumps(data.get("plan", {}), indent=2)
+        print(f"\nPlan ready · job {state['last_job_id']}")
+        print(_plan_summary(data))
+        show(data)
+        return data
+
+    def approve_last() -> Dict[str, Any]:
+        job_id = state.get("last_job_id") or ""
+        plan_text = state.get("last_plan_text") or ""
+        if not job_id or not plan_text:
+            raise CliError("No planned job yet. Use /plan <prompt> or /render <prompt> first.")
+        payload = {
+            "job_id": job_id,
+            "plan_text": plan_text,
+            "quality": args.quality,
+            "aspect_ratio": args.aspect,
+            "model": args.model,
+        }
+        print("Approving plan and starting render...", file=sys.stderr)
+        data = _request_json(args, "POST", "/api/approve", payload=payload, timeout=120)
+        if args.wait:
+            data = _wait_for_job(args, job_id)
+        print(f"\nRender result · job {job_id}")
+        print(_job_summary(data))
+        show(data)
+        return data
+
+    def render_prompt(prompt: str) -> Dict[str, Any]:
+        create_plan(prompt)
+        return approve_last()
+
+    def run_line(line: str) -> bool:
+        line = line.strip()
+        if not line:
+            return True
+        cmd, _, rest = line.partition(" ")
+        lower = cmd.lower()
+        if lower in {"/quit", "/exit", "quit", "exit"}:
+            return False
+        if lower in {"/help", "help", "?"}:
+            print(_agent_help())
+            return True
+        if lower == "/json":
+            val = rest.strip().lower()
+            state["json"] = val in {"on", "true", "1", "yes"}
+            print(f"Raw JSON {'on' if state['json'] else 'off'}.")
+            return True
+        if lower == "/health":
+            data = _request_json(args, "GET", "/api/healthz", timeout=30)
+            print(json.dumps(data, indent=2, sort_keys=True) if state["json"] else "Health OK.")
+            return True
+        if lower == "/plan":
+            if not rest.strip():
+                raise CliError("Usage: /plan <prompt>")
+            create_plan(rest.strip())
+            return True
+        if lower == "/render":
+            if not rest.strip():
+                raise CliError("Usage: /render <prompt>")
+            render_prompt(rest.strip())
+            return True
+        if lower == "/approve":
+            approve_last()
+            return True
+        if lower in {"/status", "/watch"}:
+            job_id = rest.strip() or state.get("last_job_id") or ""
+            if not job_id:
+                raise CliError("No job id. Use /status <job_id> or render something first.")
+            if lower == "/watch":
+                data = _wait_for_job(args, job_id)
+            else:
+                data = _request_json(args, "GET", f"/api/jobs/{job_id}", timeout=30)
+            print(_job_summary(data))
+            show(data)
+            return True
+        render_prompt(line)
+        return True
+
+    if raw_prompt:
+        render_prompt(raw_prompt)
+        return 0
+
+    if not sys.stdin.isatty():
+        for line in sys.stdin:
+            if not run_line(line):
+                return 0
+        return 0
+
+    print(_agent_banner(args))
+    while True:
+        try:
+            line = input("northstar › ")
+            if not run_line(line):
+                return 0
+        except KeyboardInterrupt:
+            print("\nUse /quit to exit.")
+        except EOFError:
+            print()
+            return 0
+        except CliError as exc:
+            print(f"northstar: {exc}", file=sys.stderr)
+
+
 def cmd_voiceover(args: argparse.Namespace) -> int:
     script = Path(args.script_file).read_text(encoding="utf-8") if args.script_file else args.script
     payload = {
@@ -437,6 +611,17 @@ def build_parser() -> argparse.ArgumentParser:
     _add_progress_flags(render)
     render.add_argument("prompt", nargs=argparse.REMAINDER)
     render.set_defaults(func=cmd_render)
+
+    agent = sub.add_parser("agent", help="Start a Claude-style interactive NorthStar animation agent.")
+    _add_common_generation_flags(agent)
+    agent.add_argument("--quality", default="pql", choices=["pql", "pqm", "pqh", "low", "medium", "high"])
+    agent.add_argument("--wait", action=argparse.BooleanOptionalAction, default=True)
+    agent.add_argument("--poll", type=float, default=2.0)
+    agent.add_argument("--timeout", type=float, default=900)
+    agent.add_argument("--json", action="store_true", help="Print raw JSON responses after friendly summaries.")
+    _add_progress_flags(agent)
+    agent.add_argument("prompt", nargs=argparse.REMAINDER, help="Optional one-shot prompt. Omit for interactive mode.")
+    agent.set_defaults(func=cmd_agent)
 
     status = sub.add_parser("status", help="Show job status.")
     status.add_argument("job_id")
