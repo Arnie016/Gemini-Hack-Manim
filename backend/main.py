@@ -2,14 +2,18 @@ from __future__ import annotations
 
 import base64
 import concurrent.futures
+import hashlib
 import html
+import hmac
 import json
 import logging
+import os
 import re
 import secrets
 import time
 import shutil
 import subprocess
+import threading
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Dict, Optional, List
@@ -18,7 +22,7 @@ from urllib.parse import parse_qs, urlparse
 import requests
 from fastapi import FastAPI, Response, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
@@ -35,7 +39,8 @@ from .prompts import (
 from .renderer import concat_videos, cut_video_range, render_with_manim
 from .storage import job_paths, new_job_id
 from .templates import TEMPLATES
-from .code_format import CodeSanitizationError, sanitize_manim_code
+from .code_format import CodeSanitizationError, manim_render_safety_issues, sanitize_manim_code
+from .video_postprocess import max_upload_bytes, postprocess_mp4
 from .context_store import (
     add_memory,
     delete_memory,
@@ -55,26 +60,645 @@ from .file_store import (
     rename_path,
     write_file,
 )
-from .terminal_runner import TerminalError, run_terminal_command
+from .terminal_runner import TerminalError, run_diagnostic_check, run_terminal_command
 from .job_manager import JobManager
 from .job_state import JobState, append_event, load_state, write_state
+from .connectors import connector_catalog, connector_context
+from .artifact_store import artifact_store_from_env
+from .render_queue import completed_job_payload, enqueue_render_job, queued_position, render_mode
 
 ROOT = Path(__file__).resolve().parents[1]
 WORK = ROOT / "work"
 JOBS = WORK / "jobs"
 WEB = ROOT / "web"
+DEFAULT_TEXT_PROVIDER = "openai"
+DEFAULT_OPENAI_TEXT_MODEL = "gpt-5"
+DEFAULT_GEMINI_TEXT_MODEL = "gemini-3-flash-preview"
+STARTER_FREE_VIDEO_CREDITS = 3
+MAX_RENDER_SECONDS = float(os.getenv("NORTHSTAR_MAX_RENDER_SECONDS", "75"))
+MAX_RENDER_SCENES = int(os.getenv("NORTHSTAR_MAX_RENDER_SCENES", "6"))
+MAX_RENDER_ITEMS_PER_LIST = int(os.getenv("NORTHSTAR_MAX_RENDER_ITEMS_PER_LIST", "5"))
+MAX_RENDER_SCENE_SECONDS = float(os.getenv("NORTHSTAR_MAX_RENDER_SCENE_SECONDS", "10"))
+STALE_JOB_SECONDS = float(os.getenv("NORTHSTAR_STALE_JOB_SECONDS", "600"))
+APP_STARTED_AT = time.time()
+OPENAI_TTS_VOICES = {"alloy", "ash", "ballad", "coral", "echo", "fable", "marin", "nova", "onyx", "sage", "shimmer", "verse", "cedar"}
+PRICING_MODEL_VERSION = os.getenv("NORTHSTAR_PRICING_MODEL_VERSION", "northstar-credits-v1")
+PRICING_POSITIONING = (
+    "Freemium credit model: let new creators render a few real videos free, then sell one simple "
+    "Creator pack before introducing subscriptions."
+)
+CREDIT_PACKS = [
+    {
+        "price_usd": 9,
+        "price_label": "SGD 9",
+        "video_credits": 12,
+        "label": "Creator credit pack",
+        "headline": "Creator",
+        "description": "For solo creators making polished Manim explainers from prompts, notes, and cheat sheets.",
+        "features": [
+            "12 additional video render credits",
+            "Pro model access for planning/code generation",
+            "Crazy mode for parallel render variants",
+            "More active sessions for longer animation runs",
+            "Editable Manim code, timeline, captions, and share package",
+        ],
+        "best_for": "teachers, students, technical creators, and launch demos",
+        "stripe_price_env": "STRIPE_PRICE_9",
+    },
+]
+ANON_USER_COOKIE = "northstar_user_id"
+BILLING_DIR = WORK / "billing"
+BILLING_STORE = BILLING_DIR / "credits.json"
+BILLING_LOCK = threading.Lock()
+STRIPE_CHECKOUT_SESSIONS_URL = "https://api.stripe.com/v1/checkout/sessions"
 
 WORK.mkdir(parents=True, exist_ok=True)
 JOBS.mkdir(parents=True, exist_ok=True)
+BILLING_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI()
 app.mount("/work", StaticFiles(directory=WORK), name="work")
+app.mount("/screenshot", StaticFiles(directory=ROOT / "screenshot"), name="screenshot")
 job_manager = JobManager()
 logger = logging.getLogger("northstar.api")
 
 
+def _provider_for_text_model(settings: Dict[str, Any], model: Optional[str]) -> str:
+    raw_model = (model or "").strip().lower()
+    if raw_model.startswith("gemini-"):
+        return "gemini"
+    if raw_model.startswith(("gpt-", "o")):
+        return "openai"
+    provider = str(settings.get("text_provider") or os.getenv("TEXT_PROVIDER") or DEFAULT_TEXT_PROVIDER).lower()
+    return provider if provider in {"openai", "gemini"} else DEFAULT_TEXT_PROVIDER
+
+
+def _model_matches_provider(model: Optional[str], provider: str) -> bool:
+    raw_model = (model or "").strip().lower()
+    if not raw_model:
+        return False
+    if provider == "gemini":
+        return raw_model.startswith("gemini-")
+    return raw_model.startswith(("gpt-", "o"))
+
+
+def _text_generation_settings(
+    settings: Dict[str, Any],
+    model: Optional[str] = None,
+) -> tuple[str, Optional[str], str]:
+    explicit_model = (model or "").strip() or None
+    if explicit_model:
+        provider = _provider_for_text_model(settings, explicit_model)
+    else:
+        provider = str(settings.get("text_provider") or os.getenv("TEXT_PROVIDER") or DEFAULT_TEXT_PROVIDER).lower()
+        provider = provider if provider in {"openai", "gemini"} else DEFAULT_TEXT_PROVIDER
+    saved_model = settings.get("text_model") if _model_matches_provider(settings.get("text_model"), provider) else None
+    if provider == "gemini":
+        selected_model = (
+            explicit_model
+            or saved_model
+            or os.getenv("GEMINI_MODEL")
+            or DEFAULT_GEMINI_TEXT_MODEL
+        )
+        api_key = settings.get("api_key") or os.environ.get("GEMINI_API_KEY")
+        return provider, api_key, selected_model
+    selected_model = (
+        explicit_model
+        or saved_model
+        or os.getenv("OPENAI_MODEL")
+        or DEFAULT_OPENAI_TEXT_MODEL
+    )
+    api_key = settings.get("openai_api_key") or os.environ.get("OPENAI_API_KEY")
+    return provider, api_key, selected_model
+
+
+def _has_text_api_key(settings: Dict[str, Any]) -> bool:
+    _provider, api_key, _model = _text_generation_settings(settings)
+    return bool((api_key or "").strip())
+
+
+def _configured_free_credits() -> int:
+    raw = str(os.getenv("NORTHSTAR_FREE_VIDEO_CREDITS") or STARTER_FREE_VIDEO_CREDITS).strip()
+    try:
+        return max(0, min(50, int(raw)))
+    except ValueError:
+        return STARTER_FREE_VIDEO_CREDITS
+
+
+def _safe_user_id(value: Optional[str]) -> Optional[str]:
+    raw = (value or "").strip()
+    if re.fullmatch(r"[A-Za-z0-9_-]{16,96}", raw):
+        return raw
+    return None
+
+
+def _is_secure_request(request: Request) -> bool:
+    proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "").split(",")[0].strip().lower()
+    if proto == "https":
+        return True
+    app_url = (os.getenv("APP_URL") or "").strip().lower()
+    return app_url.startswith("https://")
+
+
+def _set_user_cookie(response: Response, request: Request, user_id: str) -> None:
+    response.set_cookie(
+        ANON_USER_COOKIE,
+        user_id,
+        max_age=60 * 60 * 24 * 365,
+        httponly=True,
+        secure=_is_secure_request(request),
+        samesite="lax",
+        path="/",
+    )
+
+
+def _get_or_create_user_id(request: Request, response: Response) -> str:
+    user_id = _safe_user_id(request.cookies.get(ANON_USER_COOKIE))
+    if not user_id:
+        user_id = secrets.token_urlsafe(24)
+        _set_user_cookie(response, request, user_id)
+    return user_id
+
+
+def _empty_billing_store() -> Dict[str, Any]:
+    return {"users": {}, "events": {}, "render_charges": {}}
+
+
+def _read_billing_store() -> Dict[str, Any]:
+    if not BILLING_STORE.exists():
+        return _empty_billing_store()
+    try:
+        data = json.loads(BILLING_STORE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return _empty_billing_store()
+    if not isinstance(data, dict):
+        return _empty_billing_store()
+    data.setdefault("users", {})
+    data.setdefault("events", {})
+    data.setdefault("render_charges", {})
+    return data
+
+
+def _write_billing_store(data: Dict[str, Any]) -> None:
+    BILLING_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = BILLING_STORE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
+    tmp.replace(BILLING_STORE)
+
+
+def _ensure_billing_user(store: Dict[str, Any], user_id: str) -> Dict[str, Any]:
+    users = store.setdefault("users", {})
+    now = time.time()
+    user = users.get(user_id)
+    if not isinstance(user, dict):
+        user = {
+            "credits": _configured_free_credits(),
+            "trial_granted": True,
+            "created_at": now,
+            "updated_at": now,
+            "payments": [],
+        }
+        users[user_id] = user
+        return user
+    user.setdefault("credits", 0)
+    user.setdefault("trial_granted", True)
+    user.setdefault("created_at", now)
+    user.setdefault("updated_at", now)
+    user.setdefault("payments", [])
+    return user
+
+
+def _stripe_secret_key() -> str:
+    return (os.getenv("STRIPE_SECRET_KEY") or "").strip()
+
+
+def _stripe_webhook_secret() -> str:
+    return (os.getenv("STRIPE_WEBHOOK_SECRET") or "").strip()
+
+
+def _credit_pack(price_usd: int) -> Optional[Dict[str, Any]]:
+    for pack in CREDIT_PACKS:
+        if int(pack.get("price_usd") or 0) == int(price_usd):
+            return pack
+    return None
+
+
+def _billing_packs_payload() -> list[Dict[str, Any]]:
+    packs: list[Dict[str, Any]] = []
+    for pack in CREDIT_PACKS:
+        env_key = str(pack["stripe_price_env"])
+        packs.append(
+            {
+                "price_usd": int(pack["price_usd"]),
+                "price_label": str(pack.get("price_label") or f"${pack['price_usd']}"),
+                "video_credits": int(pack["video_credits"]),
+                "label": str(pack["label"]),
+                "headline": str(pack.get("headline") or pack["label"]),
+                "description": str(pack.get("description") or ""),
+                "features": list(pack.get("features") or []),
+                "best_for": str(pack.get("best_for") or ""),
+                "stripe_price_env": env_key,
+                "stripe_price_configured": bool(os.getenv(env_key)),
+            }
+        )
+    return packs
+
+
+def _stripe_checkout_configured() -> bool:
+    return bool(_stripe_secret_key()) and all(bool(os.getenv(str(pack["stripe_price_env"]))) for pack in CREDIT_PACKS)
+
+
+def _billing_status_for_user(user_id: str) -> Dict[str, Any]:
+    with BILLING_LOCK:
+        store = _read_billing_store()
+        user = _ensure_billing_user(store, user_id)
+        _write_billing_store(store)
+        payments = user.get("payments") if isinstance(user.get("payments"), list) else []
+        paid_video_credits = sum(
+            int(payment.get("video_credits") or 0)
+            for payment in payments
+            if isinstance(payment, dict)
+        )
+        return {
+            "user_id": user_id,
+            "credits": int(user.get("credits") or 0),
+            "paid_video_credits": paid_video_credits,
+            "creator_pack_unlocked": paid_video_credits > 0,
+            "starter_free_video_credits": _configured_free_credits(),
+            "credit_packs": _billing_packs_payload(),
+            "stripe_checkout_configured": _stripe_checkout_configured(),
+            "hosted_uses_platform_openai_key": True,
+            "pricing_model_version": PRICING_MODEL_VERSION,
+            "pricing_positioning": PRICING_POSITIONING,
+        }
+
+
+def _require_render_credits(request: Request, response: Response, *, amount: int = 1) -> tuple[Optional[str], Optional[JSONResponse]]:
+    user_id = _get_or_create_user_id(request, response)
+    with BILLING_LOCK:
+        store = _read_billing_store()
+        user = _ensure_billing_user(store, user_id)
+        credits = int(user.get("credits") or 0)
+        _write_billing_store(store)
+    if credits < amount:
+        return user_id, JSONResponse(
+            {
+                "ok": False,
+                "error": "No render credits available. Recharge credits to render more videos.",
+                "billing": _billing_status_for_user(user_id),
+            },
+            status_code=402,
+        )
+    return user_id, None
+
+
+def _job_billing_path(job_dir: Path) -> Path:
+    return job_dir / "billing.json"
+
+
+def _record_job_owner(job_dir: Path, user_id: str) -> None:
+    payload = {"user_id": user_id, "created_at": time.time()}
+    _job_billing_path(job_dir).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def _job_owner(job_dir: Path) -> Optional[str]:
+    path = _job_billing_path(job_dir)
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return _safe_user_id(str(data.get("user_id") or ""))
+
+
+def _consume_render_credit(user_id: str, job_id: str) -> Dict[str, Any]:
+    with BILLING_LOCK:
+        store = _read_billing_store()
+        user = _ensure_billing_user(store, user_id)
+        render_charges = store.setdefault("render_charges", {})
+        if job_id in render_charges:
+            return {
+                "charged": False,
+                "already_charged": True,
+                "credits": int(user.get("credits") or 0),
+            }
+        credits = int(user.get("credits") or 0)
+        if credits <= 0:
+            return {
+                "charged": False,
+                "already_charged": False,
+                "credits": credits,
+                "error": "Render completed but no credits were available to settle.",
+            }
+        user["credits"] = credits - 1
+        user["updated_at"] = time.time()
+        render_charges[job_id] = {"user_id": user_id, "credits": 1, "charged_at": time.time()}
+        _write_billing_store(store)
+        return {"charged": True, "credits": int(user.get("credits") or 0)}
+
+
+def _settle_render_credit(job_id: str, job_dir: Path) -> Optional[Dict[str, Any]]:
+    user_id = _job_owner(job_dir)
+    if not user_id:
+        return None
+    return _consume_render_credit(user_id, job_id)
+
+
+def _public_base_url(request: Request) -> str:
+    configured = (os.getenv("APP_URL") or "").strip().rstrip("/")
+    if configured:
+        return configured
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
+    proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "http").split(",")[0].strip()
+    if proto == "http" and host and not host.startswith(("localhost", "127.0.0.1")):
+        proto = "https"
+    return f"{proto}://{host}".rstrip("/")
+
+
+def _is_local_request(request: Request) -> bool:
+    host = (request.headers.get("host") or request.url.hostname or "").split(":", 1)[0].strip().lower()
+    return host in {"localhost", "127.0.0.1", "::1", "[::1]"}
+
+
+def _terminal_enabled_for_request(request: Request) -> bool:
+    flag = (os.getenv("NORTHSTAR_ENABLE_TERMINAL") or "").strip().lower()
+    if flag in {"0", "false", "no", "off"}:
+        return False
+    if flag in {"1", "true", "yes", "on"}:
+        return _is_local_request(request)
+    return _is_local_request(request) and not os.getenv("RENDER")
+
+
+def _create_stripe_checkout_session(*, request: Request, user_id: str, pack: Dict[str, Any]) -> Dict[str, Any]:
+    secret = _stripe_secret_key()
+    price_id = (os.getenv(str(pack["stripe_price_env"])) or "").strip()
+    if not secret:
+        raise ValueError("STRIPE_SECRET_KEY is not configured.")
+    if not price_id:
+        raise ValueError(f"{pack['stripe_price_env']} is not configured.")
+
+    price_usd = int(pack["price_usd"])
+    video_credits = int(pack["video_credits"])
+    base_url = _public_base_url(request)
+    success_url = f"{base_url}/app?checkout=success&pack={price_usd}"
+    cancel_url = f"{base_url}/app?checkout=cancel&pack={price_usd}"
+    data = {
+        "mode": "payment",
+        "line_items[0][price]": price_id,
+        "line_items[0][quantity]": "1",
+        "success_url": success_url,
+        "cancel_url": cancel_url,
+        "client_reference_id": user_id,
+        "allow_promotion_codes": "true",
+        "metadata[northstar_user_id]": user_id,
+        "metadata[pack_price_usd]": str(price_usd),
+        "metadata[video_credits]": str(video_credits),
+        "metadata[product]": "northstar_credits",
+        "metadata[pricing_model_version]": PRICING_MODEL_VERSION,
+        "metadata[credit_unit]": "successful_manim_mp4_render",
+        "custom_text[submit][message]": (
+            "Your credits are added to this browser session after Stripe confirms payment."
+        ),
+    }
+    resp = requests.post(
+        STRIPE_CHECKOUT_SESSIONS_URL,
+        data=data,
+        auth=(secret, ""),
+        timeout=20,
+    )
+    try:
+        payload = resp.json()
+    except ValueError:
+        payload = {"error": {"message": resp.text[:500]}}
+    if resp.status_code >= 400:
+        message = str((payload.get("error") or {}).get("message") or "Stripe checkout failed.")
+        raise ValueError(message)
+    return payload
+
+
+def _verify_stripe_signature(payload: bytes, sig_header: str, endpoint_secret: str, *, tolerance_s: int = 300) -> bool:
+    parts: Dict[str, list[str]] = {}
+    for item in (sig_header or "").split(","):
+        if "=" not in item:
+            continue
+        key, value = item.split("=", 1)
+        parts.setdefault(key.strip(), []).append(value.strip())
+    timestamps = parts.get("t") or []
+    signatures = parts.get("v1") or []
+    if not timestamps or not signatures:
+        return False
+    try:
+        timestamp = int(timestamps[0])
+    except ValueError:
+        return False
+    if abs(time.time() - timestamp) > tolerance_s:
+        return False
+    signed_payload = str(timestamp).encode("utf-8") + b"." + payload
+    expected = hmac.new(endpoint_secret.encode("utf-8"), signed_payload, hashlib.sha256).hexdigest()
+    return any(hmac.compare_digest(expected, signature) for signature in signatures)
+
+
+def _apply_checkout_completed(event: Dict[str, Any]) -> Dict[str, Any]:
+    event_id = str(event.get("id") or "")
+    session = ((event.get("data") or {}).get("object") or {})
+    metadata = session.get("metadata") or {}
+    user_id = _safe_user_id(str(metadata.get("northstar_user_id") or session.get("client_reference_id") or ""))
+    if not event_id:
+        raise ValueError("Stripe event is missing id.")
+    if not user_id:
+        raise ValueError("Stripe checkout session is missing northstar_user_id metadata.")
+
+    try:
+        credits = int(metadata.get("video_credits") or 0)
+        price_usd = int(metadata.get("pack_price_usd") or 0)
+    except ValueError as exc:
+        raise ValueError("Stripe checkout metadata is invalid.") from exc
+    if credits <= 0 or not _credit_pack(price_usd):
+        raise ValueError("Stripe checkout pack is not recognized.")
+
+    payment_status = str(session.get("payment_status") or "").lower()
+    if payment_status and payment_status not in {"paid", "no_payment_required"}:
+        return {"credited": False, "reason": f"payment_status={payment_status}"}
+
+    with BILLING_LOCK:
+        store = _read_billing_store()
+        events = store.setdefault("events", {})
+        if event_id in events:
+            user = _ensure_billing_user(store, user_id)
+            return {"credited": False, "duplicate": True, "credits": int(user.get("credits") or 0)}
+
+        user = _ensure_billing_user(store, user_id)
+        user["credits"] = int(user.get("credits") or 0) + credits
+        user["updated_at"] = time.time()
+        payments = user.setdefault("payments", [])
+        payments.append(
+            {
+                "event_id": event_id,
+                "stripe_session_id": session.get("id"),
+                "pack_price_usd": price_usd,
+                "video_credits": credits,
+                "credited_at": time.time(),
+            }
+        )
+        events[event_id] = {"type": event.get("type"), "processed_at": time.time(), "user_id": user_id}
+        _write_billing_store(store)
+        return {"credited": True, "credits": int(user.get("credits") or 0)}
+
+
+def _command_exists(cmd: str) -> bool:
+    try:
+        p = Path(cmd)
+        if p.is_absolute() or "/" in cmd:
+            return p.exists()
+    except Exception:
+        pass
+    return shutil.which(cmd) is not None
+
+
+def _manim_python_candidates(settings: Optional[Dict[str, Any]] = None) -> list[tuple[str, str]]:
+    settings = settings or load_settings()
+    raw: list[tuple[str, str]] = []
+    manim_py_setting = str(settings.get("manim_py") or "").strip()
+    if manim_py_setting:
+        raw.append((manim_py_setting, "saved"))
+    env_py = str(os.getenv("MANIM_PY") or "").strip()
+    if env_py:
+        raw.append((env_py, "env"))
+
+    for root_dir, source_name in ((ROOT, "project_venv"), (ROOT.parent, "workspace_venv")):
+        for rel in (".venv/bin/python", "venv/bin/python", ".venv/Scripts/python.exe", "venv/Scripts/python.exe"):
+            raw.append((str(root_dir / rel), source_name))
+
+    home = Path.home()
+    mise_python_root = home / ".local" / "share" / "mise" / "installs" / "python"
+    if mise_python_root.exists():
+        for py in sorted(mise_python_root.glob("*/bin/python3"), reverse=True):
+            raw.append((str(py), "mise_python"))
+        for py in sorted(mise_python_root.glob("*/bin/python"), reverse=True):
+            raw.append((str(py), "mise_python"))
+
+    raw.extend([("python3", "path_python3"), ("python", "path_python")])
+
+    seen: set[str] = set()
+    out: list[tuple[str, str]] = []
+    for cmd, source in raw:
+        if not cmd or cmd in seen:
+            continue
+        seen.add(cmd)
+        if _command_exists(cmd):
+            out.append((cmd, source))
+    return out
+
+
+def _probe_manim_python(cmd: str, *, timeout_s: float = 45) -> tuple[bool, str]:
+    available, availability_out = _probe_cmd(
+        [
+            cmd,
+            "-c",
+            "import importlib.util; raise SystemExit(0 if importlib.util.find_spec('manim') else 1)",
+        ],
+        timeout_s=15,
+    )
+    if not available:
+        return False, availability_out or "Manim package is not installed for this Python."
+
+    ok, out = _probe_cmd([cmd, "-m", "manim", "--version"], timeout_s=timeout_s)
+    if ok:
+        return True, out
+    return True, f"Manim package is installed; version probe was slow or unavailable: {out}"
+
+
+def _probe_cmd(cmd: list[str], *, timeout_s: float = 10) -> tuple[bool, str]:
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s)
+        out = ((proc.stdout or "") + (proc.stderr or "")).strip()
+        return proc.returncode == 0, out
+    except Exception as exc:
+        return False, str(exc)
+
+
+def _resolve_manim_runtime(settings: Optional[Dict[str, Any]] = None, *, probe: bool = False) -> Dict[str, Any]:
+    settings = settings or load_settings()
+    candidates = _manim_python_candidates(settings)
+    selected_py = candidates[0][0] if candidates else (str(settings.get("manim_py") or "").strip() or str(os.getenv("MANIM_PY") or "").strip() or "python3")
+    selected_source = candidates[0][1] if candidates else ("saved" if settings.get("manim_py") else ("env" if os.getenv("MANIM_PY") else "fallback"))
+
+    info: Dict[str, Any] = {
+        "manim_py": selected_py,
+        "manim_py_source": selected_source,
+        "python_candidates": [cmd for cmd, _source in candidates],
+    }
+    if not probe:
+        return info
+
+    manim_ok = False
+    manim_out = ""
+    for cand, source in candidates:
+        ok, out = _probe_manim_python(cand)
+        if ok:
+            info["manim_py"] = cand
+            info["manim_py_source"] = source
+            info["manim_ok"] = True
+            info["manim_version"] = out.splitlines()[0] if out else ""
+            return info
+        if not manim_out:
+            manim_out = out
+
+    info["manim_ok"] = False
+    info["manim_version"] = manim_out.splitlines()[0] if manim_out else ""
+    return info
+
+
+def _settings_payload(settings: Dict[str, Any]) -> Dict[str, Any]:
+    text_provider, _text_api_key, text_model = _text_generation_settings(settings)
+    runtime = _resolve_manim_runtime(settings, probe=False)
+    enabled_connectors = settings.get("enabled_connector_ids")
+    if not isinstance(enabled_connectors, list):
+        enabled_connectors = []
+    openai_key_source = "saved" if settings.get("openai_api_key") else ("environment" if os.environ.get("OPENAI_API_KEY") else "")
+    gemini_key_source = "saved" if settings.get("api_key") else ("environment" if os.environ.get("GEMINI_API_KEY") else "")
+    text_key_source = openai_key_source if text_provider == "openai" else gemini_key_source
+    return {
+        "has_api_key": _has_text_api_key(settings),
+        "has_text_api_key": _has_text_api_key(settings),
+        "has_openai_api_key": bool(settings.get("openai_api_key") or os.environ.get("OPENAI_API_KEY")),
+        "has_gemini_api_key": bool(settings.get("api_key") or os.environ.get("GEMINI_API_KEY")),
+        "has_image_api_key": bool(settings.get("api_key") or os.environ.get("GEMINI_API_KEY")),
+        "openai_key_source": openai_key_source,
+        "gemini_key_source": gemini_key_source,
+        "text_key_source": text_key_source,
+        "text_provider": text_provider,
+        "text_model": text_model,
+        "image_model": settings.get("image_model"),
+        "manim_py": settings.get("manim_py"),
+        "detected_manim_py": runtime.get("manim_py") or "",
+        "detected_manim_py_source": runtime.get("manim_py_source") or "",
+        "output_copy_dir": settings.get("output_copy_dir") or "",
+        "has_elevenlabs_key": bool(settings.get("elevenlabs_api_key")),
+        "elevenlabs_voice_id": settings.get("elevenlabs_voice_id") or "",
+        "elevenlabs_model_id": settings.get("elevenlabs_model_id") or "",
+        "enabled_connector_ids": enabled_connectors,
+        "connectors": connector_catalog(enabled_connectors),
+        "project_root": str(ROOT),
+        "work_root": str(WORK),
+        "billing": {
+            "starter_free_video_credits": _configured_free_credits(),
+            "credit_packs": _billing_packs_payload(),
+            "stripe_checkout_configured": _stripe_checkout_configured(),
+            "hosted_uses_platform_openai_key": True,
+        },
+    }
+
+
 @app.middleware("http")
 async def security_headers_middleware(request, call_next):
+    canonical_host = (os.getenv("CANONICAL_HOST") or "").strip().lower()
+    request_host = (request.headers.get("host") or "").split(":", 1)[0].lower()
+    if canonical_host and request_host == f"www.{canonical_host}":
+        url = request.url.replace(scheme="https", netloc=canonical_host)
+        return RedirectResponse(str(url), status_code=308)
+
     request_id = request.headers.get("X-Request-ID") or secrets.token_hex(8)
     request.state.request_id = request_id
     response = await call_next(request)
@@ -82,6 +706,8 @@ async def security_headers_middleware(request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["Referrer-Policy"] = "no-referrer"
+    if _is_secure_request(request):
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     if request.url.path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-store"
     return response
@@ -121,8 +747,14 @@ class TerminalReq(BaseModel):
     command: str
 
 
+class DiagnosticsReq(BaseModel):
+    check: str = "all"
+
+
 class SettingsReq(BaseModel):
     api_key: Optional[str] = None
+    openai_api_key: Optional[str] = None
+    text_provider: Optional[str] = None
     text_model: Optional[str] = None
     image_model: Optional[str] = None
     manim_py: Optional[str] = None
@@ -130,6 +762,10 @@ class SettingsReq(BaseModel):
     elevenlabs_api_key: Optional[str] = None
     elevenlabs_voice_id: Optional[str] = None
     elevenlabs_model_id: Optional[str] = None
+
+
+class BillingCheckoutReq(BaseModel):
+    pack_price_usd: int
 
 
 class PlanReq(BaseModel):
@@ -211,6 +847,7 @@ class CutRangeReq(BaseModel):
 class VoiceoverReq(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
+    provider: Optional[str] = None
     voice_id: Optional[str] = None
     model_id: Optional[str] = None
     script_text: Optional[str] = None
@@ -224,6 +861,10 @@ class SourceIndexReq(BaseModel):
     notes: Optional[str] = None
     source_type: str = "auto"  # auto | youtube | web
     model: Optional[str] = None
+
+
+class ConnectorSelectionReq(BaseModel):
+    enabled_connector_ids: list[str] = []
 
 
 class ScriptPackReq(BaseModel):
@@ -248,6 +889,7 @@ class OnboardingReq(BaseModel):
     audience: Optional[str] = None
     model: Optional[str] = None
     image_model: Optional[str] = None
+    include_images: Optional[bool] = None
 
 
 class CrazyRunReq(BaseModel):
@@ -291,6 +933,21 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
             status_code=422,
         )
     return JSONResponse({"detail": exc.errors()}, status_code=422)
+
+
+@app.exception_handler(ValueError)
+async def value_error_handler(request: Request, exc: ValueError):
+    request_id = getattr(request.state, "request_id", "")
+    if request.url.path.startswith("/api/"):
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": str(exc) or "Invalid request",
+                "request_id": request_id,
+            },
+            status_code=400,
+        )
+    return JSONResponse({"detail": str(exc) or "Invalid request"}, status_code=400)
 
 
 @app.exception_handler(Exception)
@@ -362,6 +1019,7 @@ def _index_source_with_gemini(
     video_id: Optional[str],
     api_key: Optional[str],
     model: Optional[str],
+    provider: Optional[str],
 ) -> Dict[str, Any]:
     system = (
         "You index external learning sources for animation planning. "
@@ -398,6 +1056,7 @@ def _index_source_with_gemini(
         },
         api_key=api_key,
         model=model,
+        provider=provider,
     )
     return _parse_json(text)
 
@@ -574,6 +1233,11 @@ def _build_director_brief(req: AnimateReq) -> str:
         graph_text,
         narr_text,
         f"Aspect ratio: {req.aspect_ratio}",
+        (
+            f"Hosted render budget: at most {MAX_RENDER_SCENES} scenes, "
+            f"{int(MAX_RENDER_SECONDS)} seconds total, {MAX_RENDER_ITEMS_PER_LIST} elements/actions per scene, "
+            f"and {int(MAX_RENDER_SCENE_SECONDS)} seconds per scene. Keep Manim code simple enough for low-quality preview rendering."
+        ),
     ]
     if req.target_seconds:
         lines.append(
@@ -584,7 +1248,11 @@ def _build_director_brief(req: AnimateReq) -> str:
     if req.max_objects:
         lines.append(f"Max objects per scene: {req.max_objects}")
     if req.director_brief:
-        lines.append(f"Additional brief: {str(req.director_brief)[:1200]}")
+        additional = str(req.director_brief).strip()
+        if additional:
+            limit = 12000
+            suffix = "\n[Additional brief clipped for request size.]" if len(additional) > limit else ""
+            lines.append(f"Additional brief:\n{additional[:limit]}{suffix}")
     if getattr(req, "include_images", False) and getattr(req, "image_prompt", None):
         lines.append(
             f"Include visual assets based on: {str(getattr(req, 'image_prompt'))[:600]}"
@@ -658,11 +1326,16 @@ def _job_files(paths) -> list[str]:
     candidates: list[Path] = [
         paths.plan_path,
         paths.scene_path,
+        paths.job_dir / "scene.failed.py",
         paths.out_mp4,
         paths.logs_path,
         paths.job_dir / "state.json",
         paths.job_dir / "events.log",
         paths.job_dir / "captions.srt",
+        paths.job_dir / "share.html",
+        paths.job_dir / "manifest.json",
+        paths.job_dir / "README.md",
+        paths.job_dir / "share-copy.md",
         paths.job_dir / "export.zip",
     ]
     assets_dir = paths.job_dir / "assets"
@@ -687,6 +1360,473 @@ def _job_files(paths) -> list[str]:
         seen.add(x)
         uniq.append(x)
     return uniq
+
+
+def _read_json_file(path: Path) -> Dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        obj = json.loads(path.read_text(encoding="utf-8"))
+        return obj if isinstance(obj, dict) else {}
+    except Exception:
+        return {}
+
+
+def _clip_text(value: Any, limit: int = 320) -> str:
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    if len(text) <= limit:
+        return text
+    return text[: max(0, limit - 1)].rstrip() + "..."
+
+
+def _relative_job_file(paths, path: Path) -> str:
+    try:
+        return str(path.relative_to(paths.job_dir))
+    except Exception:
+        return path.name
+
+
+def _float_or_zero(value: Any) -> float:
+    try:
+        return float(value)
+    except Exception:
+        return 0.0
+
+
+def _clamp_int(value: Any, *, default: int, low: int, high: int) -> int:
+    try:
+        num = int(value)
+    except (TypeError, ValueError):
+        num = default
+    return max(low, min(high, num))
+
+
+def _normalize_plan_for_render(
+    plan: Dict[str, Any],
+    *,
+    max_scenes: Optional[int] = None,
+    max_objects: Optional[int] = None,
+    target_seconds: Optional[float] = None,
+) -> Dict[str, Any]:
+    """Keep model-created plans within a predictable hosted render budget."""
+    scene_budget = _clamp_int(max_scenes, default=MAX_RENDER_SCENES, low=1, high=MAX_RENDER_SCENES)
+    item_budget = _clamp_int(max_objects, default=MAX_RENDER_ITEMS_PER_LIST, low=1, high=MAX_RENDER_ITEMS_PER_LIST)
+    target_budget = _float_or_zero(target_seconds) or _float_or_zero(plan.get("total_seconds"))
+    target_budget = max(6.0, min(MAX_RENDER_SECONDS, target_budget or MAX_RENDER_SECONDS))
+
+    raw_scenes = plan.get("scenes") if isinstance(plan.get("scenes"), list) else []
+    normalized_scenes: list[Dict[str, Any]] = []
+    for idx, raw in enumerate(raw_scenes[:scene_budget], start=1):
+        sc = raw if isinstance(raw, dict) else {}
+        out = dict(sc)
+        seconds = _float_or_zero(sc.get("seconds")) or max(2.0, target_budget / max(1, min(scene_budget, len(raw_scenes) or 1)))
+        out["seconds"] = max(2.0, min(MAX_RENDER_SCENE_SECONDS, seconds))
+        out["goal"] = _clip_text(sc.get("goal") or f"Scene {idx}", 180)
+        out["narration"] = _clip_text(sc.get("narration") or "", 220)
+        for key in ("elements", "actions"):
+            values = sc.get(key) if isinstance(sc.get(key), list) else []
+            out[key] = [_clip_text(item, 140) for item in values[:item_budget] if str(item).strip()]
+        source_notes = sc.get("source_notes") if isinstance(sc.get("source_notes"), list) else []
+        cleaned_source_notes = [
+            _clip_text(item, 900)
+            for item in source_notes[:4]
+            if str(item).strip()
+        ]
+        if cleaned_source_notes:
+            out["source_notes"] = cleaned_source_notes
+        else:
+            out.pop("source_notes", None)
+        normalized_scenes.append(out)
+
+    if not normalized_scenes:
+        normalized_scenes = [
+            {
+                "seconds": min(6.0, target_budget),
+                "goal": _clip_text(plan.get("title") or "Create a clear first animation.", 180),
+                "elements": ["Title", "Core visual", "Takeaway"],
+                "actions": ["Introduce the concept.", "Animate the core idea.", "End with one takeaway."],
+                "narration": _clip_text(plan.get("title") or "A short NorthStar animation.", 220),
+            }
+        ]
+
+    total = sum(_float_or_zero(sc.get("seconds")) for sc in normalized_scenes)
+    if total > target_budget and total > 0:
+        scale = target_budget / total
+        for sc in normalized_scenes:
+            sc["seconds"] = max(2.0, round(_float_or_zero(sc.get("seconds")) * scale, 2))
+
+    normalized = dict(plan)
+    normalized["title"] = _clip_text(plan.get("title") or "NorthStar animation", 100)
+    normalized["scenes"] = normalized_scenes
+    normalized["total_seconds"] = round(sum(_float_or_zero(sc.get("seconds")) for sc in normalized_scenes), 2)
+    normalized.setdefault("render_budget", {})
+    if isinstance(normalized["render_budget"], dict):
+        normalized["render_budget"].update(
+            {
+                "max_seconds": MAX_RENDER_SECONDS,
+                "max_scenes": scene_budget,
+                "max_items_per_list": item_budget,
+                "max_scene_seconds": MAX_RENDER_SCENE_SECONDS,
+            }
+        )
+    return normalized
+
+
+def _duration_label(value: Any) -> str:
+    try:
+        seconds = int(round(float(value)))
+    except (TypeError, ValueError):
+        return ""
+    if seconds <= 0:
+        return ""
+    return f" in about {seconds} seconds"
+
+
+def _share_hashtags(title: str, scenes: list[Dict[str, Any]]) -> list[str]:
+    text = " ".join([title] + [str(scene.get("goal") or "") for scene in scenes]).lower()
+    tags = ["#NorthStarStudio", "#Manim", "#ExplainerAnimation"]
+    science_terms = {
+        "physics": "#Physics",
+        "quantum": "#QuantumPhysics",
+        "relativity": "#Relativity",
+        "calculus": "#Calculus",
+        "math": "#Math",
+        "geometry": "#Geometry",
+        "ai": "#AI",
+        "machine learning": "#MachineLearning",
+        "chemistry": "#Chemistry",
+        "biology": "#Biology",
+        "finance": "#Finance",
+        "spectrum": "#Optics",
+        "diffraction": "#Optics",
+    }
+    for needle, tag in science_terms.items():
+        if needle in text and tag not in tags:
+            tags.append(tag)
+        if len(tags) >= 6:
+            break
+    return tags[:6]
+
+
+def _share_social_copy(manifest: Dict[str, Any]) -> Dict[str, Any]:
+    title = _clip_text(manifest.get("title") or "NorthStar render", 90)
+    scenes = manifest.get("scenes") if isinstance(manifest.get("scenes"), list) else []
+    goals = [_clip_text(scene.get("goal"), 120) for scene in scenes if isinstance(scene, dict) and scene.get("goal")]
+    summary = " -> ".join(goals[:3]) if goals else "A short editable Manim explainer generated with NorthStar."
+    duration_text = _duration_label(manifest.get("total_seconds"))
+    hashtags = _share_hashtags(title, scenes)
+    product_cta = "Make yours at https://northstarstudio.io"
+    short_caption = _clip_text(f"{title}{duration_text}. {summary}\n\n{product_cta}", 280)
+    long_caption = _clip_text(
+        (
+            f"{title}\n\n"
+            f"{summary}\n\n"
+            "Generated with NorthStar as an editable Manim scene: plan, code, captions, and render package included.\n\n"
+            f"{product_cta}"
+        ),
+        900,
+    )
+    return {
+        "share_title": title,
+        "short_caption": short_caption,
+        "long_caption": long_caption,
+        "hashtags": hashtags,
+        "copy_block": f"{short_caption}\n\n{' '.join(hashtags)}",
+    }
+
+
+def _share_copy_markdown(manifest: Dict[str, Any]) -> str:
+    social = manifest.get("social") if isinstance(manifest.get("social"), dict) else _share_social_copy(manifest)
+    share_url = str(manifest.get("share_url") or "").strip()
+    lines = [
+        "# Share Copy",
+        "",
+        "## Short Post",
+        "",
+        str(social.get("short_caption") or "").strip(),
+        "",
+        " ".join([str(x) for x in social.get("hashtags") or []]),
+        "",
+        "## Longer Caption",
+        "",
+        str(social.get("long_caption") or "").strip(),
+        "",
+    ]
+    if share_url:
+        lines += ["## Share Link", "", share_url, ""]
+    return "\n".join(lines)
+
+
+def _share_manifest(paths, public_base_url: Optional[str] = None) -> Dict[str, Any]:
+    plan = _read_json_file(paths.plan_path)
+    state = _read_json_file(paths.job_dir / "state.json")
+    scenes_raw = plan.get("scenes") if isinstance(plan.get("scenes"), list) else []
+    scenes: list[Dict[str, Any]] = []
+    total_seconds = plan.get("total_seconds")
+    for idx, raw in enumerate(scenes_raw[:24], start=1):
+        if not isinstance(raw, dict):
+            continue
+        scenes.append(
+            {
+                "index": idx,
+                "seconds": raw.get("seconds"),
+                "goal": _clip_text(raw.get("goal"), 180),
+                "narration": _clip_text(raw.get("narration"), 360),
+                "elements": [str(x) for x in (raw.get("elements") or [])[:8]],
+            }
+        )
+    if not total_seconds:
+        total_seconds = sum(_float_or_zero(s.get("seconds")) for s in scenes if str(s.get("seconds") or "").strip())
+
+    files: Dict[str, str] = {}
+    known = {
+        "video": paths.out_mp4,
+        "captions": paths.job_dir / "captions.srt",
+        "plan": paths.plan_path,
+        "code": paths.scene_path,
+        "logs": paths.logs_path,
+    }
+    for label, path in known.items():
+        if path.exists() and path.is_file():
+            files[label] = _relative_job_file(paths, path)
+
+    assets: list[str] = []
+    assets_dir = paths.job_dir / "assets"
+    if assets_dir.exists():
+        for path in sorted(assets_dir.glob("*")):
+            if path.is_file():
+                assets.append(_relative_job_file(paths, path))
+
+    title = _clip_text(plan.get("title") or state.get("title") or f"NorthStar render {paths.job_id}", 120)
+    manifest = {
+        "product": "NorthStar",
+        "job_id": paths.job_id,
+        "title": title,
+        "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "status": state.get("status") or "",
+        "total_seconds": total_seconds,
+        "scene_count": len(scenes),
+        "files": files,
+        "assets": assets,
+        "scenes": scenes,
+    }
+    if public_base_url:
+        base = public_base_url.rstrip("/")
+        manifest["share_url"] = f"{base}/api/jobs/{paths.job_id}/share-page"
+        if files.get("video"):
+            manifest["video_url"] = f"{base}/work/jobs/{paths.job_id}/{files['video']}"
+    manifest["social"] = _share_social_copy(manifest)
+    return manifest
+
+
+def _share_html(manifest: Dict[str, Any]) -> str:
+    title = html.escape(str(manifest.get("title") or "NorthStar render"))
+    job_id = html.escape(str(manifest.get("job_id") or ""))
+    files = manifest.get("files") if isinstance(manifest.get("files"), dict) else {}
+    video = html.escape(str(files.get("video") or ""))
+    video_src = html.escape(str(manifest.get("video_url") or video))
+    captions = html.escape(str(files.get("captions") or ""))
+    plan = html.escape(str(files.get("plan") or "plan.json"))
+    code = html.escape(str(files.get("code") or "scene.py"))
+    total = html.escape(str(manifest.get("total_seconds") or ""))
+    share_url = html.escape(str(manifest.get("share_url") or ""))
+    social = manifest.get("social") if isinstance(manifest.get("social"), dict) else {}
+    share_text = html.escape(str(social.get("short_caption") or title))
+    copy_block = html.escape(str(social.get("copy_block") or ""))
+    scenes = manifest.get("scenes") if isinstance(manifest.get("scenes"), list) else []
+    scene_items = []
+    for scene in scenes:
+        if not isinstance(scene, dict):
+            continue
+        idx = html.escape(str(scene.get("index") or ""))
+        goal = html.escape(str(scene.get("goal") or "Scene"))
+        narration = html.escape(str(scene.get("narration") or ""))
+        seconds = html.escape(str(scene.get("seconds") or ""))
+        scene_items.append(
+            f"<article class=\"scene\"><div class=\"scene-meta\">Scene {idx}{' - ' + seconds + 's' if seconds else ''}</div>"
+            f"<h2>{goal}</h2><p>{narration}</p></article>"
+        )
+    if not scene_items:
+        scene_items.append("<article class=\"scene\"><h2>Scene plan</h2><p>Open plan.json for the full storyboard.</p></article>")
+    track = f"<track src=\"{captions}\" kind=\"captions\" srclang=\"en\" label=\"Captions\">" if captions else ""
+    video_block = (
+        f"<video controls playsinline preload=\"metadata\" src=\"{video_src}\">{track}</video>"
+        if video_src
+        else "<div class=\"missing\">Video file is not present in this package.</div>"
+    )
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{title} - NorthStar Share</title>
+  <meta name="description" content="{share_text}">
+  <meta property="og:title" content="{title}">
+  <meta property="og:description" content="{share_text}">
+  <meta property="og:type" content="video.other">
+  {f'<meta property="og:url" content="{share_url}">' if share_url else ''}
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{title}">
+  <meta name="twitter:description" content="{share_text}">
+  {f'<link rel="canonical" href="{share_url}">' if share_url else ''}
+  <style>
+    :root {{ color-scheme: dark; --bg:#0b0f14; --panel:#121923; --line:#243244; --text:#eef4ff; --muted:#9fb0c8; --accent:#6aa9ff; }}
+    * {{ box-sizing:border-box; }}
+    body {{ margin:0; font:15px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background:var(--bg); color:var(--text); }}
+    main {{ width:min(1100px, calc(100vw - 32px)); margin:0 auto; padding:32px 0 48px; }}
+    header {{ display:flex; gap:18px; align-items:flex-end; justify-content:space-between; padding-bottom:18px; border-bottom:1px solid var(--line); }}
+    h1 {{ margin:0; font-size:28px; line-height:1.12; }}
+    h2 {{ margin:4px 0 6px; font-size:16px; }}
+    .meta, .scene-meta, .links, p {{ color:var(--muted); }}
+    .stage {{ margin:22px 0; display:grid; gap:18px; grid-template-columns:minmax(0, 1.35fr) minmax(260px, .65fr); align-items:start; }}
+    video {{ width:100%; border:1px solid var(--line); border-radius:8px; background:#000; }}
+    .panel, .scene {{ border:1px solid var(--line); background:var(--panel); border-radius:8px; padding:14px; }}
+    .scene {{ margin:10px 0; }}
+    .links a {{ color:var(--accent); margin-right:14px; }}
+    .copy {{ white-space:pre-wrap; color:var(--muted); border-top:1px solid var(--line); margin-top:12px; padding-top:12px; }}
+    .missing {{ border:1px dashed var(--line); border-radius:8px; padding:32px; color:var(--muted); }}
+    @media (max-width: 760px) {{ .stage {{ grid-template-columns:1fr; }} header {{ display:block; }} }}
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <div class="meta">NorthStar share package - {job_id}</div>
+        <h1>{title}</h1>
+      </div>
+      <div class="meta">{len(scenes)} scenes{(' - ' + total + 's') if total else ''}</div>
+    </header>
+    <section class="stage">
+      <div>{video_block}</div>
+      <aside class="panel">
+        <h2>Package files</h2>
+        <div class="links">
+          <a href="{video}" download>Video</a>
+          <a href="{plan}">Plan</a>
+          <a href="{code}">Code</a>
+          <a href="manifest.json">Manifest</a>
+          <a href="share-copy.md">Share copy</a>
+        </div>
+        <p>This folder is portable. Keep the files together so the preview, captions, storyboard, and generated code stay linked.</p>
+        {f'<div class="copy">{copy_block}</div>' if copy_block else ''}
+      </aside>
+    </section>
+    <section>
+      <div class="meta">Storyboard</div>
+      {''.join(scene_items)}
+    </section>
+  </main>
+</body>
+</html>
+"""
+
+
+def _share_readme(manifest: Dict[str, Any]) -> str:
+    title = str(manifest.get("title") or "NorthStar render").strip()
+    lines = [
+        f"# {title}",
+        "",
+        "This is a NorthStar share package.",
+        "",
+        "- Open `share.html` for a portable preview page.",
+        "- Use `out.mp4` for upload or publishing.",
+        "- Use `captions.srt` for captions when present.",
+        "- Use `plan.json` and `scene.py` to inspect or continue editing the render.",
+        "- Use `manifest.json` for metadata, storyboard summaries, and automation.",
+        "- Use `share-copy.md` for social captions, hashtags, and a copy-ready post.",
+        "",
+        f"Job ID: {manifest.get('job_id') or ''}",
+        f"Scenes: {manifest.get('scene_count') or 0}",
+        f"Duration: {manifest.get('total_seconds') or ''}",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def _write_share_package(paths, public_base_url: Optional[str] = None) -> Dict[str, Any]:
+    manifest = _share_manifest(paths, public_base_url=public_base_url)
+    (paths.job_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    (paths.job_dir / "share.html").write_text(_share_html(manifest), encoding="utf-8")
+    (paths.job_dir / "README.md").write_text(_share_readme(manifest), encoding="utf-8")
+    (paths.job_dir / "share-copy.md").write_text(_share_copy_markdown(manifest), encoding="utf-8")
+    artifact_files = {
+        "video": paths.out_mp4,
+        "captions": paths.job_dir / "captions.srt",
+        "plan": paths.plan_path,
+        "code": paths.scene_path,
+        "manifest": paths.job_dir / "manifest.json",
+        "share_page": paths.job_dir / "share.html",
+        "share_copy": paths.job_dir / "share-copy.md",
+    }
+    try:
+        store = artifact_store_from_env()
+        published = store.publish_files(job_id=paths.job_id, files=artifact_files)
+    except Exception as exc:
+        manifest["artifact_publish_error"] = str(exc)
+        (paths.job_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        published = {}
+    if published:
+        manifest["remote_artifacts"] = {
+            label: {"key": item.key, "url": item.url, "bytes": item.bytes}
+            for label, item in published.items()
+        }
+        if "video" in published:
+            manifest["video_url"] = published["video"].url
+        (paths.job_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        (paths.job_dir / "share.html").write_text(_share_html(manifest), encoding="utf-8")
+        try:
+            final_published = store.publish_files(
+                job_id=paths.job_id,
+                files={"manifest": paths.job_dir / "manifest.json", "share_page": paths.job_dir / "share.html"},
+            )
+            manifest["remote_artifacts"].update(
+                {
+                    label: {"key": item.key, "url": item.url, "bytes": item.bytes}
+                    for label, item in final_published.items()
+                }
+            )
+            (paths.job_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        except Exception as exc:
+            manifest["artifact_publish_error"] = str(exc)
+            (paths.job_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return manifest
+
+
+def _share_export_files(paths) -> list[Path]:
+    files: list[Path] = [
+        paths.job_dir / "README.md",
+        paths.job_dir / "share-copy.md",
+        paths.job_dir / "share.html",
+        paths.job_dir / "manifest.json",
+        paths.out_mp4,
+        paths.job_dir / "captions.srt",
+        paths.plan_path,
+        paths.scene_path,
+        paths.logs_path,
+        paths.job_dir / "state.json",
+        paths.job_dir / "events.log",
+    ]
+    for dirname in ("assets", "scripts"):
+        folder = paths.job_dir / dirname
+        if not folder.exists():
+            continue
+        for path in sorted(folder.rglob("*")):
+            if path.is_file():
+                files.append(path)
+
+    out: list[Path] = []
+    seen: set[Path] = set()
+    for path in files:
+        try:
+            resolved = path.resolve()
+        except Exception:
+            resolved = path
+        if resolved in seen or not path.exists() or not path.is_file():
+            continue
+        seen.add(resolved)
+        out.append(path)
+    return out
 
 
 def _parse_json(text: str) -> Dict[str, Any]:
@@ -737,7 +1877,44 @@ def _policy_block_reason(*texts: Optional[str]) -> Optional[str]:
     return None
 
 
-def _default_onboarding_steps() -> list[Dict[str, str]]:
+def _default_onboarding_steps(image_mode: str = "generate") -> list[Dict[str, str]]:
+    image_step: Dict[str, str]
+    if image_mode == "manual":
+        image_step = {
+            "id": "images",
+            "target": "#leftVisualsPanel",
+            "title": "Use existing visuals",
+            "body": "Drop your own background and foreground assets into scene cards, or continue text-only until image generation is configured.",
+            "hint": "Explorer -> Optional visuals",
+            "icon_prompt": (
+                "Minimal icon showing asset upload into timeline card, dark matte background, "
+                "subtle blue green accent"
+            ),
+        }
+    elif image_mode == "off":
+        image_step = {
+            "id": "images",
+            "target": "#includeImages",
+            "title": "Skip visuals for now",
+            "body": "Start text-only now. Turn Include images on later when you want background or foreground assets.",
+            "hint": "Explorer -> Optional visuals",
+            "icon_prompt": (
+                "Minimal icon showing an image toggle switched off, dark matte background, "
+                "subtle slate accent"
+            ),
+        }
+    else:
+        image_step = {
+            "id": "images",
+            "target": "#leftVisualsPanel",
+            "title": "Generate image assets",
+            "body": "Create background and foreground variants, then drag the chosen assets into scene cards.",
+            "hint": "Explorer -> Optional visuals",
+            "icon_prompt": (
+                "Minimal icon showing image variants and drag and drop to timeline card, "
+                "dark matte background, subtle green accent"
+            ),
+        }
     return [
         {
             "id": "template",
@@ -754,29 +1931,19 @@ def _default_onboarding_steps() -> list[Dict[str, str]]:
             "id": "plan",
             "target": "#chatInput",
             "title": "Describe the idea",
-            "body": "Type the concept in one line. Gemini will turn it into a scene-by-scene plan.",
+            "body": "Type the concept in one line. NorthStar will turn it into a scene-by-scene plan.",
             "hint": "Right panel -> Prompt box",
             "icon_prompt": (
                 "Minimal line icon of a prompt box with spark cursor, dark matte background, "
                 "electric blue and teal accent"
             ),
         },
-        {
-            "id": "images",
-            "target": "#imageGenDetails",
-            "title": "Generate image assets",
-            "body": "Use Nano Banana to create background and foreground variants, then drag into scene cards.",
-            "hint": "Middle panel -> Image generation",
-            "icon_prompt": (
-                "Minimal icon showing image variants and drag and drop to timeline card, "
-                "dark matte background, subtle green accent"
-            ),
-        },
+        image_step,
         {
             "id": "timeline",
             "target": "#timelineTrack",
             "title": "Refine scenes on the timeline",
-            "body": "Edit each scene focus and duration. Keep one clear concept per scene for readability.",
+            "body": "Edit each scene focus and duration below the large video preview. Keep one clear concept per scene for readability.",
             "hint": "Middle panel -> Timeline",
             "icon_prompt": (
                 "Minimal timeline icon with labeled scene blocks and edit handles, "
@@ -787,7 +1954,7 @@ def _default_onboarding_steps() -> list[Dict[str, str]]:
             "id": "preview",
             "target": "#previewSlot",
             "title": "Approve and render",
-            "body": "Run plan -> code -> render. If a render fails, Gemini diagnoses and retries automatically.",
+            "body": "The preview is the centerpiece. Run plan -> code -> render, then inspect the MP4 and share package.",
             "hint": "Middle panel -> Preview area",
             "icon_prompt": (
                 "Minimal icon for render pipeline plan code render with play symbol, "
@@ -798,7 +1965,7 @@ def _default_onboarding_steps() -> list[Dict[str, str]]:
             "id": "steps",
             "target": "#agentSteps",
             "title": "Track every phase",
-            "body": "Watch Plan, Approve, Code, and Render status. Open details to inspect each phase output.",
+            "body": "Watch Plan, Approve, Code, and Render status while the chat stays visible at the bottom.",
             "hint": "Right panel -> Phase tracker",
             "icon_prompt": (
                 "Minimal icon showing four progress stages with diagnostics panel, "
@@ -1039,6 +2206,7 @@ def _multilingual_script_packs(
     languages: list[str],
     api_key: Optional[str],
     model: Optional[str],
+    provider: Optional[str],
 ) -> dict[str, Any]:
     scenes = list(plan.get("scenes") or [])
     base_lines = [str(sc.get("narration") or "").strip() for sc in scenes]
@@ -1093,6 +2261,7 @@ def _multilingual_script_packs(
             },
             api_key=api_key,
             model=model,
+            provider=provider,
         )
         parsed = _parse_json(raw)
         packs = list(parsed.get("packs") or [])
@@ -1136,6 +2305,7 @@ def _voiceover_script_with_gemini(
     paths,
     api_key: str,
     model: Optional[str],
+    provider: Optional[str],
     chat_context: str,
 ) -> str:
     plan_text = ""
@@ -1166,7 +2336,13 @@ def _voiceover_script_with_gemini(
     user += "Write the final voiceover script now."
 
     try:
-        script = generate_content(user, system_text=system, api_key=api_key, model=model)
+        script = generate_content(
+            user,
+            system_text=system,
+            api_key=api_key,
+            model=model,
+            provider=provider,
+        )
     except Exception:
         script = ""
     return (script or "").strip()
@@ -1220,11 +2396,75 @@ def _add_elevenlabs_voiceover(*, paths, api_key: str, voice_id: str, model_id: O
         return False, ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()[-4000:]
 
     merged_tmp.replace(paths.out_mp4)
+    postprocess_mp4(paths.out_mp4, quality="pqm", logs_path=paths.logs_path)
+    return True, str(paths.out_mp4.relative_to(ROOT))
+
+
+def _add_openai_tts_voiceover(*, paths, api_key: str, voice_id: str, model_id: Optional[str], text: str) -> tuple[bool, str]:
+    if not paths.out_mp4.exists():
+        return False, "Render an MP4 first before adding voiceover."
+    payload_text = (text or "").strip()
+    if not payload_text:
+        return False, "No narration text found. Add captions or scene narration first."
+
+    voice = (voice_id or "marin").strip().lower()
+    if voice not in OPENAI_TTS_VOICES:
+        return False, f"Unsupported OpenAI voice '{voice}'. Use marin, cedar, coral, alloy, or another built-in OpenAI TTS voice."
+    model = (model_id or "gpt-4o-mini-tts").strip()
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    body = {
+        "model": model,
+        "voice": voice,
+        "input": payload_text,
+        "response_format": "mp3",
+        "instructions": "Narrate as a clear educational animation voiceover. Keep pacing calm, precise, and suitable for a short science explainer.",
+    }
+    try:
+        resp = requests.post("https://api.openai.com/v1/audio/speech", headers=headers, json=body, timeout=120)
+        if resp.status_code >= 400:
+            return False, f"OpenAI TTS error {resp.status_code}: {resp.text[:500]}"
+    except Exception as exc:
+        return False, f"OpenAI TTS request failed: {exc}"
+
+    audio_mp3 = paths.job_dir / "voiceover-openai.mp3"
+    audio_mp3.write_bytes(resp.content)
+
+    merged_tmp = paths.job_dir / "out-voiceover.mp4"
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        str(paths.out_mp4),
+        "-i",
+        str(audio_mp3),
+        "-c:v",
+        "copy",
+        "-c:a",
+        "aac",
+        "-shortest",
+        str(merged_tmp),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0 or not merged_tmp.exists():
+        return False, ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()[-4000:]
+
+    merged_tmp.replace(paths.out_mp4)
+    ok, msg = postprocess_mp4(paths.out_mp4, quality="pqm", logs_path=paths.logs_path)
+    if not ok:
+        return False, msg
     return True, str(paths.out_mp4.relative_to(ROOT))
 
 
 @app.get("/")
 def index():
+    return FileResponse(WEB / "landing.html")
+
+
+@app.get("/app")
+def app_index():
     return FileResponse(WEB / "index.html")
 
 
@@ -1232,6 +2472,21 @@ def index():
 def favicon():
     # Browser requests this by default; avoid noisy 404 logs during demos.
     return Response(status_code=204)
+
+
+@app.get("/api/live")
+def live():
+    return {"ok": True, "service": "northstar"}
+
+
+@app.get("/api/healthz")
+def healthz():
+    return live()
+
+
+@app.get("/healthz")
+def root_healthz():
+    return live()
 
 
 def _generate_assets(
@@ -1295,7 +2550,14 @@ def _generate_assets(
                 (assets_dir / name).write_bytes(fg_bytes)
                 fg_rel.append(f"assets/{name}")
     except GeminiError as exc:
-        warning = f"Image generation failed: {exc}"
+        raw = str(exc).strip()
+        if "GEMINI_API_KEY is not set" in raw:
+            warning = (
+                "Image generation skipped: Gemini API key not configured. "
+                "Continuing without generated images."
+            )
+        else:
+            warning = f"Image generation failed: {raw}"
         bg_rel = []
         fg_rel = []
 
@@ -1313,60 +2575,15 @@ def health():
 
 
 def _health_snapshot(settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    import subprocess
     import shutil
 
-    def _run(cmd: list[str], *, timeout_s: float = 10) -> tuple[bool, str]:
-        try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s)
-            ok = proc.returncode == 0
-            out = (proc.stdout or "") + (proc.stderr or "")
-            return ok, out.strip()
-        except Exception as exc:
-            return False, str(exc)
-
     settings = settings or load_settings()
-    manim_py_setting = settings.get("manim_py")
-    candidates: list[str] = []
-    if manim_py_setting:
-        candidates.append(manim_py_setting)
-    venv_py = ROOT / ".venv" / "bin" / "python"
-    if venv_py.exists():
-        candidates.append(str(venv_py))
-    candidates.extend(["python3", "python"])
-    seen = set()
-    candidates = [c for c in candidates if not (c in seen or seen.add(c))]
-
-    def _exists(cmd: str) -> bool:
-        # Filter out non-existent executables so the UI doesn't show confusing
-        # "[Errno 2] No such file or directory: 'python'".
-        try:
-            p = Path(cmd)
-            if p.is_absolute() or "/" in cmd:
-                return p.exists()
-        except Exception:
-            pass
-        return shutil.which(cmd) is not None
-
-    candidates = [c for c in candidates if _exists(c)]
-
-    manim_ok = False
-    manim_out = ""
-    used_py = candidates[0] if candidates else (manim_py_setting or "python3")
-    for cand in candidates:
-        ok, out = _run([cand, "-m", "manim", "--version"])
-        if ok:
-            manim_ok = True
-            manim_out = out
-            used_py = cand
-            break
-        if not manim_out:
-            manim_out = out
+    runtime = _resolve_manim_runtime(settings, probe=True)
 
     ffmpeg_path = shutil.which("ffmpeg")
     if ffmpeg_path:
         # Some builds are surprisingly slow to print version info.
-        ffmpeg_ok, ffmpeg_out = _run([ffmpeg_path, "-version"], timeout_s=20)
+        ffmpeg_ok, ffmpeg_out = _probe_cmd([ffmpeg_path, "-version"], timeout_s=20)
     else:
         ffmpeg_ok, ffmpeg_out = False, "ffmpeg not found on PATH"
     eleven_api = (settings.get("elevenlabs_api_key") or "").strip()
@@ -1374,13 +2591,14 @@ def _health_snapshot(settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any
     eleven_model = (settings.get("elevenlabs_model_id") or "").strip() or "eleven_multilingual_v2"
 
     return {
-        "manim_ok": manim_ok,
-        "manim_version": manim_out.splitlines()[0] if manim_out else "",
+        "manim_ok": bool(runtime.get("manim_ok")),
+        "manim_version": runtime.get("manim_version") or "",
         "ffmpeg_ok": ffmpeg_ok,
         "ffmpeg_version": ffmpeg_out.splitlines()[0] if ffmpeg_out else "",
         "ffmpeg_path": ffmpeg_path or "",
-        "manim_py": used_py or manim_py_setting or "python3",
-        "python_candidates": candidates,
+        "manim_py": runtime.get("manim_py") or "python3",
+        "manim_py_source": runtime.get("manim_py_source") or "",
+        "python_candidates": runtime.get("python_candidates") or [],
         "elevenlabs_ready": bool(eleven_api and eleven_voice),
         "elevenlabs_voice_id": eleven_voice,
         "elevenlabs_model_id": eleven_model,
@@ -1402,22 +2620,84 @@ def _output_path_writable() -> tuple[bool, str]:
         return False, str(exc)
 
 
-def _preflight_payload(settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def _recover_or_fail_interrupted_job(paths, state: JobState) -> JobState:
+    """Surface render workers lost across restarts instead of leaving jobs spinning."""
+    if state.status not in {"running", "repairing"}:
+        return state
+    if job_manager.is_running(paths.job_id):
+        return state
+    if paths.out_mp4.exists():
+        state.status = "done"
+        state.step = "idle"
+        state.message = "Render complete."
+        state.video_path = str(paths.out_mp4)
+        state.updated_at = time.time()
+        write_state(paths.job_dir, state)
+        append_event(
+            paths.job_dir,
+            type_="state",
+            payload={"status": state.status, "step": state.step, "message": state.message},
+        )
+        return state
+
+    last_update = float(state.updated_at or 0.0)
+    if last_update >= APP_STARTED_AT and (time.time() - last_update) < STALE_JOB_SECONDS:
+        return state
+
+    state.status = "failed"
+    state.message = "Failed."
+    state.error = (
+        "Render interrupted before completion. The server restarted or the worker stopped "
+        "before writing out.mp4."
+    )
+    state.diagnosis = (
+        "This job was marked running, but no render worker is active in the current process. "
+        "Create a new plan or approve this plan again to restart the render."
+    )
+    state.retry_result = "interrupted"
+    state.updated_at = time.time()
+    write_state(paths.job_dir, state)
+    append_event(
+        paths.job_dir,
+        type_="state",
+        payload={"status": state.status, "step": state.step, "error": state.error},
+    )
+    try:
+        with paths.logs_path.open("a", encoding="utf-8") as f:
+            f.write("\n\n=== interrupted worker ===\n")
+            f.write(state.error + "\n")
+    except Exception:
+        pass
+    return state
+
+
+def _preflight_payload(
+    settings: Optional[Dict[str, Any]] = None,
+    *,
+    require_api_key: bool = True,
+    require_render_runtime: bool = True,
+) -> Dict[str, Any]:
     settings = settings or load_settings()
-    health_data = _health_snapshot(settings)
-    api_ok = bool((settings.get("api_key") or "").strip())
+    health_data = _health_snapshot(settings) if require_render_runtime else {}
+    text_provider, text_api_key, text_model = _text_generation_settings(settings)
+    api_ok = bool((text_api_key or "").strip())
     write_ok, write_error = _output_path_writable()
     checks = {
-        "api_key": api_ok,
-        "manim": bool(health_data.get("manim_ok")),
-        "ffmpeg": bool(health_data.get("ffmpeg_ok")),
         "output_writable": write_ok,
     }
+    if require_render_runtime:
+        checks = {
+            "manim": bool(health_data.get("manim_ok")),
+            "ffmpeg": bool(health_data.get("ffmpeg_ok")),
+            **checks,
+        }
+    if require_api_key:
+        checks = {"api_key": api_ok, **checks}
     missing = [name for name, ok in checks.items() if not ok]
     fix_action = ""
-    if not checks["api_key"]:
+    if require_api_key and not checks.get("api_key"):
         fix_action = "open_settings_api"
-    elif not checks["manim"] or not checks["ffmpeg"]:
+    elif require_render_runtime and (not checks["manim"] or not checks["ffmpeg"]):
         fix_action = "open_settings_render_get_started"
     elif not checks["output_writable"]:
         fix_action = "check_output_permissions"
@@ -1428,8 +2708,21 @@ def _preflight_payload(settings: Optional[Dict[str, Any]] = None) -> Dict[str, A
         "output_root": str(JOBS),
         "write_error": write_error,
         "fix_action": fix_action,
+        "text_provider": text_provider,
+        "text_model": text_model,
         "health": health_data,
     }
+
+
+def _render_manim_py(settings: Dict[str, Any], preflight: Optional[Dict[str, Any]] = None) -> str:
+    """Use the same Manim Python that passed health/preflight probing."""
+    health_data = (preflight or {}).get("health") if isinstance(preflight, dict) else None
+    if isinstance(health_data, dict) and health_data.get("manim_ok") and health_data.get("manim_py"):
+        return str(health_data["manim_py"])
+    runtime = _resolve_manim_runtime(settings, probe=True)
+    if runtime.get("manim_ok") and runtime.get("manim_py"):
+        return str(runtime["manim_py"])
+    return str(_resolve_manim_runtime(settings, probe=False).get("manim_py") or "python3")
 
 
 @app.get("/api/preflight")
@@ -1440,25 +2733,19 @@ def preflight():
 @app.get("/api/settings")
 def get_settings():
     settings = load_settings()
-    return {
-        "has_api_key": bool(settings.get("api_key")),
-        "text_model": settings.get("text_model"),
-        "image_model": settings.get("image_model"),
-        "manim_py": settings.get("manim_py"),
-        "output_copy_dir": settings.get("output_copy_dir") or "",
-        "has_elevenlabs_key": bool(settings.get("elevenlabs_api_key")),
-        "elevenlabs_voice_id": settings.get("elevenlabs_voice_id") or "",
-        "elevenlabs_model_id": settings.get("elevenlabs_model_id") or "",
-        "project_root": str(ROOT),
-        "work_root": str(WORK),
-    }
+    return _settings_payload(settings)
 
 
 @app.post("/api/settings")
 def set_settings(req: SettingsReq):
+    provider = (req.text_provider or "").strip().lower() or None
+    if provider not in {None, "openai", "gemini"}:
+        provider = DEFAULT_TEXT_PROVIDER
     settings = update_settings(
         {
             "api_key": req.api_key,
+            "openai_api_key": req.openai_api_key,
+            "text_provider": provider,
             "text_model": req.text_model,
             "image_model": req.image_model,
             "manim_py": req.manim_py,
@@ -1468,24 +2755,146 @@ def set_settings(req: SettingsReq):
             "elevenlabs_model_id": req.elevenlabs_model_id,
         }
     )
+    return {"ok": True, **_settings_payload(settings)}
+
+
+@app.get("/api/connectors")
+def get_connectors():
+    settings = load_settings()
+    enabled = settings.get("enabled_connector_ids")
+    if not isinstance(enabled, list):
+        enabled = []
+    return {"ok": True, "connectors": connector_catalog(enabled)}
+
+
+@app.post("/api/connectors")
+def set_connectors(req: ConnectorSelectionReq):
+    allowed = {item["id"] for item in connector_catalog([])}
+    enabled = [cid for cid in req.enabled_connector_ids if cid in allowed]
+    settings = update_settings({"enabled_connector_ids": enabled})
     return {
         "ok": True,
-        "has_api_key": bool(settings.get("api_key")),
-        "text_model": settings.get("text_model"),
-        "image_model": settings.get("image_model"),
-        "manim_py": settings.get("manim_py"),
-        "output_copy_dir": settings.get("output_copy_dir") or "",
-        "has_elevenlabs_key": bool(settings.get("elevenlabs_api_key")),
-        "elevenlabs_voice_id": settings.get("elevenlabs_voice_id") or "",
-        "elevenlabs_model_id": settings.get("elevenlabs_model_id") or "",
+        "enabled_connector_ids": settings.get("enabled_connector_ids") or [],
+        "connectors": connector_catalog(settings.get("enabled_connector_ids") or []),
+        "context": connector_context(settings.get("enabled_connector_ids") or []),
     }
 
 
-@app.post("/api/terminal/run")
-def terminal_run(req: TerminalReq):
+@app.get("/api/connectors/context")
+def get_connector_context():
+    settings = load_settings()
+    enabled = settings.get("enabled_connector_ids")
+    if not isinstance(enabled, list):
+        enabled = []
+    return {"ok": True, **connector_context(enabled)}
+
+
+@app.get("/api/billing/status")
+def billing_status(request: Request, response: Response):
+    user_id = _get_or_create_user_id(request, response)
+    return {"ok": True, **_billing_status_for_user(user_id)}
+
+
+@app.post("/api/billing/checkout")
+def billing_checkout(req: BillingCheckoutReq, request: Request, response: Response):
+    user_id = _get_or_create_user_id(request, response)
+    pack = _credit_pack(req.pack_price_usd)
+    if not pack:
+        return JSONResponse({"ok": False, "error": "Unknown credit pack."}, status_code=400)
+    try:
+        session = _create_stripe_checkout_session(request=request, user_id=user_id, pack=pack)
+    except ValueError as exc:
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": str(exc),
+                "billing": _billing_status_for_user(user_id),
+            },
+            status_code=400,
+        )
+    return {
+        "ok": True,
+        "checkout_session_id": session.get("id"),
+        "url": session.get("url"),
+        "pack": {
+            "price_usd": int(pack["price_usd"]),
+            "video_credits": int(pack["video_credits"]),
+            "label": pack["label"],
+        },
+    }
+
+
+@app.post("/api/billing/webhook")
+async def billing_webhook(request: Request):
+    endpoint_secret = _stripe_webhook_secret()
+    if not endpoint_secret:
+        return JSONResponse({"ok": False, "error": "STRIPE_WEBHOOK_SECRET is not configured."}, status_code=400)
+
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature") or request.headers.get("Stripe-Signature") or ""
+    if not _verify_stripe_signature(payload, sig_header, endpoint_secret):
+        return JSONResponse({"ok": False, "error": "Invalid Stripe signature."}, status_code=400)
+
+    try:
+        event = json.loads(payload.decode("utf-8"))
+    except json.JSONDecodeError:
+        return JSONResponse({"ok": False, "error": "Invalid Stripe payload."}, status_code=400)
+
+    result: Dict[str, Any] = {"ignored": True}
+    event_type = str(event.get("type") or "")
+    if event_type == "checkout.session.completed":
+        try:
+            result = _apply_checkout_completed(event)
+        except ValueError as exc:
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+    return {"ok": True, "event_type": event_type, "result": result}
+
+
+@app.get("/api/terminal/status")
+def terminal_status(request: Request):
+    enabled = _terminal_enabled_for_request(request)
+    return {
+        "ok": True,
+        "terminal_enabled": enabled,
+        "mode": "local_terminal" if enabled else "hosted_diagnostics",
+        "diagnostics": ["all", "manim", "ffmpeg", "disk", "jobs"],
+        "message": (
+            "Local terminal is available for localhost developer sessions."
+            if enabled
+            else "Hosted mode disables arbitrary terminal commands. Use fixed diagnostics instead."
+        ),
+    }
+
+
+@app.post("/api/diagnostics/run")
+def diagnostics_run(req: DiagnosticsReq):
     settings = load_settings()
     try:
-        out = run_terminal_command(req.command, manim_py=settings.get("manim_py") or "python3")
+        runtime = _resolve_manim_runtime(settings, probe=False)
+        out = run_diagnostic_check(req.check, manim_py=runtime.get("manim_py") or "python3")
+        return {"ok": True, "check": req.check, "output": out}
+    except TerminalError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+
+@app.post("/api/terminal/run")
+def terminal_run(req: TerminalReq, request: Request):
+    if not _terminal_enabled_for_request(request):
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": (
+                    "Hosted mode disables arbitrary terminal commands. "
+                    "Use /api/diagnostics/run for health, Manim, ffmpeg, disk, and job probes."
+                ),
+            },
+            status_code=403,
+        )
+    settings = load_settings()
+    try:
+        runtime = _resolve_manim_runtime(settings, probe=False)
+        out = run_terminal_command(req.command, manim_py=runtime.get("manim_py") or "python3")
         return {"ok": True, "output": out}
     except TerminalError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
@@ -1625,8 +3034,7 @@ def docs_index(req: SourceIndexReq):
         )
     kind, video_id = _normalize_source_kind(url, req.source_type)
     settings = load_settings()
-    api_key = settings.get("api_key")
-    text_model = req.model or settings.get("text_model")
+    text_provider, api_key, text_model = _text_generation_settings(settings, req.model)
 
     index_notes = notes
     yt_title: Optional[str] = None
@@ -1674,6 +3082,7 @@ def docs_index(req: SourceIndexReq):
             video_id=video_id,
             api_key=api_key,
             model=text_model,
+            provider=text_provider,
         )
         title = str(indexed.get("title", "")).strip()
         summary = str(indexed.get("summary", "")).strip()
@@ -1794,8 +3203,10 @@ def upload_job_asset(req: UploadJobAssetReq):
 
     if not blob:
         return JSONResponse({"ok": False, "error": "Decoded file is empty"}, status_code=400)
-    if len(blob) > 10 * 1024 * 1024:
-        return JSONResponse({"ok": False, "error": "File is too large (max 10MB)"}, status_code=413)
+    upload_limit = max_upload_bytes()
+    if len(blob) > upload_limit:
+        limit_mb = max(1, upload_limit // (1024 * 1024))
+        return JSONResponse({"ok": False, "error": f"File is too large (max {limit_mb}MB)"}, status_code=413)
 
     suffix = Path(req.filename or "").suffix.lower()
     if suffix not in {".png", ".jpg", ".jpeg", ".webp"}:
@@ -1858,13 +3269,19 @@ def generate_skill(payload: Dict[str, Any]):
     if not idea:
         return JSONResponse({"ok": False, "error": "Idea required"}, status_code=400)
     settings = load_settings()
-    api_key = settings.get("api_key")
+    text_provider, api_key, text_model = _text_generation_settings(settings)
     system = (
         "You write concise Markdown instructions for a custom skill. "
         "Return ONLY Markdown. Start with a short title line."
     )
     try:
-        text = generate_content(idea, system_text=system, api_key=api_key)
+        text = generate_content(
+            idea,
+            system_text=system,
+            api_key=api_key,
+            model=text_model,
+            provider=text_provider,
+        )
         skill = save_skill(name, text)
         return {"ok": True, "skill": skill}
     except GeminiError as exc:
@@ -1896,8 +3313,7 @@ def gemini_refine(req: GeminiRefineReq):
         return JSONResponse({"ok": False, "error": reason}, status_code=400)
 
     settings = load_settings()
-    api_key = settings.get("api_key")
-    text_model = req.model or settings.get("text_model")
+    text_provider, api_key, text_model = _text_generation_settings(settings, req.model)
 
     schema = {
         "type": "OBJECT",
@@ -1938,10 +3354,11 @@ def gemini_refine(req: GeminiRefineReq):
             },
             api_key=api_key,
             model=text_model,
+            provider=text_provider,
         )
         obj = _parse_json(out)
     except (GeminiError, json.JSONDecodeError) as exc:
-        return JSONResponse({"ok": False, "error": f"Gemini refine failed: {exc}"}, status_code=400)
+        return JSONResponse({"ok": False, "error": f"Model refine failed: {exc}"}, status_code=400)
 
     return {
         "ok": True,
@@ -1961,18 +3378,26 @@ def onboarding_quickstart(req: OnboardingReq):
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
 
     settings = load_settings()
-    api_key = settings.get("api_key")
-    text_model = req.model or settings.get("text_model")
+    text_provider, text_api_key, text_model = _text_generation_settings(settings, req.model)
+    gemini_api_key = settings.get("api_key") or os.environ.get("GEMINI_API_KEY")
     image_model = req.image_model or settings.get("image_model")
+    include_images = True if req.include_images is None else bool(req.include_images)
+    image_mode = "off" if not include_images else ("generate" if gemini_api_key else "manual")
 
-    steps = _default_onboarding_steps()
+    steps = _default_onboarding_steps(image_mode=image_mode)
     intro_title = "NorthStar quick tour"
     intro_body = "Follow the highlights to go from idea to rendered explainer in under a minute."
     outro_title = "You are ready to create"
-    outro_body = "Press Create plan, generate assets, approve, and render your first scene."
+    outro_body = "Press Create plan, add visuals if needed, approve, and render your first scene."
+    if image_mode == "manual":
+        intro_body = "Follow the highlights to go from idea to rendered explainer. Use your own visuals if needed, or continue text-only."
+        outro_body = "Press Create plan, add your own visuals if needed, approve, and render your first scene."
+    elif image_mode == "off":
+        intro_body = "Follow the highlights to go from idea to rendered explainer. Start text-only and add visuals later if needed."
+        outro_body = "Press Create plan, approve, and render your first scene. Turn visuals on later when you want them."
     warnings: list[str] = []
 
-    if api_key:
+    if text_api_key:
         schema = {
             "type": "OBJECT",
             "properties": {
@@ -1997,13 +3422,23 @@ def onboarding_quickstart(req: OnboardingReq):
             },
             "required": ["intro_title", "intro_body", "outro_title", "outro_body", "steps"],
         }
-        targets = [step["target"] for step in _default_onboarding_steps()]
+        targets = [step["target"] for step in _default_onboarding_steps(image_mode=image_mode)]
         user = (
             "Write a concise, premium onboarding walkthrough for a Manim creator studio.\n"
             "Audience: "
             + audience
             + "\n"
             + ("Current user intent:\n" + prompt + "\n\n" if prompt else "")
+            + (
+                "Current image workflow: image generation is ready, so the guide can tell the user to generate visuals.\n\n"
+                if image_mode == "generate"
+                else (
+                    "Current image workflow: include images is on, but image generation is not configured. "
+                    "The guide should recommend existing visuals or text-only rendering instead of generated images.\n\n"
+                    if image_mode == "manual"
+                    else "Current image workflow: include images is off. The guide should not tell the user to generate images.\n\n"
+                )
+            )
             + "Use exactly six steps mapped to these targets in order:\n"
             + "\n".join([f"{idx + 1}. {target}" for idx, target in enumerate(targets)])
             + "\n\n"
@@ -2012,6 +3447,7 @@ def onboarding_quickstart(req: OnboardingReq):
             + "- body (max 24 words)\n"
             + "- hint (max 6 words)\n"
             + "- icon_prompt (max 20 words)\n"
+            + "Do not mention unavailable providers.\n"
             + "Return strict JSON only."
         )
         try:
@@ -2025,8 +3461,9 @@ def onboarding_quickstart(req: OnboardingReq):
                     "response_mime_type": "application/json",
                     "response_schema": schema,
                 },
-                api_key=api_key,
+                api_key=text_api_key,
                 model=text_model,
+                provider=text_provider,
             )
             obj = _parse_json(out)
             intro_title = str(obj.get("intro_title") or intro_title).strip()[:120]
@@ -2035,9 +3472,9 @@ def onboarding_quickstart(req: OnboardingReq):
             outro_body = str(obj.get("outro_body") or outro_body).strip()[:260]
             steps = _normalize_onboarding_steps(obj.get("steps"))
         except (GeminiError, json.JSONDecodeError, ValueError) as exc:
-            warnings.append(f"Gemini onboarding copy fallback: {exc}")
+            warnings.append(f"Model onboarding copy fallback: {exc}")
     else:
-        warnings.append("GEMINI_API_KEY is not set; using built-in onboarding copy and placeholders.")
+        warnings.append("Text API key is not set; using built-in onboarding copy and placeholders.")
 
     tour_id = f"{int(time.time())}-{secrets.token_hex(4)}"
     tour_dir = WORK / "onboarding" / tour_id
@@ -2045,13 +3482,13 @@ def onboarding_quickstart(req: OnboardingReq):
 
     for idx, step in enumerate(steps, start=1):
         step["icon_url"] = ""
-        if not api_key:
+        if not gemini_api_key:
             continue
         icon_prompt = str(step.get("icon_prompt") or "").strip()
         if not icon_prompt:
             continue
         try:
-            img = generate_image(icon_prompt, model=image_model, api_key=api_key)
+            img = generate_image(icon_prompt, model=image_model, api_key=gemini_api_key)
             out_path = tour_dir / f"step-{idx}.png"
             out_path.write_bytes(img)
             step["icon_url"] = f"/work/onboarding/{tour_id}/{out_path.name}"
@@ -2097,8 +3534,7 @@ def plan(req: PlanReq):
     paths.job_dir.mkdir(parents=True, exist_ok=True)
 
     settings = load_settings()
-    api_key = settings.get("api_key")
-    text_model = req.model or settings.get("text_model")
+    text_provider, api_key, text_model = _text_generation_settings(settings, req.model)
 
     try:
         plan_text = generate_content(
@@ -2110,8 +3546,15 @@ def plan(req: PlanReq):
             },
             api_key=api_key,
             model=text_model,
+            provider=text_provider,
         )
         plan_obj = _parse_json(plan_text)
+        plan_obj = _normalize_plan_for_render(
+            plan_obj,
+            max_scenes=req.max_scenes,
+            max_objects=req.max_objects,
+            target_seconds=req.target_seconds,
+        )
         paths.plan_path.write_text(json.dumps(plan_obj, indent=2), encoding="utf-8")
     except (GeminiError, json.JSONDecodeError) as exc:
         return JSONResponse(
@@ -2142,7 +3585,7 @@ def plan(req: PlanReq):
 
 
 @app.post("/api/approve")
-def approve(req: ApproveReq):
+def approve(req: ApproveReq, request: Request, response: Response):
     try:
         _ = _bounded_text("plan_text", req.plan_text, max_len=180000, required=True)
         _ = _bounded_text("image_prompt", req.image_prompt, max_len=1200, required=False)
@@ -2153,9 +3596,13 @@ def approve(req: ApproveReq):
     paths.job_dir.mkdir(parents=True, exist_ok=True)
     if job_manager.is_running(req.job_id):
         return {"ok": True, "job_id": req.job_id, "status": "already_running"}
+    billing_user_id, billing_error = _require_render_credits(request, response)
+    if billing_error:
+        return billing_error
 
     settings = load_settings()
-    preflight = _preflight_payload(settings)
+    queue_enabled = render_mode() == "queue"
+    preflight = _preflight_payload(settings, require_render_runtime=not queue_enabled)
     if not preflight.get("ok"):
         return JSONResponse(
             {
@@ -2166,24 +3613,13 @@ def approve(req: ApproveReq):
             },
             status_code=400,
         )
-    api_key = settings.get("api_key")
-    text_model = req.model or settings.get("text_model")
-    manim_py = settings.get("manim_py")
-    if manim_py:
-        # If the user saved "python" on macOS (often missing), don't hard-fail renders.
-        import shutil
-        from pathlib import Path as _Path
-
-        try:
-            p = _Path(str(manim_py))
-            exists = (p.exists() if (p.is_absolute() or "/" in str(manim_py)) else False) or (shutil.which(str(manim_py)) is not None)
-        except Exception:
-            exists = False
-        if not exists:
-            manim_py = None
+    text_provider, api_key, text_model = _text_generation_settings(settings, req.model)
+    image_api_key = settings.get("api_key") or os.environ.get("GEMINI_API_KEY")
+    manim_py = _render_manim_py(settings, preflight) if not queue_enabled else None
 
     try:
         plan_obj = _parse_json(req.plan_text)
+        plan_obj = _normalize_plan_for_render(plan_obj)
         paths.plan_path.write_text(json.dumps(plan_obj, indent=2), encoding="utf-8")
     except json.JSONDecodeError as exc:
         return JSONResponse(
@@ -2193,15 +3629,23 @@ def approve(req: ApproveReq):
 
     # Describe any pre-generated assets already present on disk (created via /api/images/generate).
     assets_description = ""
+    image_warning: Optional[str] = None
     bg_candidates = sorted((paths.job_dir / "assets").glob("background*.png"))
     fg_candidates = sorted((paths.job_dir / "assets").glob("foreground*.png"))
-    if not bg_candidates and not fg_candidates and req.include_images and req.image_prompt and req.image_prompt.strip():
+    if (
+        not queue_enabled
+        and not bg_candidates
+        and not fg_candidates
+        and req.include_images
+        and req.image_prompt
+        and req.image_prompt.strip()
+    ):
         try:
-            bg_rel, fg_rel, _warning, desc = _generate_assets(
+            bg_rel, fg_rel, image_warning, desc = _generate_assets(
                 job_dir=paths.job_dir,
                 image_prompt=req.image_prompt,
                 image_mode=req.image_mode,
-                api_key=api_key,
+                api_key=image_api_key,
                 image_model=req.image_model or settings.get("image_model"),
                 variants=max(1, int(req.image_variants or 1)),
             )
@@ -2218,12 +3662,12 @@ def approve(req: ApproveReq):
             fg_rel = str(fg_candidates[0].relative_to(paths.job_dir))
             assets_description += f"- foreground: {fg_rel} (small prop/character in lower third)\n"
 
-    # Mark planned state and kick off async approve worker.
+    # Mark state and kick off async approve worker or durable queue worker.
     st = JobState(
         job_id=req.job_id,
-        status="running",
+        status="queued" if queue_enabled else "running",
         step="code",
-        message="Queued…",
+        message="Queued for worker." if queue_enabled else "Queued…",
         updated_at=__import__("time").time(),
         plan_path=str(paths.plan_path),
         scene_path=str(paths.scene_path),
@@ -2231,21 +3675,48 @@ def approve(req: ApproveReq):
     )
     write_state(paths.job_dir, st)
     append_event(paths.job_dir, type_="state", payload={"status": st.status, "step": st.step, "message": st.message})
+    if billing_user_id:
+        _record_job_owner(paths.job_dir, billing_user_id)
 
-    job_manager.start_approve(
-        job_id=req.job_id,
-        job_dir=paths.job_dir,
-        plan_obj=plan_obj,
-        plan_text=req.plan_text,
-        assets_description=assets_description,
-        render_settings=_render_settings_ratio(req.aspect_ratio),
-        quality=req.quality,
-        manim_py=manim_py,
-        api_key=api_key,
-        text_model=text_model,
-    )
+    render_settings = _render_settings_ratio(req.aspect_ratio)
+    if queue_enabled:
+        enqueue_render_job(
+            {
+                "job_id": req.job_id,
+                "plan_obj": plan_obj,
+                "plan_text": req.plan_text,
+                "assets_description": assets_description,
+                "render_settings": render_settings,
+                "aspect_ratio": req.aspect_ratio,
+                "quality": req.quality,
+                "model": text_model,
+                "text_provider": text_provider,
+                "include_images": req.include_images,
+                "image_prompt": req.image_prompt,
+                "image_mode": req.image_mode,
+                "image_variants": req.image_variants,
+                "image_model": req.image_model,
+            }
+        )
+    else:
+        job_manager.start_approve(
+            job_id=req.job_id,
+            job_dir=paths.job_dir,
+            plan_obj=plan_obj,
+            plan_text=req.plan_text,
+            assets_description=assets_description,
+            render_settings=render_settings,
+            quality=req.quality,
+            manim_py=manim_py,
+            api_key=api_key,
+            text_model=text_model,
+            text_provider=text_provider,
+        )
 
-    return {"ok": True, "job_id": req.job_id}
+    response = {"ok": True, "job_id": req.job_id, "render_mode": "queue" if queue_enabled else "inline"}
+    if image_warning:
+        response["image_warning"] = image_warning
+    return response
 
 
 @app.get("/api/jobs/{job_id}")
@@ -2254,6 +3725,7 @@ def job_status(job_id: str):
     if not paths.job_dir.exists():
         return JSONResponse({"ok": False, "job_id": job_id, "error": "Unknown job_id"}, status_code=404)
     st = load_state(paths.job_dir, job_id)
+    st = _recover_or_fail_interrupted_job(paths, st)
     resp: Dict[str, Any] = {
         "ok": True,
         "job_id": job_id,
@@ -2267,8 +3739,44 @@ def job_status(job_id: str):
         "retry_result": st.retry_result,
         "running": job_manager.is_running(job_id),
     }
+    if st.status == "queued":
+        try:
+            pos = queued_position(job_id)
+            if pos is not None:
+                resp["queue_position"] = pos
+        except Exception:
+            pass
+        try:
+            remote = completed_job_payload(job_id)
+        except Exception:
+            remote = None
+        if remote:
+            final_state = remote.get("final_state") if isinstance(remote.get("final_state"), dict) else {}
+            if final_state:
+                resp.update(
+                    {
+                        "status": final_state.get("status") or resp["status"],
+                        "step": final_state.get("step") or resp["step"],
+                        "message": final_state.get("message") or resp["message"],
+                        "updated_at": final_state.get("updated_at") or resp["updated_at"],
+                        "error": final_state.get("error") or "",
+                        "diagnosis": final_state.get("diagnosis") or resp["diagnosis"],
+                    }
+                )
+            artifacts = remote.get("artifacts") if isinstance(remote.get("artifacts"), dict) else {}
+            published = artifacts.get("published") if isinstance(artifacts.get("published"), dict) else {}
+            if published:
+                resp["remote_artifacts"] = published
+                video = published.get("video") if isinstance(published.get("video"), dict) else {}
+                if video.get("url"):
+                    resp["video_url"] = video["url"]
+            resp["queue_result_key"] = remote.get("queue_result_key")
     if paths.out_mp4.exists():
         resp["video_path"] = str(paths.out_mp4.relative_to(ROOT))
+    if st.status == "done" and paths.out_mp4.exists():
+        billing = _settle_render_credit(job_id, paths.job_dir)
+        if billing:
+            resp["billing"] = billing
     if paths.scene_path.exists():
         resp["code"] = paths.scene_path.read_text(encoding="utf-8")
     if paths.plan_path.exists():
@@ -2280,7 +3788,7 @@ def job_status(job_id: str):
     captions = paths.job_dir / "captions.srt"
     if captions.exists():
         resp["captions_path"] = str(captions.relative_to(ROOT))
-    resp["job_files"] = _job_files(paths) + ([str(captions.relative_to(ROOT))] if captions.exists() else [])
+    resp["job_files"] = _job_files(paths)
     return resp
 
 
@@ -2296,6 +3804,7 @@ def job_events(job_id: str):
     def gen():
         # Initial state snapshot.
         st = load_state(paths.job_dir, job_id)
+        st = _recover_or_fail_interrupted_job(paths, st)
         yield f"event: state\ndata: {_json.dumps({'status': st.status, 'step': st.step, 'message': st.message, 'error': st.error})}\n\n"
 
         log_pos = 0
@@ -2339,6 +3848,7 @@ def job_events(job_id: str):
                     if mt != state_mtime:
                         state_mtime = mt
                         st = load_state(paths.job_dir, job_id)
+                        st = _recover_or_fail_interrupted_job(paths, st)
                         yield f"event: state\ndata: {_json.dumps({'status': st.status, 'step': st.step, 'message': st.message, 'error': st.error})}\n\n"
                         if st.status in {"done", "failed"}:
                             break
@@ -2351,24 +3861,38 @@ def job_events(job_id: str):
 
 
 @app.get("/api/jobs/{job_id}/download")
-def job_download(job_id: str):
+def job_download(job_id: str, request: Request):
     import zipfile
 
     paths = job_paths(JOBS, job_id)
     if not paths.job_dir.exists():
         return JSONResponse({"ok": False, "job_id": job_id, "error": "Unknown job_id"}, status_code=404)
 
+    _write_share_package(paths, public_base_url=_public_base_url(request))
     zip_path = paths.job_dir / "export.zip"
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        for p in paths.job_dir.rglob("*"):
-            if p.is_dir():
-                continue
-            # Avoid zipping the zip itself while writing.
-            if p.name == zip_path.name:
-                continue
+        for p in _share_export_files(paths):
             zf.write(p, arcname=str(p.relative_to(paths.job_dir)))
 
     return FileResponse(zip_path, filename=f"{job_id}.zip")
+
+
+@app.get("/api/jobs/{job_id}/share-page")
+def job_share_page(job_id: str, request: Request):
+    paths = job_paths(JOBS, job_id)
+    if not paths.job_dir.exists():
+        return JSONResponse({"ok": False, "job_id": job_id, "error": "Unknown job_id"}, status_code=404)
+    _write_share_package(paths, public_base_url=_public_base_url(request))
+    return FileResponse(paths.job_dir / "share.html", media_type="text/html")
+
+
+@app.get("/api/jobs/{job_id}/share-metadata")
+def job_share_metadata(job_id: str, request: Request):
+    paths = job_paths(JOBS, job_id)
+    if not paths.job_dir.exists():
+        return JSONResponse({"ok": False, "job_id": job_id, "error": "Unknown job_id"}, status_code=404)
+    manifest = _write_share_package(paths, public_base_url=_public_base_url(request))
+    return {"ok": True, "manifest": manifest, "social": manifest.get("social") or {}}
 
 
 @app.post("/api/jobs/{job_id}/copy-output")
@@ -2384,16 +3908,21 @@ def copy_job_output(job_id: str):
 def add_voiceover(job_id: str, req: Optional[VoiceoverReq] = None):
     req = req or VoiceoverReq()
     settings = load_settings()
-    api_key = (settings.get("elevenlabs_api_key") or "").strip()
+    provider = (req.provider or "").strip().lower()
     voice_id = (req.voice_id or settings.get("elevenlabs_voice_id") or "").strip()
     model_id = (req.model_id or settings.get("elevenlabs_model_id") or "").strip() or None
-    gemini_key = (settings.get("api_key") or "").strip()
-    gemini_model = settings.get("text_model")
+    if not provider:
+        provider = "openai" if ((voice_id or "").lower() in OPENAI_TTS_VOICES or str(model_id or "").startswith("gpt-")) else "elevenlabs"
+    api_key = (settings.get("openai_api_key") or os.getenv("OPENAI_API_KEY") or "").strip() if provider == "openai" else (settings.get("elevenlabs_api_key") or "").strip()
+    text_provider, text_api_key, text_model = _text_generation_settings(settings)
+    if provider == "openai" and not voice_id:
+        voice_id = "marin"
     if not api_key or not voice_id:
+        provider_name = "OpenAI" if provider == "openai" else "ElevenLabs"
         return JSONResponse(
             {
                 "ok": False,
-                "error": "Configure ElevenLabs API key and Voice ID in Settings first.",
+                "error": f"Configure {provider_name} API key and Voice ID in Settings first.",
             },
             status_code=400,
         )
@@ -2410,11 +3939,12 @@ def add_voiceover(job_id: str, req: Optional[VoiceoverReq] = None):
         text = _srt_to_plain_text(paths.job_dir / "captions.srt")
         if not text:
             text = _voiceover_text_from_plan(paths)
-        if req.use_gemini_script and gemini_key:
+        if req.use_gemini_script and text_api_key:
             text = _voiceover_script_with_gemini(
                 paths=paths,
-                api_key=gemini_key,
-                model=gemini_model,
+                api_key=text_api_key,
+                model=text_model,
+                provider=text_provider,
                 chat_context=chat_context if req.include_chat_context else "",
             ) or text
 
@@ -2428,18 +3958,28 @@ def add_voiceover(job_id: str, req: Optional[VoiceoverReq] = None):
     if not text:
         return JSONResponse({"ok": False, "error": "No narration text available for voiceover."}, status_code=400)
 
-    ok, msg = _add_elevenlabs_voiceover(
-        paths=paths,
-        api_key=api_key,
-        voice_id=voice_id,
-        model_id=model_id,
-        text=text,
-    )
+    if provider == "openai":
+        ok, msg = _add_openai_tts_voiceover(
+            paths=paths,
+            api_key=api_key,
+            voice_id=voice_id,
+            model_id=model_id,
+            text=text,
+        )
+    else:
+        ok, msg = _add_elevenlabs_voiceover(
+            paths=paths,
+            api_key=api_key,
+            voice_id=voice_id,
+            model_id=model_id,
+            text=text,
+        )
     if not ok:
         return JSONResponse({"ok": False, "error": msg}, status_code=400)
     return {
         "ok": True,
         "video_path": msg,
+        "voice_provider": provider,
         "voice_id": voice_id,
         "model_id": model_id or "",
         "job_files": _job_files(paths),
@@ -2460,14 +4000,14 @@ def build_script_packs(job_id: str, req: Optional[ScriptPackReq] = None):
         return JSONResponse({"ok": False, "error": f"Invalid plan JSON: {exc}"}, status_code=400)
 
     settings = load_settings()
-    api_key = settings.get("api_key")
-    model = req.model or settings.get("text_model")
+    text_provider, api_key, model = _text_generation_settings(settings, req.model)
     languages = [str(x).strip().lower() for x in (req.languages or []) if str(x).strip()]
     packs_data = _multilingual_script_packs(
         plan=plan,
         languages=languages,
         api_key=api_key,
         model=model,
+        provider=text_provider,
     )
 
     scripts_dir = paths.job_dir / "scripts"
@@ -2502,7 +4042,7 @@ def build_script_packs(job_id: str, req: Optional[ScriptPackReq] = None):
 
 
 @app.post("/api/crazy-run")
-def crazy_run(req: CrazyRunReq):
+def crazy_run(req: CrazyRunReq, request: Request, response: Response):
     try:
         idea = _bounded_text("idea", req.idea, max_len=6000, required=True)
         _ = _bounded_text(
@@ -2531,23 +4071,16 @@ def crazy_run(req: CrazyRunReq):
             status_code=400,
         )
 
-    api_key = settings.get("api_key")
-    text_model = req.model or settings.get("text_model")
+    text_provider, api_key, text_model = _text_generation_settings(settings, req.model)
+    image_api_key = settings.get("api_key") or os.environ.get("GEMINI_API_KEY")
     image_model = req.image_model or settings.get("image_model")
-    manim_py = settings.get("manim_py")
-    if manim_py:
-        import shutil
-        from pathlib import Path as _Path
-
-        try:
-            p = _Path(str(manim_py))
-            exists = (p.exists() if (p.is_absolute() or "/" in str(manim_py)) else False) or (shutil.which(str(manim_py)) is not None)
-        except Exception:
-            exists = False
-        if not exists:
-            manim_py = None
+    manim_py = _render_manim_py(settings, preflight)
 
     count = max(1, min(5, int(req.variants or 3)))
+    billing_user_id, billing_error = _require_render_credits(request, response, amount=count)
+    if billing_error:
+        return billing_error
+
     variant_briefs = [
         "Variant focus: hook-first, energetic pacing, minimal equations.",
         "Variant focus: visual analogy-first, smooth pacing, strong intuition.",
@@ -2558,11 +4091,14 @@ def crazy_run(req: CrazyRunReq):
 
     jobs_by_index: list[Optional[Dict[str, Any]]] = [None] * count
     errors: list[str] = []
+    warnings: list[str] = []
 
-    def run_variant(i: int) -> tuple[int, Optional[Dict[str, Any]], Optional[str]]:
+    def run_variant(i: int) -> tuple[int, Optional[Dict[str, Any]], Optional[str], Optional[str]]:
         job_id = new_job_id()
         paths = job_paths(JOBS, job_id)
         paths.job_dir.mkdir(parents=True, exist_ok=True)
+        if billing_user_id:
+            _record_job_owner(paths.job_dir, billing_user_id)
         try:
             brief = _build_director_brief(req) + "\n" + variant_briefs[i % len(variant_briefs)]
             plan_text = generate_content(
@@ -2574,17 +4110,25 @@ def crazy_run(req: CrazyRunReq):
                 },
                 api_key=api_key,
                 model=text_model,
+                provider=text_provider,
             )
             plan_obj = _parse_json(plan_text)
+            plan_obj = _normalize_plan_for_render(
+                plan_obj,
+                max_scenes=req.max_scenes,
+                max_objects=req.max_objects,
+                target_seconds=req.target_seconds,
+            )
             paths.plan_path.write_text(json.dumps(plan_obj, indent=2), encoding="utf-8")
 
             assets_description = ""
+            image_warning: Optional[str] = None
             if req.include_images and req.image_prompt and req.image_prompt.strip():
-                bg_rel, fg_rel, _warning, desc = _generate_assets(
+                bg_rel, fg_rel, image_warning, desc = _generate_assets(
                     job_dir=paths.job_dir,
                     image_prompt=req.image_prompt,
                     image_mode=req.image_mode,
-                    api_key=api_key,
+                    api_key=image_api_key,
                     image_model=image_model,
                     variants=max(1, int(req.image_variants or 1)),
                 )
@@ -2618,6 +4162,7 @@ def crazy_run(req: CrazyRunReq):
                 manim_py=manim_py,
                 api_key=api_key,
                 text_model=text_model,
+                text_provider=text_provider,
             )
             return (
                 i,
@@ -2628,24 +4173,28 @@ def crazy_run(req: CrazyRunReq):
                     "plan": plan_obj,
                     "plan_text": json.dumps(plan_obj, indent=2),
                     "job_files": _job_files(paths),
+                    "image_warning": image_warning,
                 },
                 None,
+                image_warning,
             )
         except Exception as exc:
-            return (i, None, f"Variant {i + 1}: {exc}")
+            return (i, None, f"Variant {i + 1}: {exc}", None)
 
     max_workers = max(1, min(count, 5))
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = [pool.submit(run_variant, i) for i in range(count)]
         for fut in concurrent.futures.as_completed(futures):
             try:
-                idx, payload, err = fut.result()
+                idx, payload, err, warning = fut.result()
             except Exception as exc:
                 errors.append(f"Variant worker failed: {exc}")
                 continue
             if err:
                 errors.append(err)
                 continue
+            if warning:
+                warnings.append(f"Variant {idx + 1}: {warning}")
             if payload is not None and 0 <= idx < len(jobs_by_index):
                 jobs_by_index[idx] = payload
 
@@ -2656,7 +4205,7 @@ def crazy_run(req: CrazyRunReq):
             {"ok": False, "error": "Crazy mode failed.", "errors": errors},
             status_code=500,
         )
-    return {"ok": True, "jobs": jobs, "errors": errors}
+    return {"ok": True, "jobs": jobs, "errors": errors, "warnings": warnings}
 
 
 @app.post("/api/jobs/append")
@@ -2771,7 +4320,7 @@ def cut_job_video_range(job_id: str, req: CutRangeReq):
 
 
 @app.post("/api/animate")
-def animate(req: AnimateReq):
+def animate(req: AnimateReq, request: Request, response: Response):
     try:
         idea = _bounded_text("idea", req.idea, max_len=6000, required=True)
         _ = _bounded_text(
@@ -2791,12 +4340,28 @@ def animate(req: AnimateReq):
     job_id = new_job_id()
     paths = job_paths(JOBS, job_id)
     paths.job_dir.mkdir(parents=True, exist_ok=True)
+    billing_user_id, billing_error = _require_render_credits(request, response)
+    if billing_error:
+        return billing_error
+    if billing_user_id:
+        _record_job_owner(paths.job_dir, billing_user_id)
     image_warning: Optional[str] = None
     settings = load_settings()
-    api_key = settings.get("api_key")
-    text_model = settings.get("text_model")
+    preflight = _preflight_payload(settings)
+    if not preflight.get("ok"):
+        return JSONResponse(
+            {
+                "ok": False,
+                "job_id": job_id,
+                "error": "Preflight failed. Open Settings and run Get started.",
+                "preflight": preflight,
+            },
+            status_code=400,
+        )
+    text_provider, api_key, text_model = _text_generation_settings(settings)
+    image_api_key = settings.get("api_key") or os.environ.get("GEMINI_API_KEY")
     image_model = req.image_model or settings.get("image_model")
-    manim_py = settings.get("manim_py")
+    manim_py = _render_manim_py(settings, preflight)
 
     # 1) Plan
     try:
@@ -2809,6 +4374,7 @@ def animate(req: AnimateReq):
             },
             api_key=api_key,
             model=text_model,
+            provider=text_provider,
         )
         plan = _parse_json(plan_text)
         paths.plan_path.write_text(json.dumps(plan, indent=2), encoding="utf-8")
@@ -2832,7 +4398,7 @@ def animate(req: AnimateReq):
                 job_dir=paths.job_dir,
                 image_prompt=req.image_prompt,
                 image_mode=req.image_mode,
-                api_key=api_key,
+                api_key=image_api_key,
                 image_model=image_model,
                 variants=max(1, int(req.image_variants or 1)),
             )
@@ -2852,8 +4418,27 @@ def animate(req: AnimateReq):
             system_text=MANIM_CODE_SYSTEM,
             api_key=api_key,
             model=text_model,
+            provider=text_provider,
         )
         code = sanitize_manim_code(code)
+        safety_issues = manim_render_safety_issues(code)
+        if safety_issues:
+            paths.logs_path.write_text(
+                "=== code safety preflight ===\n"
+                "Generated Manim code exceeded the hosted render budget.\n"
+                + "\n".join(f"- {issue}" for issue in safety_issues[:8])
+                + "\n",
+                encoding="utf-8",
+            )
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "job_id": job_id,
+                    "error": "Code safety preflight failed: " + "; ".join(safety_issues[:3]),
+                    "plan": plan,
+                },
+                status_code=400,
+            )
         paths.scene_path.write_text(code, encoding="utf-8")
     except (GeminiError, CodeSanitizationError) as exc:
         return JSONResponse(
@@ -2886,7 +4471,13 @@ def animate(req: AnimateReq):
             "Return a fixed full python file."
         )
         try:
-            code2 = generate_content(repair_user, system_text=REPAIR_SYSTEM, api_key=api_key)
+            code2 = generate_content(
+                repair_user,
+                system_text=REPAIR_SYSTEM,
+                api_key=api_key,
+                model=text_model,
+                provider=text_provider,
+            )
             code2 = sanitize_manim_code(code2)
             paths.scene_path.write_text(code2, encoding="utf-8")
             ok, logs = render_with_manim(
@@ -2928,6 +4519,9 @@ def animate(req: AnimateReq):
         "code": paths.scene_path.read_text(encoding="utf-8"),
         "job_files": _job_files(paths),
     }
+    billing = _settle_render_credit(job_id, paths.job_dir)
+    if billing:
+        response["billing"] = billing
     if image_warning:
         response["image_warning"] = image_warning
     if bg_rel or fg_rel:
@@ -2941,10 +4535,15 @@ def animate(req: AnimateReq):
 
 
 @app.post("/api/render-code")
-def render_code(req: RenderCodeReq):
+def render_code(req: RenderCodeReq, request: Request, response: Response):
     job_id = new_job_id()
     paths = job_paths(JOBS, job_id)
     paths.job_dir.mkdir(parents=True, exist_ok=True)
+    billing_user_id, billing_error = _require_render_credits(request, response)
+    if billing_error:
+        return billing_error
+    if billing_user_id:
+        _record_job_owner(paths.job_dir, billing_user_id)
 
     # If the user edits code, keep it mostly as-is, but normalize tabs/trailing whitespace.
     try:
@@ -2954,13 +4553,43 @@ def render_code(req: RenderCodeReq):
             {"ok": False, "job_id": job_id, "error": f"Invalid code: {exc}"},
             status_code=400,
         )
+    safety_issues = manim_render_safety_issues(clean_code)
+    if safety_issues:
+        paths.logs_path.write_text(
+            "=== code safety preflight ===\n"
+            "Edited code exceeded the hosted render budget.\n"
+            + "\n".join(f"- {issue}" for issue in safety_issues[:8])
+            + "\n",
+            encoding="utf-8",
+        )
+        return JSONResponse(
+            {
+                "ok": False,
+                "job_id": job_id,
+                "error": "Code safety preflight failed: " + "; ".join(safety_issues[:3]),
+                "logs": paths.logs_path.read_text(encoding="utf-8"),
+            },
+            status_code=400,
+        )
     paths.scene_path.write_text(clean_code, encoding="utf-8")
     settings = load_settings()
+    preflight = _preflight_payload(settings, require_api_key=False)
+    if not preflight.get("ok"):
+        return JSONResponse(
+            {
+                "ok": False,
+                "job_id": job_id,
+                "error": "Render preflight failed. Open Settings and run Get started.",
+                "preflight": preflight,
+            },
+            status_code=400,
+        )
+    manim_py = _render_manim_py(settings, preflight)
     ok, logs = render_with_manim(
         paths.scene_path,
         paths.out_mp4,
         quality=req.quality,
-        manim_py=settings.get("manim_py"),
+        manim_py=manim_py,
     )
     paths.logs_path.write_text(logs, encoding="utf-8")
 
@@ -2975,10 +4604,14 @@ def render_code(req: RenderCodeReq):
             status_code=500,
         )
 
-    return {
+    result = {
         "ok": True,
         "job_id": job_id,
         "video_path": str(paths.out_mp4.relative_to(ROOT)),
         "logs": logs,
         "job_files": _job_files(paths),
     }
+    billing = _settle_render_credit(job_id, paths.job_dir)
+    if billing:
+        result["billing"] = billing
+    return result

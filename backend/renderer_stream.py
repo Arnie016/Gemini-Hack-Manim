@@ -7,6 +7,8 @@ import shutil
 from pathlib import Path
 from typing import Optional
 
+from .video_postprocess import postprocess_mp4
+
 
 def render_with_manim_stream(
     *,
@@ -85,7 +87,8 @@ def render_with_manim_stream(
     if proc.returncode != 0:
         return False
     if out_mp4.exists():
-        return True
+        ok, _ = postprocess_mp4(out_mp4, quality=quality, logs_path=logs_path)
+        return ok
     # Manim may place the final movie under media_dir/videos/... even when -o is provided.
     candidates = sorted(
         out_mp4.parent.glob(f"videos/**/{out_mp4.name}"),
@@ -95,4 +98,7 @@ def render_with_manim_stream(
     if candidates:
         out_mp4.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(candidates[0], out_mp4)
-    return out_mp4.exists()
+    if not out_mp4.exists():
+        return False
+    ok, _ = postprocess_mp4(out_mp4, quality=quality, logs_path=logs_path)
+    return ok

@@ -1,0 +1,79 @@
+{
+  "producthunt": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "videoCodec": "libx264",
+    "audioCodec": "aac",
+    "videoBitrate": "10M",
+    "maxDuration": 90,
+    "safeArea": { "top": 96, "right": 120, "bottom": 120, "left": 120 },
+    "caption": { "maxCharsPerLine": 42, "maxLines": 2, "position": "bottom" }
+  },
+  "x_landscape": {
+    "width": 1280,
+    "height": 720,
+    "fps": 30,
+    "videoCodec": "libx264",
+    "audioCodec": "aac",
+    "videoBitrate": "8M",
+    "maxDuration": 140,
+    "safeArea": { "top": 72, "right": 96, "bottom": 96, "left": 96 },
+    "caption": { "maxCharsPerLine": 38, "maxLines": 2, "position": "bottom" }
+  },
+  "youtube_short": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30,
+    "videoCodec": "libx264",
+    "audioCodec": "aac",
+    "videoBitrate": "12M",
+    "maxDuration": 60,
+    "safeArea": { "top": 180, "right": 72, "bottom": 260, "left": 72 },
+    "caption": { "maxCharsPerLine": 28, "maxLines": 2, "position": "lower_third" }
+  },
+  "tiktok": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30,
+    "videoCodec": "libx264",
+    "audioCodec": "aac",
+    "videoBitrate": "12M",
+    "maxDuration": 60,
+    "safeArea": { "top": 180, "right": 88, "bottom": 300, "left": 88 },
+    "caption": { "maxCharsPerLine": 26, "maxLines": 2, "position": "lower_third" }
+  },
+  "linkedin": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "videoCodec": "libx264",
+    "audioCodec": "aac",
+    "videoBitrate": "8M",
+    "maxDuration": 120,
+    "safeArea": { "top": 96, "right": 120, "bottom": 140, "left": 120 },
+    "caption": { "maxCharsPerLine": 44, "maxLines": 2, "position": "bottom" }
+  },
+  "square": {
+    "width": 1080,
+    "height": 1080,
+    "fps": 30,
+    "videoCodec": "libx264",
+    "audioCodec": "aac",
+    "videoBitrate": "10M",
+    "maxDuration": 90,
+    "safeArea": { "top": 96, "right": 96, "bottom": 140, "left": 96 },
+    "caption": { "maxCharsPerLine": 32, "maxLines": 2, "position": "bottom" }
+  },
+  "youtube": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "videoCodec": "libx264",
+    "audioCodec": "aac",
+    "videoBitrate": "12M",
+    "maxDuration": 600,
+    "safeArea": { "top": 96, "right": 120, "bottom": 120, "left": 120 },
+    "caption": { "maxCharsPerLine": 46, "maxLines": 2, "position": "bottom" }
+  }
+}

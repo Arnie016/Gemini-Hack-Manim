@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://northstarstudio.io/schemas/codex-cut-asset-memory.json",
+  "title": "Codex Cut Asset Memory",
+  "type": "object",
+  "required": ["version", "brand"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "type": "string", "const": "0.1" },
+    "brand": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "colors": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
+        },
+        "fonts": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "logoPaths": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "captionStyle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tone": { "type": "string" },
+        "case": { "type": "string", "enum": ["sentence", "title", "all_caps"] },
+        "maxCharsPerLine": { "type": "integer", "minimum": 12, "maximum": 64 },
+        "preferredPosition": { "type": "string" }
+      }
+    },
+    "audioStyle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "musicMood": { "type": "string" },
+        "targetLufs": { "type": "number" },
+        "sfxIntensity": { "type": "string", "enum": ["none", "subtle", "medium", "high"] }
+      }
+    },
+    "thumbnailStyle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "composition": { "type": "string" },
+        "background": { "type": "string" },
+        "headlinePattern": { "type": "string" }
+      }
+    },
+    "exportDefaults": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["producthunt", "x_landscape", "youtube_short", "tiktok", "linkedin", "square", "youtube"]
+      }
+    },
+    "priorPatterns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["label", "notes"],
+        "additionalProperties": false,
+        "properties": {
+          "label": { "type": "string" },
+          "notes": { "type": "string" },
+          "exampleTimeline": { "type": "string" }
+        }
+      }
+    }
+  }
+}

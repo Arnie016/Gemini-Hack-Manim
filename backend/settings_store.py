@@ -26,6 +26,12 @@ def save_settings(settings: Dict[str, Any]) -> None:
 
 def update_settings(patch: Dict[str, Any]) -> Dict[str, Any]:
     settings = load_settings()
-    settings.update({k: v for k, v in patch.items() if v is not None})
+    for key, value in patch.items():
+        if value is None:
+            continue
+        if isinstance(value, str) and value == "":
+            settings.pop(key, None)
+            continue
+        settings[key] = value
     save_settings(settings)
     return settings

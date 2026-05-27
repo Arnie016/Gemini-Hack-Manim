@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional
 @dataclass
 class JobState:
     job_id: str
-    status: str  # created|planned|running|repairing|done|failed
+    status: str  # created|planned|queued|running|repairing|done|failed
     step: str  # plan|images|code|render|repair|idle
     message: str = ""
     updated_at: float = 0.0
@@ -19,6 +19,9 @@ class JobState:
     scene_path: str = ""
     logs_path: str = ""
     error: str = ""
+    diagnosis: str = ""
+    code_diff: str = ""
+    retry_result: str = ""
 
 
 def state_path(job_dir: Path) -> Path:
@@ -48,6 +51,9 @@ def load_state(job_dir: Path, job_id: str) -> JobState:
         scene_path=str(data.get("scene_path") or ""),
         logs_path=str(data.get("logs_path") or ""),
         error=str(data.get("error") or ""),
+        diagnosis=str(data.get("diagnosis") or ""),
+        code_diff=str(data.get("code_diff") or ""),
+        retry_result=str(data.get("retry_result") or ""),
     )
 
 
@@ -67,6 +73,9 @@ def write_state(job_dir: Path, state: JobState) -> None:
                 "scene_path": state.scene_path,
                 "logs_path": state.logs_path,
                 "error": state.error,
+                "diagnosis": state.diagnosis,
+                "code_diff": state.code_diff,
+                "retry_result": state.retry_result,
             },
             indent=2,
         ),
@@ -83,4 +92,3 @@ def append_event(job_dir: Path, *, type_: str, payload: Optional[Dict[str, Any]]
     }
     with events_path(job_dir).open("a", encoding="utf-8") as f:
         f.write(json.dumps(ev) + "\n")
-

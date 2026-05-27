@@ -1,0 +1,62 @@
+{
+  "version": "0.1",
+  "project": {
+    "slug": "producthunt",
+    "title": "Product Hunt Launch",
+    "description": "A launch video that explains the product in under a minute.",
+    "brand": {
+      "colors": ["#FF6154", "#6BA8FF", "#0B1020"],
+      "fontFamily": "Inter, system-ui, sans-serif"
+    }
+  },
+  "duration": 50,
+  "fps": 30,
+  "sources": [],
+  "tracks": [
+    {
+      "id": "titles",
+      "type": "overlay",
+      "items": [
+        {
+          "id": "ph-title",
+          "kind": "title",
+          "start": 0,
+          "duration": 5,
+          "text": "Launch faster with a video pipeline Codex can edit."
+        }
+      ]
+    },
+    {
+      "id": "captions",
+      "type": "caption",
+      "items": [
+        {
+          "id": "ph-cap-1",
+          "kind": "caption",
+          "start": 8,
+          "duration": 7,
+          "text": "Record the product once. Ship five platform-ready cuts."
+        },
+        {
+          "id": "ph-cap-2",
+          "kind": "caption",
+          "start": 32,
+          "duration": 8,
+          "text": "Every clip, caption, zoom, and export lives in code."
+        }
+      ]
+    }
+  ],
+  "beats": [
+    { "time": 0, "label": "Hook" },
+    { "time": 7, "label": "Demo" },
+    { "time": 30, "label": "Differentiator" },
+    { "time": 43, "label": "CTA" }
+  ],
+  "exports": [
+    { "preset": "producthunt", "filename": "producthunt-launch.mp4", "burnCaptions": true, "thumbnailAt": 1.5 }
+  ],
+  "qa": {
+    "checks": ["blank_frames", "caption_contrast", "caption_safe_area", "crop_safety", "export_dimensions"]
+  }
+}

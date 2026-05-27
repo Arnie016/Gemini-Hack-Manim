@@ -1,0 +1,148 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://northstarstudio.io/schemas/codex-cut-timeline.json",
+  "title": "Codex Cut Timeline",
+  "type": "object",
+  "required": ["version", "project", "duration", "tracks", "exports"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "type": "string", "const": "0.1" },
+    "project": {
+      "type": "object",
+      "required": ["slug", "title"],
+      "additionalProperties": false,
+      "properties": {
+        "slug": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "title": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "brand": { "$ref": "#/definitions/brand" }
+      }
+    },
+    "duration": { "type": "number", "exclusiveMinimum": 0 },
+    "fps": { "type": "integer", "minimum": 12, "maximum": 120, "default": 30 },
+    "sources": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/source" },
+      "default": []
+    },
+    "tracks": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/track" }
+    },
+    "beats": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/beat" },
+      "default": []
+    },
+    "exports": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/exportTarget" }
+    },
+    "qa": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sampleTimestamps": {
+          "type": "array",
+          "items": { "type": "number", "minimum": 0 }
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["blank_frames", "caption_contrast", "caption_safe_area", "crop_safety", "audio_peaks", "export_dimensions"]
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "brand": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "colors": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
+        },
+        "fontFamily": { "type": "string" },
+        "logo": { "type": "string" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": ["id", "path", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "path": { "type": "string" },
+        "type": { "type": "string", "enum": ["video", "audio", "image", "screen", "caption", "data"] },
+        "duration": { "type": "number", "minimum": 0 },
+        "metadata": { "type": "object" }
+      }
+    },
+    "track": {
+      "type": "object",
+      "required": ["id", "type", "items"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["video", "audio", "caption", "overlay", "effect"] },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/item" }
+        }
+      }
+    },
+    "item": {
+      "type": "object",
+      "required": ["id", "start", "duration", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "type": "string", "enum": ["clip", "caption", "title", "image", "zoom", "transition", "sfx", "music", "shape"] },
+        "start": { "type": "number", "minimum": 0 },
+        "duration": { "type": "number", "exclusiveMinimum": 0 },
+        "sourceId": { "type": "string" },
+        "text": { "type": "string" },
+        "style": { "type": "object" },
+        "transform": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" },
+            "scale": { "type": "number", "exclusiveMinimum": 0 },
+            "rotate": { "type": "number" },
+            "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        },
+        "easing": { "type": "string" },
+        "notes": { "type": "string" }
+      }
+    },
+    "beat": {
+      "type": "object",
+      "required": ["time", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "time": { "type": "number", "minimum": 0 },
+        "label": { "type": "string" },
+        "intent": { "type": "string" }
+      }
+    },
+    "exportTarget": {
+      "type": "object",
+      "required": ["preset"],
+      "additionalProperties": false,
+      "properties": {
+        "preset": { "type": "string" },
+        "filename": { "type": "string" },
+        "burnCaptions": { "type": "boolean", "default": false },
+        "thumbnailAt": { "type": "number", "minimum": 0 }
+      }
+    }
+  }
+}

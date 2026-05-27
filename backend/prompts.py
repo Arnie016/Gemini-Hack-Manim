@@ -5,9 +5,14 @@ Return ONLY valid JSON that matches the schema.
 Constraints:
 - Keep scenes coherent and focused (1 main idea per scene).
 - Avoid overcrowding; follow max_objects if provided.
+- Prefer 3-6 scenes for hosted rendering unless the user explicitly requests fewer.
+- Keep each scene short and concrete; do not add extra sub-scenes.
 - Use clear, short narration text per scene.
 - Include a strong hook, a clear core explanation, and a concise recap.
 - Ensure total_seconds equals the sum of scene seconds.
+- If the creator provides source files, notes, or LaTeX snippets, ground the plan in those specifics instead of inventing facts.
+- Put supplied equations into the relevant scene elements/actions as short renderable snippets.
+- If a scene has source_notes, use them as grounding/context; do not copy long source text directly onto the screen.
 """
 
 SCENE_PLAN_SCHEMA = {
@@ -25,6 +30,7 @@ SCENE_PLAN_SCHEMA = {
                     "elements": {"type": "ARRAY", "items": {"type": "STRING"}},
                     "actions": {"type": "ARRAY", "items": {"type": "STRING"}},
                     "narration": {"type": "STRING"},
+                    "source_notes": {"type": "ARRAY", "items": {"type": "STRING"}},
                 },
                 "required": ["seconds", "goal", "elements", "actions", "narration"],
             },
@@ -51,8 +57,13 @@ Rules:
 - No network calls, no reading external files.
 - Use reliable primitives: Text, Dot, Arrow, Axes, NumberPlane, ValueTracker, always_redraw, Circle, Rectangle, Line, VGroup.
 - You may use simple animations: FadeIn, FadeOut, Create, Write, Transform, LaggedStart.
+- Keep render complexity low: no 3D scenes, no dense particle systems, no nested updaters, no more than one ValueTracker per scene.
+- Do not use ThreeDScene, ThreeDAxes, Surface, StreamLines, VectorField, add_updater, file/network access, or loops that create dozens of objects.
+- Prefer a small number of clearly animated objects over many decorative objects.
+- Target preview-safe timing; avoid long waits and avoid more than 6 animations per scene.
 - ImageMobject is allowed when assets are provided.
-- Prefer Text over LaTeX (avoid MathTex unless necessary).
+- Prefer Text for labels, but use short MathTex expressions when the creator supplied LaTeX or the plan explicitly calls for equations.
+- Keep MathTex blocks small and isolated; do not generate long aligned derivations unless the source specifically requires it.
 - Do NOT do FadeOut(VGroup(*self.mobjects)) because self.mobjects may include non-VMobject items like ValueTracker.
 - If clearing the scene, fade out only visible VMobjects (for example: FadeOut(*[m for m in self.mobjects if isinstance(m, Mobject)]) ) or keep explicit groups.
 """
@@ -74,6 +85,7 @@ def manim_code_user_prompt(
         f"{settings_block}"
         "Use assets only if provided. Keep image usage simple (background fill, small prop).\n"
         "If the plan includes per-scene assets (e.g. scene.assets.background/foreground), apply them only in that scene.\n"
+        "If the plan includes per-scene source_notes, use them to choose accurate labels, equations, and narration, but keep on-screen text short.\n"
     )
 
 
@@ -82,6 +94,7 @@ Rules:
 - Output ONLY python code (no markdown, no backticks).
 - Define exactly: class GeneratedScene(Scene):
 - No network calls, no reading external files.
-- Prefer Text over LaTeX (avoid MathTex unless necessary).
+- Prefer Text for labels; use short MathTex only for supplied equations or essential mathematical notation.
 - Avoid VGroup on non-VMobject inputs; ValueTracker must not be packed into VGroup.
+- Do not introduce 3D scenes, updater-heavy code, dense object loops, file reads, network calls, or large Tex/MathTex blocks.
 """

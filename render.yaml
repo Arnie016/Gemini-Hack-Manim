@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: northstar-manim
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeploy: true
+    healthCheckPath: /api/live
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRICE_9
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: APP_URL
+        value: https://northstarstudio.io
+      - key: CANONICAL_HOST
+        value: northstarstudio.io
+      - key: NORTHSTAR_FREE_VIDEO_CREDITS
+        value: "3"
+    disk:
+      name: northstar-work
+      mountPath: /app/work
+      sizeGB: 10
